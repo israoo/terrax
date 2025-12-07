@@ -3,10 +3,10 @@ package tui
 // UI Layout Constants
 const (
 	// Column layout
-	ColumnOverhead    = 8 // Total overhead for both columns (borders, padding, spacing)
-	ColumnPadding     = 4 // Padding within each column
-	ColumnBorderWidth = 2 // Border width for each column
-	NumberOfColumns   = 2 // Total number of columns in the UI
+	ColumnOverhead    = 8  // Total overhead per column (borders, padding, spacing)
+	ColumnPadding     = 4  // Padding within each column
+	ColumnBorderWidth = 2  // Border width for each column
+	MinColumnWidth    = 20 // Minimum width for a column
 
 	// Header
 	HeaderHeight    = 1
@@ -19,6 +19,12 @@ const (
 	FirstItemIndex = 0 // Index of the first item in a list
 )
 
+// Column types
+const (
+	CommandColumnType = iota
+	NavigationColumnType
+)
+
 // Key bindings
 const (
 	KeyUp    = "up"
@@ -28,6 +34,7 @@ const (
 	KeyEnter = "enter"
 	KeyCtrlC = "ctrl+c"
 	KeyQ     = "q"
+	KeyEsc   = "esc"
 
 	// Vim-style navigation
 	KeyH = "h"
@@ -41,6 +48,8 @@ const (
 	AppTitle       = "Terrax - Terra eXecutor"
 	CommandsTitle  = "Commands"
 	StacksTitle    = "Stacks"
-	HelpText       = "↑↓/jk: navigate | ←→/hl: change column | enter: confirm | q: quit"
+	HelpText       = "↑↓/jk: navigate | ←→/hl: change column | enter: select/confirm | q: quit"
 	NoItemSelected = "None"
+	Initializing   = "Initializing..."
+	ScanningStacks = "Scanning stacks..."
 )

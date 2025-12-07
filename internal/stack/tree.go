@@ -1,0 +1,168 @@
+package stack
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+)
+
+// Node represents a directory node in the stack tree
+type Node struct {
+	Name     string  // Directory name
+	Path     string  // Full path
+	IsStack  bool    // True if contains terragrunt.hcl
+	Children []*Node // Child directories
+	Depth    int     // Depth level in the tree
+}
+
+// FindAndBuildTree scans the filesystem starting from rootDir and builds a tree structure.
+// It returns the root node, maximum depth, and any error encountered.
+func FindAndBuildTree(rootDir string) (*Node, int, error) {
+	if rootDir == "" {
+		return nil, 0, fmt.Errorf("root directory cannot be empty")
+	}
+
+	// Resolve absolute path
+	absPath, err := filepath.Abs(rootDir)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to resolve absolute path: %w", err)
+	}
+
+	// Verify directory exists and is accessible
+	info, err := os.Stat(absPath)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to access directory: %w", err)
+	}
+	if !info.IsDir() {
+		return nil, 0, fmt.Errorf("%s is not a directory", absPath)
+	}
+
+	// Build the tree starting from root
+	root := &Node{
+		Name:     filepath.Base(absPath),
+		Path:     absPath,
+		IsStack:  isStackDirectory(absPath),
+		Children: make([]*Node, 0),
+		Depth:    0,
+	}
+
+	maxDepth := 0
+	if err := buildTreeRecursive(root, &maxDepth); err != nil {
+		return nil, 0, fmt.Errorf("failed to build tree: %w", err)
+	}
+
+	return root, maxDepth, nil
+}
+
+// buildTreeRecursive recursively builds the tree structure
+func buildTreeRecursive(node *Node, maxDepth *int) error {
+	entries, err := os.ReadDir(node.Path)
+	if err != nil {
+		// Skip directories we can't read (permission issues, etc.)
+		return nil
+	}
+
+	for _, entry := range entries {
+		// Skip non-directories and hidden directories
+		if !entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
+			continue
+		}
+
+		// Skip common non-stack directories
+		if shouldSkipDirectory(entry.Name()) {
+			continue
+		}
+
+		childPath := filepath.Join(node.Path, entry.Name())
+		childNode := &Node{
+			Name:     entry.Name(),
+			Path:     childPath,
+			IsStack:  isStackDirectory(childPath),
+			Children: make([]*Node, 0),
+			Depth:    node.Depth + 1,
+		}
+
+		// Update max depth
+		if childNode.Depth > *maxDepth {
+			*maxDepth = childNode.Depth
+		}
+
+		// Recursively build children
+		if err := buildTreeRecursive(childNode, maxDepth); err != nil {
+			continue // Skip problematic subdirectories
+		}
+
+		node.Children = append(node.Children, childNode)
+	}
+
+	return nil
+}
+
+// isStackDirectory checks if a directory contains stack definition files
+func isStackDirectory(dirPath string) bool {
+	// Check for Terragrunt
+	if _, err := os.Stat(filepath.Join(dirPath, "terragrunt.hcl")); err == nil {
+		return true
+	}
+
+	return false
+}
+
+// shouldSkipDirectory returns true for directories that should be skipped during scanning
+func shouldSkipDirectory(name string) bool {
+	skipList := []string{
+		".git",
+		".terraform",
+		".terragrunt-cache",
+		"vendor",
+		".idea",
+		".vscode",
+	}
+
+	for _, skip := range skipList {
+		if name == skip {
+			return true
+		}
+	}
+
+	return false
+}
+
+// GetChildren returns the child nodes of this node
+func (n *Node) GetChildren() []*Node {
+	if n == nil {
+		return nil
+	}
+	return n.Children
+}
+
+// HasChildren returns true if the node has children
+func (n *Node) HasChildren() bool {
+	return n != nil && len(n.Children) > 0
+}
+
+// GetChildNames returns a slice of child node names
+func (n *Node) GetChildNames() []string {
+	if !n.HasChildren() {
+		return []string{}
+	}
+
+	names := make([]string, len(n.Children))
+	for i, child := range n.Children {
+		marker := ""
+		if child.IsStack {
+			marker = " 📦"
+		}
+		names[i] = child.Name + marker
+	}
+	return names
+}
+
+// FindChildByIndex returns the child node at the given index
+func (n *Node) FindChildByIndex(index int) *Node {
+	if !n.HasChildren() || index < 0 || index >= len(n.Children) {
+		return nil
+	}
+	return n.Children[index]
+}
