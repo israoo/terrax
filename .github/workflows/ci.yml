@@ -17,12 +17,11 @@ env:
   SARIF_FORMAT: "sarif"
   SECURITY_SEVERITY: "HIGH,CRITICAL"
   TRIVY_SARIF_FILE: "trivy-results.sarif"
-  UBUNTU_VERSION: "ubuntu-24.04"
 
 jobs:
   lint:
     name: Code linting
-    runs-on: ${{ env.UBUNTU_VERSION }}
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -40,7 +39,7 @@ jobs:
 
   security:
     name: Security scans
-    runs-on: ${{ env.UBUNTU_VERSION }}
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -127,7 +126,7 @@ jobs:
   coverage_report:
     name: Coverage Report
     needs: build_test
-    runs-on: ${{ env.UBUNTU_VERSION }}
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
