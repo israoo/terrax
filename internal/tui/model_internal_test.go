@@ -23,7 +23,7 @@ var testCommands = []string{
 // TestModel_Init tests the Bubble Tea Init method.
 func TestModel_Init(t *testing.T) {
 	root := &stack.Node{Name: "root", Path: "/test"}
-	model := NewModel(root, 1, testCommands)
+	model := NewModel(root, 1, testCommands, 3)
 
 	cmd := model.Init()
 
@@ -192,8 +192,9 @@ func TestModel_CalculateColumnWidth(t *testing.T) {
 			nav := stack.NewNavigator(root, tt.maxDepth)
 
 			m := Model{
-				navigator: nav,
-				width:     tt.width,
+				navigator:            nav,
+				width:                tt.width,
+				maxNavigationColumns: 3,
 			}
 
 			result := m.calculateColumnWidth()
@@ -207,7 +208,7 @@ func TestModel_CalculateColumnWidth(t *testing.T) {
 // TestModel_HandleWindowResize tests window resize message handling.
 func TestModel_HandleWindowResize(t *testing.T) {
 	root := &stack.Node{Name: "root"}
-	model := NewModel(root, 1, testCommands)
+	model := NewModel(root, 1, testCommands, 3)
 
 	assert.False(t, model.ready, "model should not be ready initially")
 
@@ -424,25 +425,25 @@ func TestModel_HandleKeyPress(t *testing.T) {
 		{
 			name:         "ctrl+c quits",
 			key:          KeyCtrlC,
-			initialModel: NewModel(root, 1, testCommands),
+			initialModel: NewModel(root, 1, testCommands, 3),
 			expectQuit:   true,
 		},
 		{
 			name:         "q quits",
 			key:          KeyQ,
-			initialModel: NewModel(root, 1, testCommands),
+			initialModel: NewModel(root, 1, testCommands, 3),
 			expectQuit:   true,
 		},
 		{
 			name:         "up key does not quit",
 			key:          KeyUp,
-			initialModel: NewModel(root, 1, testCommands),
+			initialModel: NewModel(root, 1, testCommands, 3),
 			expectQuit:   false,
 		},
 		{
 			name:         "down key does not quit",
 			key:          KeyDown,
-			initialModel: NewModel(root, 1, testCommands),
+			initialModel: NewModel(root, 1, testCommands, 3),
 			expectQuit:   false,
 		},
 	}
@@ -492,7 +493,7 @@ func TestModel_GetCurrentNavigationPath(t *testing.T) {
 					Name: "root",
 					Path: "/test/root",
 				}
-				return NewModel(root, 1, testCommands)
+				return NewModel(root, 1, testCommands, 3)
 			},
 			expected: "/test/root",
 		},
@@ -556,7 +557,7 @@ func TestModel_HandleVerticalMove(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := NewModel(root, 1, testCommands)
+			m := NewModel(root, 1, testCommands, 3)
 			m.focusedColumn = tt.focusedColumn
 			m.selectedCommand = tt.selectedCommand
 
@@ -644,7 +645,7 @@ func TestModel_Update(t *testing.T) {
 	}{
 		{
 			name:         "window size message makes model ready",
-			initialModel: NewModel(root, 1, testCommands),
+			initialModel: NewModel(root, 1, testCommands, 3),
 			msg: tea.WindowSizeMsg{
 				Width:  120,
 				Height: 30,
@@ -658,7 +659,7 @@ func TestModel_Update(t *testing.T) {
 		},
 		{
 			name:         "quit key returns quit command",
-			initialModel: NewModel(root, 1, testCommands),
+			initialModel: NewModel(root, 1, testCommands, 3),
 			msg: tea.KeyMsg{
 				Type:  tea.KeyRunes,
 				Runes: []rune{'q'},
@@ -669,7 +670,7 @@ func TestModel_Update(t *testing.T) {
 		},
 		{
 			name:         "up key updates model",
-			initialModel: NewModel(root, 1, testCommands),
+			initialModel: NewModel(root, 1, testCommands, 3),
 			msg: tea.KeyMsg{
 				Type: tea.KeyUp,
 			},
@@ -713,7 +714,7 @@ func TestModel_HandleEnterKey(t *testing.T) {
 		{
 			name: "enter on commands column - confirms root",
 			setupModel: func() Model {
-				m := NewModel(root, 2, testCommands)
+				m := NewModel(root, 2, testCommands, 3)
 				m.focusedColumn = 0 // Commands column
 				return m
 			},
@@ -723,7 +724,7 @@ func TestModel_HandleEnterKey(t *testing.T) {
 		{
 			name: "enter on navigation column - confirms path",
 			setupModel: func() Model {
-				m := NewModel(root, 2, testCommands)
+				m := NewModel(root, 2, testCommands, 3)
 				m.focusedColumn = 1 // First navigation column
 				return m
 			},
@@ -789,7 +790,7 @@ func TestModel_HandleHorizontalMove(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := NewModel(root, 5, testCommands)
+			m := NewModel(root, 5, testCommands, 3)
 			m.focusedColumn = tt.initialFocused
 			m.navigationOffset = tt.initialOffset
 
@@ -846,7 +847,7 @@ func TestModel_MoveToPreviousColumn(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := NewModel(root, 3, testCommands)
+			m := NewModel(root, 3, testCommands, 3)
 			m.focusedColumn = tt.initialFocused
 			m.navigationOffset = tt.initialOffset
 
@@ -896,7 +897,7 @@ func TestModel_MoveToNextColumn(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := NewModel(root, 2, testCommands)
+			m := NewModel(root, 2, testCommands, 3)
 			m.focusedColumn = tt.initialFocused
 			m.navigationOffset = tt.initialOffset
 
@@ -937,7 +938,7 @@ func TestModel_GetSelectedStackPath(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := NewModel(root, 1, testCommands)
+			m := NewModel(root, 1, testCommands, 3)
 			m.focusedColumn = tt.focusedColumn
 
 			path := m.GetSelectedStackPath()
@@ -949,7 +950,7 @@ func TestModel_GetSelectedStackPath(t *testing.T) {
 // TestModel_GetSelectedCommand tests command retrieval.
 func TestModel_GetSelectedCommand(t *testing.T) {
 	root := &stack.Node{Name: "root"}
-	m := NewModel(root, 1, testCommands)
+	m := NewModel(root, 1, testCommands, 3)
 
 	tests := []struct {
 		name            string
@@ -1001,7 +1002,7 @@ func TestModel_View(t *testing.T) {
 		{
 			name: "not ready shows initializing",
 			setupModel: func() Model {
-				m := NewModel(root, 1, testCommands)
+				m := NewModel(root, 1, testCommands, 3)
 				m.ready = false
 				return m
 			},
@@ -1012,7 +1013,7 @@ func TestModel_View(t *testing.T) {
 		{
 			name: "ready model renders full UI",
 			setupModel: func() Model {
-				m := NewModel(root, 1, testCommands)
+				m := NewModel(root, 1, testCommands, 3)
 				m.ready = true
 				m.width = 120
 				m.height = 30
@@ -1070,7 +1071,7 @@ func TestNewTestModel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			model := NewTestModel(root, 1, testCommands, tt.confirmed, tt.selectedCommand, tt.selectedPath)
+			model := NewTestModel(root, 1, testCommands, 3, tt.confirmed, tt.selectedCommand, tt.selectedPath)
 
 			assert.Equal(t, tt.confirmed, model.IsConfirmed())
 			assert.Equal(t, tt.selectedCommand, model.GetSelectedCommand())
@@ -1091,7 +1092,7 @@ func TestModel_HandleKeyPress_UnknownKey(t *testing.T) {
 		},
 	}
 
-	model := NewModel(root, 1, testCommands)
+	model := NewModel(root, 1, testCommands, 3)
 
 	// Send an unknown key (e.g., 'x').
 	msg := tea.KeyMsg{
@@ -1261,7 +1262,7 @@ func TestModel_GetSelectedStackPath_NilNode(t *testing.T) {
 // TestModel_Update_UnhandledMessage tests Update with an unhandled message type.
 func TestModel_Update_UnhandledMessage(t *testing.T) {
 	root := &stack.Node{Name: "root"}
-	model := NewModel(root, 1, testCommands)
+	model := NewModel(root, 1, testCommands, 3)
 
 	// Send a message type that's not handled (e.g., a custom message).
 	type CustomMsg struct{}

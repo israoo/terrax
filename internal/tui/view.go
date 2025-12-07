@@ -158,10 +158,10 @@ func (r *Renderer) renderColumnsWithArrows() []string {
 		columns = append(columns, leftArrow)
 	}
 
-	// Render navigation columns in sliding window (max 3 visible)
+	// Render navigation columns in sliding window (configurable max visible)
 	maxDepth := r.model.navigator.GetMaxDepth()
 	startDepth := r.model.navigationOffset
-	endDepth := min(startDepth+3, maxDepth) // Show max 3 columns
+	endDepth := min(startDepth+r.model.maxNavigationColumns, maxDepth)
 
 	for depth := startDepth; depth < endDepth; depth++ {
 		// Skip empty columns

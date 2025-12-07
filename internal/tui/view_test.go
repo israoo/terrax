@@ -604,11 +604,12 @@ func TestRenderer_RenderColumnsWithArrows(t *testing.T) {
 				nav.PropagateSelection(navState)
 
 				return Model{
-					navigator:        nav,
-					navState:         navState,
-					commands:         []string{"plan"},
-					focusedColumn:    0,
-					navigationOffset: 0,
+					navigator:            nav,
+					navState:             navState,
+					commands:             []string{"plan"},
+					focusedColumn:        0,
+					navigationOffset:     0,
+					maxNavigationColumns: 3,
 				}
 			},
 			expectLeftArrow:   false,
@@ -642,11 +643,12 @@ func TestRenderer_RenderColumnsWithArrows(t *testing.T) {
 				nav.PropagateSelection(navState)
 
 				return Model{
-					navigator:        nav,
-					navState:         navState,
-					commands:         []string{"plan"},
-					focusedColumn:    2,
-					navigationOffset: 1, // Offset = 1 means we've scrolled right
+					navigator:            nav,
+					navState:             navState,
+					commands:             []string{"plan"},
+					focusedColumn:        2,
+					navigationOffset:     1, // Offset = 1 means we've scrolled right
+					maxNavigationColumns: 3,
 				}
 			},
 			expectLeftArrow:   true,
@@ -668,11 +670,12 @@ func TestRenderer_RenderColumnsWithArrows(t *testing.T) {
 				nav.PropagateSelection(navState)
 
 				return Model{
-					navigator:        nav,
-					navState:         navState,
-					commands:         []string{"plan"},
-					focusedColumn:    1,
-					navigationOffset: 0,
+					navigator:            nav,
+					navState:             navState,
+					commands:             []string{"plan"},
+					focusedColumn:        1,
+					navigationOffset:     0,
+					maxNavigationColumns: 3,
 				}
 			},
 			expectLeftArrow:   false,
@@ -735,15 +738,16 @@ func TestModel_View_IntegrationWithRenderer(t *testing.T) {
 	nav.PropagateSelection(navState)
 
 	m := Model{
-		ready:           true,
-		width:           120,
-		height:          30,
-		columnWidth:     25,
-		navigator:       nav,
-		navState:        navState,
-		commands:        []string{"plan", "apply", "destroy"},
-		focusedColumn:   1,
-		selectedCommand: 0,
+		ready:                true,
+		width:                120,
+		height:               30,
+		columnWidth:          25,
+		navigator:            nav,
+		navState:             navState,
+		commands:             []string{"plan", "apply", "destroy"},
+		focusedColumn:        1,
+		selectedCommand:      0,
+		maxNavigationColumns: 3,
 	}
 
 	view := m.View()

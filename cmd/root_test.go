@@ -88,7 +88,7 @@ func TestBuildStackTree(t *testing.T) {
 			expectedMaxDepth: 0,
 			expectedOutputHas: []string{
 				"🔍 Scanning for stacks in:",
-				"⚠️  No subdirectories found",
+				"⚠️ No subdirectories found",
 			},
 		},
 		{
@@ -147,7 +147,7 @@ func TestDisplayResults(t *testing.T) {
 					Path:     "/test/root",
 					Children: []*stack.Node{{Name: "child", Path: "/test/root/child"}},
 				}
-				return tui.NewTestModel(stackRoot, 1, testCommands, true, "plan", "/test/root")
+				return tui.NewTestModel(stackRoot, 1, testCommands, 3, true, "plan", "/test/root")
 			},
 			expectedOutputHas: []string{
 				"✅ Selection confirmed",
@@ -168,10 +168,10 @@ func TestDisplayResults(t *testing.T) {
 					Name: "root",
 					Path: "/test/root",
 				}
-				return tui.NewModel(stackRoot, 1, testCommands)
+				return tui.NewModel(stackRoot, 1, testCommands, 3)
 			},
 			expectedOutputHas: []string{
-				"⚠️  Selection cancelled",
+				"⚠️ Selection cancelled",
 			},
 			unexpectedOutput: []string{
 				"✅ Selection confirmed",
@@ -186,7 +186,7 @@ func TestDisplayResults(t *testing.T) {
 					Name: "root",
 					Path: "/test/root",
 				}
-				return tui.NewTestModel(stackRoot, 1, testCommands, true, "destroy", "/test/root")
+				return tui.NewTestModel(stackRoot, 1, testCommands, 3, true, "destroy", "/test/root")
 			},
 			expectedOutputHas: []string{
 				"✅ Selection confirmed",
@@ -295,10 +295,8 @@ func TestExecute_WithConfirmation(t *testing.T) {
 		}
 
 		// Return a confirmed model simulating user selecting "plan" and confirming
-		return tui.NewTestModel(stackRoot, 1, testCommands, true, "plan", envDir), nil
-	}
-
-	// Inject mock runner and ensure cleanup
+		return tui.NewTestModel(stackRoot, 1, testCommands, 3, true, "plan", envDir), nil
+	} // Inject mock runner and ensure cleanup
 	restoreRunner := setTUIRunner(mockTUIRunner)
 	defer restoreRunner()
 

@@ -6,6 +6,7 @@ import (
 	"os/exec"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/israoo/terrax/internal/config"
 	"github.com/israoo/terrax/internal/stack"
 	"github.com/israoo/terrax/internal/tui"
 	"github.com/spf13/cobra"
@@ -18,18 +19,6 @@ type TUIRunner func(initialModel tui.Model) (tui.Model, error)
 
 // currentTUIRunner holds the active TUI runner (can be overridden in tests).
 var currentTUIRunner TUIRunner = defaultTUIRunner
-
-// defaultCommands defines the default list of Terragrunt commands.
-var defaultCommands = []string{
-	"plan",
-	"apply",
-	"validate",
-	"fmt",
-	"init",
-	"output",
-	"refresh",
-	"destroy",
-}
 
 var rootCmd = &cobra.Command{
 	Use:   "terrax",
@@ -51,7 +40,8 @@ func Execute() error {
 // initConfig initializes the configuration using Viper.
 func initConfig() {
 	// Set default values
-	viper.SetDefault("commands", defaultCommands)
+	viper.SetDefault("commands", config.DefaultCommands)
+	viper.SetDefault("max_navigation_columns", config.DefaultMaxNavigationColumns)
 
 	// Configure config file search paths
 	viper.SetConfigName(".terrax")
@@ -90,12 +80,18 @@ func runTUI(cmd *cobra.Command, args []string) error {
 	// Get commands from config (with defaults fallback)
 	commands := viper.GetStringSlice("commands")
 	if len(commands) == 0 {
-		// Fallback to defaultCommands if config is empty
-		commands = defaultCommands
+		// Fallback to defaults if config is empty
+		commands = config.DefaultCommands
+	}
+
+	// Get max navigation columns from config and validate
+	maxNavColumns := viper.GetInt("max_navigation_columns")
+	if maxNavColumns < config.MinMaxNavigationColumns {
+		maxNavColumns = config.DefaultMaxNavigationColumns
 	}
 
 	// Run TUI using the current runner (injectable for tests)
-	initialModel := tui.NewModel(stackRoot, maxDepth, commands)
+	initialModel := tui.NewModel(stackRoot, maxDepth, commands, maxNavColumns)
 	model, err := currentTUIRunner(initialModel)
 	if err != nil {
 		return fmt.Errorf("TUI error: %w", err)
@@ -133,7 +129,7 @@ func buildStackTree(workDir string) (*stack.Node, int, error) {
 	fmt.Printf("✅ Found stack tree with max depth: %d\n", maxDepth)
 
 	if !stackRoot.HasChildren() {
-		fmt.Println("⚠️  No subdirectories found. Make sure you're in the right directory.")
+		fmt.Println("⚠️ No subdirectories found. Make sure you're in the right directory.")
 	}
 
 	return stackRoot, maxDepth, nil
@@ -175,7 +171,7 @@ func displayResults(model tui.Model) {
 	fmt.Println()
 
 	if !model.IsConfirmed() {
-		fmt.Println("⚠️  Selection cancelled")
+		fmt.Println("⚠️ Selection cancelled")
 		return
 	}
 

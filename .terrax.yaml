@@ -12,3 +12,7 @@ commands:
   - output      # Show output values
   - refresh     # Refresh state
   - destroy     # Destroy managed infrastructure
+
+# max_navigation_columns: Maximum number of navigation columns visible simultaneously
+# Increase for deeper hierarchies or larger terminals
+max_navigation_columns: 3

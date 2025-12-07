@@ -23,42 +23,34 @@ Navigate your infrastructure as code hierarchies with an elegant, keyboard-drive
 
 ## 🎯 Key features
 
-### Dynamic hierarchical navigation
+### ✔︎ Dynamic hierarchical navigation
 
 Automatically detects and builds a complete tree structure from your infrastructure directories with intelligent depth detection.
 
-### Universal stack detection
+### ✔︎ Universal stack detection
 
 Identifies Terragrunt (`terragrunt.hcl`) stacks with extensible detection patterns.
 
-### Sliding window navigation
+### ✔︎ Sliding window navigation
 
 Displays max 3 navigation columns simultaneously (plus commands column) with dynamic sliding as you navigate deeper hierarchies.
 
-### Smart column display
+### ✔︎ Smart column display
 
 Columns appear/disappear dynamically—no empty columns, keeping the UI clean and focused.
 
-### Dual execution modes
+### ✔︎ Dual execution modes
 
 - Commands column: Execute at the full propagated depth (deepest selected level)
 - Navigation column: Execute at specific levels only (ignore deeper selections)
 
-### Keyboard-first design
+### ✔︎ Keyboard-first design
 
 Full keyboard navigation with arrow keys (`↑↓←→`) and Vim-style bindings (`hjkl`), plus Enter for confirmation and `q` to quit.
 
-### Direct Terragrunt execution
+### ✔︎ Direct Terragrunt execution
 
 Once you confirm your selection, TerraX executes `terragrunt` directly in your terminal with full stdout/stderr/stdin passthrough. You maintain complete control and can interact with prompts as if running Terragrunt manually.
-
-### Professional architecture
-
-Built with strict Separation of Concerns:
-
-- **Business Logic** (`internal/stack/`): Pure Go, zero UI dependencies
-- **TUI Layer** (`internal/tui/`): Bubble Tea Model-Update-View pattern
-- **CLI Wrapper** (`cmd/`): Minimal coordination layer
 
 ---
 
@@ -121,9 +113,10 @@ TerraX searches for configuration in the following order (first found wins):
 
 ### Example configuration
 
-Create `.terrax.yaml` with your preferred command list:
+Create `.terrax.yaml` with your preferred settings:
 
 ```yaml
+# List of Terragrunt commands to display in the TUI
 commands:
   - apply
   - plan
@@ -133,11 +126,23 @@ commands:
   - output
   - refresh
   - fmt
+
+# Maximum number of navigation columns visible simultaneously
+# Increase for deeper hierarchies or larger terminals
+max_navigation_columns: 3
 ```
+
+### Configuration options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `max_navigation_columns` | integer | `3` | Maximum navigation columns visible in sliding window |
+| `commands` | list | 8 commands | Terragrunt commands shown in TUI (in order) |
 
 **Notes:**
 
-- Commands appear in the TUI in the order specified in the configuration
+- Commands appear in the TUI in the order specified
+- `max_navigation_columns` must be at least 1 (falls back to 3 if invalid)
 - Empty or missing `commands` key falls back to defaults
 - Configuration is loaded once at startup
 
