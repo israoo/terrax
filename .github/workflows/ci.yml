@@ -30,7 +30,6 @@ env:
   ARTIFACT_RETENTION_DAYS: "7"
   COVERAGE_FILE: "coverage.out"
   COVERAGE_RETENTION_DAYS: "1"
-  GO_VERSION: "1.25.5"
   SARIF_FORMAT: "sarif"
   SECURITY_SEVERITY: "HIGH,CRITICAL"
   TRIVY_SARIF_FILE: "trivy-results.sarif"
@@ -45,8 +44,6 @@ jobs:
 
       - name: Setup Go environment
         uses: ./.github/actions/setup-go
-        with:
-          go-version: ${{ env.GO_VERSION }}
 
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v9
@@ -66,8 +63,6 @@ jobs:
 
       - name: Setup Go environment
         uses: ./.github/actions/setup-go
-        with:
-          go-version: ${{ env.GO_VERSION }}
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
@@ -145,8 +140,6 @@ jobs:
 
       - name: Setup Go environment
         uses: ./.github/actions/setup-go
-        with:
-          go-version: ${{ env.GO_VERSION }}
 
       - name: SonarCloud Scan
         uses: SonarSource/sonarqube-scan-action@v6.0.0
@@ -177,8 +170,6 @@ jobs:
 
       - name: Setup Go environment
         uses: ./.github/actions/setup-go
-        with:
-          go-version: ${{ env.GO_VERSION }}
 
       - name: Build verification
         env:

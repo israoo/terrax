@@ -13,18 +13,9 @@ runs:
       id: setup-go
       uses: actions/setup-go@v6
       with:
-        go-version: ${{ inputs.go-version }}
+        go-version-file: 'go.mod'
+        cache: true
 
     - name: Install dependencies
       shell: bash
       run: go mod download
-
-    - name: Cache Go modules
-      uses: actions/cache@v4
-      with:
-        path: |
-          ${{ steps.setup-go.outputs.GOCACHE }}
-          ${{ steps.setup-go.outputs.GOMODCACHE }}
-        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-        restore-keys: |
-          ${{ runner.os }}-go-
