@@ -4,7 +4,7 @@
 
 **The interactive TUI executor for Terragrunt stacks**
 
-[![Go Version](https://img.shields.io/badge/Go-1.25.5-00ADD8?logo=go)](https://go.dev/) [![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/israoo/TerraX) [![codecov](https://codecov.io/github/israoo/terrax/graph/badge.svg?token=X28KESXI19)](https://codecov.io/github/israoo/terrax) [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE) [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+[![Go Version](https://img.shields.io/badge/Go-1.25.5-00ADD8?logo=go)](https://go.dev/) [![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/israoo/TerraX) [![codecov](https://codecov.io/github/israoo/terrax/graph/badge.svg?token=X28KESXI19)](https://codecov.io/github/israoo/terrax) [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=israoo_terrax&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=israoo_terrax) [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE) [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
 Navigate your infrastructure as code hierarchies with an elegant, keyboard-driven terminal interface. Select your stack and command, and **TerraX executes Terragrunt directly in your terminal** with full interactive control.
 
