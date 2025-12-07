@@ -4,7 +4,7 @@
 
 **The interactive TUI executor for Terragrunt stacks**
 
-[![Go Version](https://img.shields.io/badge/Go-1.25.5-00ADD8?logo=go)](https://go.dev/) [![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/israoo/TerraX) [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE) [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+[![Go Version](https://img.shields.io/badge/Go-1.25.5-00ADD8?logo=go)](https://go.dev/) [![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/israoo/TerraX) [![Coverage](https://img.shields.io/badge/coverage-89.4%25-brightgreen)](https://github.com/israoo/TerraX) [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE) [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
 Navigate your infrastructure as code hierarchies with an elegant, keyboard-driven terminal interface. Select your stack and command, and **TerraX executes Terragrunt directly in your terminal** with full interactive control.
 
