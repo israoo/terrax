@@ -435,7 +435,8 @@ under the License.
 ## 🙏 Acknowledgments
 
 - **[Charm Bracelet](https://charm.sh/)** for exceptional TUI tools (Bubble Tea, Lipgloss)
-- **Terragrunt** community for infrastructure patterns
+- **[Atmos](https://atmos.tools/)** for the visual representation that inspired TerraX's hierarchical navigation design
+- **[Terragrunt](https://terragrunt.gruntwork.io/)** community for infrastructure patterns
 - All contributors who help improve TerraX
 
 ---

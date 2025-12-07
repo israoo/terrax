@@ -226,11 +226,11 @@ Three groups separated by blank lines, sorted alphabetically:
 import (
     "fmt"
     "os"
-    
+
     tea "github.com/charmbracelet/bubbletea"
     "github.com/charmbracelet/lipgloss"
     "github.com/spf13/cobra"
-    
+
     "github.com/israoo/terrax/internal/stack"
     "github.com/israoo/terrax/internal/tui"
 )
@@ -299,17 +299,17 @@ func (m Model) View() string {
     if !m.ready {
         return "Initializing..."
     }
-    
+
     calc := LayoutCalculator{}
     renderer := Renderer{}
-    
+
     // Calculate layout
     startDepth, endDepth := calc.CalculateVisibleColumns(...)
-    
+
     // Render components
     columns := renderer.RenderColumns(...)
     breadcrumbs := renderer.RenderBreadcrumbs(...)
-    
+
     return lipgloss.JoinVertical(...)
 }
 ```
@@ -330,11 +330,11 @@ var (
     ColorPrimary   = lipgloss.Color("86")   // Cyan
     ColorSecondary = lipgloss.Color("213")  // Pink
     ColorMuted     = lipgloss.Color("241")  // Gray
-    
+
     BaseColumnStyle = lipgloss.NewStyle().
         Width(ColumnWidth).
         Padding(0, 1)
-    
+
     FocusedStyle = BaseColumnStyle.Copy().
         BorderStyle(lipgloss.RoundedBorder()).
         BorderForeground(ColorPrimary)
@@ -363,7 +363,7 @@ func TestNavigator_PropagateSelection(t *testing.T) {
     }{
         // Table-driven test cases
     }
-    
+
     for _, tt := range tests {
         t.Run(tt.name, func(t *testing.T) {
             nav, state := tt.setup()

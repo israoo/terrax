@@ -1,0 +1,149 @@
+project_name: terrax
+
+before:
+  hooks:
+    - go mod tidy
+    - go test ./... -race
+
+builds:
+  - id: terrax
+    main: .
+    binary: terrax
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -extldflags "-static"
+
+archives:
+  - id: terrax-archive
+    format: tar.gz
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - README.md
+      - LICENSE
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - Merge pull request
+      - Merge branch
+
+brews:
+  - name: terrax
+    repository:
+      owner: israoo
+      name: homebrew-tap
+      token: "{{ .Env.GORELEASER_GITHUB_TOKEN }}"
+    folder: Formula
+    homepage: https://github.com/israoo/terrax
+    description: The interactive TUI executor for Terragrunt stacks
+    license: Apache-2.0
+    install: |
+      bin.install "terrax"
+    test: |
+      system "#{bin}/terrax", "--version"
+
+scoop:
+  name: terrax
+  bucket:
+    owner: israoo
+    name: scoop-bucket
+    token: "{{ .Env.GORELEASER_GITHUB_TOKEN }}"
+  homepage: https://github.com/israoo/terrax
+  description: The interactive TUI executor for Terragrunt stacks
+  license: Apache-2.0
+
+nfpms:
+  - id: terrax-packages
+    package_name: terrax
+    file_name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+    vendor: Terrax
+    homepage: https://github.com/israoo/terrax
+    maintainer: Terrax Maintainer
+    description: The interactive TUI executor for Terragrunt stacks.
+    license: Apache-2.0
+    section: utils
+    formats:
+      - deb
+      - rpm
+    bindir: /usr/local/bin
+    contents:
+      - src: terrax
+        dst: /usr/local/bin/terrax
+        type: "config|noreplace"
+        file_info:
+          mode: 0755
+
+release:
+  github:
+    owner: israoo
+    name: terrax
+  draft: false
+  prerelease: auto
+  name_template: "{{.ProjectName}} v{{.Version}}"
+  header: |
+    ## TerraX Release {{.Version}}
+
+    The interactive TUI executor for Terragrunt stacks.
+
+    ### Installation
+
+    - **Homebrew (macOS/Linux):**
+      ```bash
+      brew tap israoo/tap
+      brew install terrax
+      ```
+
+    - **Scoop (Windows):**
+      ```powershell
+      scoop bucket add israoo https://github.com/israoo/scoop-bucket
+      scoop install terrax
+      ```
+
+    - **APT (Debian/Ubuntu):**
+      ```bash
+      wget [https://github.com/israoo/terrax/releases/download/](https://github.com/israoo/terrax/releases/download/){{.Tag}}/terrax_{{.Version}}_linux_x86_64.deb
+      sudo dpkg -i terrax_{{.Version}}_linux_x86_64.deb
+      ```
+
+    - **YUM/DNF (Fedora/RHEL):**
+      ```bash
+      wget [https://github.com/israoo/terrax/releases/download/](https://github.com/israoo/terrax/releases/download/){{.Tag}}/terrax_{{.Version}}_linux_x86_64.rpm
+      sudo rpm -i terrax_{{.Version}}_linux_x86_64.rpm
+      ```
+
+    - **Direct Download:** See assets below

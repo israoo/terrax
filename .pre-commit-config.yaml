@@ -1,0 +1,51 @@
+repos:
+  # General purpose hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: end-of-file-fixer
+        name: Fix end of files
+        description: Ensures that files end with a newline
+
+      - id: trailing-whitespace
+        name: Trim trailing whitespace
+        description: Removes trailing whitespace from lines
+
+      - id: check-merge-conflict
+        name: Check for merge conflicts
+        description: Prevents committing files with merge conflict markers
+
+      - id: check-yaml
+        name: Validate YAML syntax
+        description: Validates YAML file syntax
+        args: ["--unsafe"] # Allow custom YAML tags
+
+  # Go formatting and imports
+  - repo: https://github.com/tekwizely/pre-commit-golang
+    rev: v1.0.0-rc.4
+    hooks:
+      - id: go-fmt
+        name: Format Go code
+        alias: gofmt
+
+      - id: go-mod-tidy-repo
+        name: Tidy Go modules
+        alias: gomodtidy
+
+      - id: go-build-repo-mod
+        name: Build Go project
+        alias: gobuild
+
+      - id: go-test-repo-mod
+        name: Run Go tests
+        alias: gotest
+        args: [-v, -race, -timeout=5m]
+
+      - id: go-vet-repo-mod
+        name: Go vet analysis
+        alias: govet
+
+      - id: golangci-lint-repo-mod
+        name: golangci-lint
+        alias: golangci
+        args: [--timeout=5m]
