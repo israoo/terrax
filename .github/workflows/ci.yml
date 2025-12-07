@@ -77,40 +77,6 @@ jobs:
         with:
           category: "/language:go"
 
-  trivy:
-    name: Trivy SCA scan
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-      security-events: write
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-
-      - name: Run Trivy (SCA)
-        uses: aquasecurity/trivy-action@0.33.1
-        with:
-          scan-type: "fs"
-          scan-ref: "."
-          scanners: "vuln"
-          severity: ${{ env.SECURITY_SEVERITY }}
-          exit-code: "1"
-          format: ${{ env.SARIF_FORMAT }}
-          output: ${{ env.TRIVY_SARIF_FILE }}
-
-      - name: Upload Trivy results to GitHub Security
-        uses: github/codeql-action/upload-sarif@v4
-        with:
-          sarif_file: ${{ env.TRIVY_SARIF_FILE }}
-
-      - name: Upload Trivy artifact
-        if: always()
-        uses: actions/upload-artifact@v5
-        with:
-          name: trivy-report
-          path: ${{ env.TRIVY_SARIF_FILE }}
-          retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
-
   gitguardian:
     name: GitGuardian scan
     runs-on: ubuntu-latest
@@ -156,6 +122,40 @@ jobs:
             -Dsonar.test.inclusions=**/*_test.go
             -Dsonar.go.coverage.reportPaths=${{ env.COVERAGE_FILE }}
 
+  trivy:
+    name: Trivy SCA scan
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Run Trivy (SCA)
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          scan-type: "fs"
+          scan-ref: "."
+          scanners: "vuln"
+          severity: ${{ env.SECURITY_SEVERITY }}
+          exit-code: "1"
+          format: ${{ env.SARIF_FORMAT }}
+          output: ${{ env.TRIVY_SARIF_FILE }}
+
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: ${{ env.TRIVY_SARIF_FILE }}
+
+      - name: Upload Trivy artifact
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: trivy-report
+          path: ${{ env.TRIVY_SARIF_FILE }}
+          retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
+
   build_test:
     name: Build & Test (${{ matrix.os }}-${{ matrix.arch }})
     needs: [lint, codeql, trivy, gitguardian, sonarcloud]
@@ -177,6 +177,7 @@ jobs:
         run: go build -v .
 
       - name: Run tests with coverage
+        shell: bash
         run: go test ./... -coverprofile=${{ env.COVERAGE_FILE }} -covermode=atomic -race
 
       - name: Upload coverage artifact
