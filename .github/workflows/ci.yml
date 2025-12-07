@@ -1,0 +1,150 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+    branches:
+      - main
+
+env:
+  ARTIFACT_RETENTION_DAYS: "7"
+  COVERAGE_FILE: "coverage.out"
+  COVERAGE_RETENTION_DAYS: "1"
+  GOSEC_SARIF_FILE: "gosec-results.sarif"
+  GO_VERSION: "1.25.x"
+  SARIF_FORMAT: "sarif"
+  SECURITY_SEVERITY: "HIGH,CRITICAL"
+  TRIVY_SARIF_FILE: "trivy-results.sarif"
+  UBUNTU_VERSION: "ubuntu-24.04"
+
+jobs:
+  lint:
+    name: Code linting
+    runs-on: ${{ env.UBUNTU_VERSION }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Go environment
+        uses: ./.github/actions/setup-go
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: latest
+          args: --timeout=5m
+
+  security:
+    name: Security scans
+    runs-on: ${{ env.UBUNTU_VERSION }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Go environment
+        uses: ./.github/actions/setup-go
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Run Gosec
+        uses: securego/gosec@2.22.10
+        with:
+          args: "-no-fail -fmt ${{ env.SARIF_FORMAT }} -out ${{ env.GOSEC_SARIF_FILE }} ./..."
+
+      - name: Run Trivy (SCA)
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          scan-type: "fs"
+          scan-ref: "."
+          scanners: "vuln"
+          severity: ${{ env.SECURITY_SEVERITY }}
+          exit-code: "1"
+          format: ${{ env.SARIF_FORMAT }}
+          output: ${{ env.TRIVY_SARIF_FILE }}
+
+      - name: Display Gosec results
+        uses: github/codeql-action/upload-sarif@v4.31.7
+        with:
+          sarif_file: ${{ env.GOSEC_SARIF_FILE }}
+
+      - name: Display Trivy results
+        uses: github/codeql-action/upload-sarif@v4.31.7
+        with:
+          sarif_file: ${{ env.TRIVY_SARIF_FILE }}
+
+      - name: Upload Gosec results
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: gosec-report
+          path: ${{ env.GOSEC_SARIF_FILE }}
+          retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
+
+      - name: Upload Trivy results
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: trivy-report
+          path: ${{ env.TRIVY_SARIF_FILE }}
+          retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
+
+  build_test:
+    name: Build & Test (${{ matrix.os }}-${{ matrix.arch }})
+    needs: [lint, security]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        arch: [amd64, arm64]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Go environment
+        uses: ./.github/actions/setup-go
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Build verification
+        env:
+          GOARCH: ${{ matrix.arch }}
+        run: go build -v .
+
+      - name: Run tests with coverage
+        run: go test ./... -coverprofile=${{ env.COVERAGE_FILE }} -covermode=atomic -race
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: coverage-${{ matrix.os }}-${{ matrix.arch }}
+          path: ${{ env.COVERAGE_FILE }}
+          retention-days: ${{ env.COVERAGE_RETENTION_DAYS }}
+
+  coverage_report:
+    name: Coverage Report
+    needs: build_test
+    runs-on: ${{ env.UBUNTU_VERSION }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Download all coverage artifacts
+        uses: actions/download-artifact@v5
+        with:
+          pattern: coverage-*
+          merge-multiple: true
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./${{ env.COVERAGE_FILE }}
+          fail_ci_if_error: true
+          verbose: true
+          flags: unittests
+          name: terrax-coverage
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
