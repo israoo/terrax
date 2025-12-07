@@ -270,14 +270,8 @@ func (r *Renderer) renderHeader() string {
 func (r *Renderer) renderBreadcrumbBar() string {
 	navPath := r.model.getCurrentNavigationPath()
 
-	// Format breadcrumb with visual separator
-	var content string
-	if navPath == "~" {
-		content = "🏠 Home"
-	} else {
-		// Replace " / " with visual separator
-		content = fmt.Sprintf("📁 %s", navPath)
-	}
+	// Format breadcrumb - always show the full path
+	content := fmt.Sprintf("📁 %s", navPath)
 
 	return breadcrumbBarStyle.Width(r.model.width).Render(content)
 }

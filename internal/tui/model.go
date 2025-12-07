@@ -140,8 +140,8 @@ func (m Model) handleEnterKey() (tea.Model, tea.Cmd) {
 	var targetNode *stack.Node
 
 	if m.isCommandsColumnFocused() {
-		// Commands column: use full propagated path
-		targetNode = m.navigator.PropagateSelection(m.navState)
+		// Commands column: use root directory (ignore navigation selections)
+		targetNode = m.navigator.GetRoot()
 	} else {
 		// Navigation column: use path only up to focused level
 		depth := m.getNavigationDepth()
@@ -283,8 +283,10 @@ func (m Model) GetSelectedStackPath() string {
 	var targetNode *stack.Node
 
 	if m.isCommandsColumnFocused() {
-		targetNode = m.navigator.PropagateSelection(m.navState)
+		// Commands column: return root directory path
+		targetNode = m.navigator.GetRoot()
 	} else {
+		// Navigation column: return path up to focused level
 		depth := m.getNavigationDepth()
 		targetNode = m.navigator.GetNodeAtDepth(m.navState, depth)
 	}
@@ -301,16 +303,24 @@ func (m Model) IsConfirmed() bool {
 }
 
 // getCurrentNavigationPath returns the current navigation path as a string.
-// It builds a breadcrumb path from the selected nodes up to the focused column.
+// It builds a breadcrumb path starting from root directory up to the focused column.
 func (m Model) getCurrentNavigationPath() string {
-	if m.isCommandsColumnFocused() || m.navigator.GetMaxDepth() == 0 {
+	// Start with root directory path
+	rootNode := m.navigator.GetRoot()
+	if rootNode == nil {
 		return "~"
 	}
 
-	path := ""
+	path := rootNode.Path
+
+	// If in commands column, return just the root path
+	if m.isCommandsColumnFocused() || m.navigator.GetMaxDepth() == 0 {
+		return path
+	}
+
 	depth := m.getNavigationDepth()
 
-	// Build path from selected indices
+	// Build path from selected indices, appending subdirectories
 	for i := 0; i <= depth && i < len(m.navState.Columns); i++ {
 		if i >= len(m.navState.SelectedIndices) {
 			break
@@ -318,16 +328,16 @@ func (m Model) getCurrentNavigationPath() string {
 
 		selectedIdx := m.navState.SelectedIndices[i]
 		if selectedIdx >= 0 && selectedIdx < len(m.navState.Columns[i]) {
-			if path != "" {
-				path += " / "
+			// Extract directory name (remove emoji marker if present)
+			dirName := m.navState.Columns[i][selectedIdx]
+			// Remove " 📦" marker if it exists
+			if len(dirName) > 3 && dirName[len(dirName)-2:] == "📦" {
+				dirName = dirName[:len(dirName)-3]
 			}
-			path += m.navState.Columns[i][selectedIdx]
+			path += "/" + dirName
 		}
 	}
 
-	if path == "" {
-		return "~"
-	}
 	return path
 }
 
