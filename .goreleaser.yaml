@@ -27,7 +27,7 @@ builds:
 
 archives:
   - id: terrax-archive
-    format: tar.gz
+    formats: [ 'tar.gz' ]
     name_template: >-
       {{ .ProjectName }}_
       {{- .Version }}_
@@ -58,22 +58,23 @@ changelog:
       - Merge pull request
       - Merge branch
 
-brews:
+homebrew_casks:
   -
     name: terrax
     directory: Casks
     commit_msg_template: "Brew cask update for {{ .ProjectName }} version {{ .Tag }}"
     homepage: https://github.com/israoo/terrax
     description: The interactive TUI executor for Terragrunt stacks
-    license: Apache-2.0
     repository:
       owner: israoo
       name: homebrew-tap
       token: "{{ .Env.GORELEASER_GITHUB_TOKEN }}"
-    install: |
-      bin.install "terrax"
-    test: |
-      system "#{bin}/terrax", "--version"
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/terrax"]
+          end
 
 scoops:
   -
@@ -92,6 +93,8 @@ nfpms:
   -
     id: terrax-packages
     package_name: terrax
+    ids:
+      - terrax
     file_name_template: >-
       {{ .ProjectName }}_
       {{- .Version }}_
@@ -101,7 +104,6 @@ nfpms:
       {{- else }}{{ .Arch }}{{ end }}
     vendor: Terrax
     homepage: https://github.com/israoo/terrax
-    maintainer: Terrax Maintainer
     description: The interactive TUI executor for Terragrunt stacks.
     license: Apache-2.0
     section: utils
@@ -109,11 +111,6 @@ nfpms:
       - deb
       - rpm
     bindir: /usr/local/bin
-    contents:
-      - src: "{{ .Builds.terrax.Path }}"
-        dst: /usr/local/bin/terrax
-        file_info:
-          mode: 0755
 
 release:
   github:
