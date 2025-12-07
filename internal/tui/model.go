@@ -370,23 +370,20 @@ func (m Model) canAdvanceFurther() bool {
 }
 
 // hasRightOverflow returns true if there are navigation columns to the right.
-// Uses dynamic logic: shows indicator only if current node has children.
+// Shows indicator if: 1) sliding window doesn't cover last levels AND 2) current node has children.
 func (m Model) hasRightOverflow() bool {
-	// Don't show right arrow if we can't advance further
+	maxDepth := m.navigator.GetMaxDepth()
+
+	// First check: is there space beyond the visible window?
+	if m.navigationOffset+3 >= maxDepth {
+		return false
+	}
+
+	// Second check: does the currently selected node have children?
+	// (Don't show arrow if we're at a leaf node even if maxDepth is deeper)
 	if !m.canAdvanceFurther() {
 		return false
 	}
 
-	// Check if there are more levels beyond the visible window
-	maxDepth := m.navigator.GetMaxDepth()
-	depth := m.getNavigationDepth()
-
-	// If we're in a navigation column and it's not the last visible column
-	// and there are more depths available, show the indicator
-	if depth >= 0 && depth < maxDepth-1 {
-		// Show arrow if current depth is at or beyond the right edge of window
-		return depth >= m.navigationOffset+2
-	}
-
-	return false
+	return true
 }
