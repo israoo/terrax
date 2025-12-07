@@ -13,6 +13,10 @@ import (
 	"github.com/spf13/viper"
 )
 
+// Version holds the application version.
+// This variable is set by the main package and injected by GoReleaser during builds.
+var Version = "dev"
+
 // TUIRunner is a function type that runs a TUI program and returns the final model.
 // This allows dependency injection for testing.
 type TUIRunner func(initialModel tui.Model) (tui.Model, error)
@@ -30,6 +34,14 @@ and selection of infrastructure commands.`,
 		initConfig()
 	},
 	RunE: runTUI,
+}
+
+func init() {
+	// Assign the version to rootCmd to enable --version flag
+	rootCmd.Version = Version
+
+	// Configure professional CLI behavior
+	rootCmd.SilenceUsage = true
 }
 
 // Execute runs the root command.
