@@ -38,7 +38,7 @@ archives:
       {{- if .Arm }}v{{ .Arm }}{{ end }}
     format_overrides:
       - goos: windows
-        format: zip
+        formats: [ 'zip' ]
     files:
       - README.md
       - LICENSE
@@ -69,6 +69,9 @@ homebrew_casks:
       owner: israoo
       name: homebrew-tap
       token: "{{ .Env.GORELEASER_GITHUB_TOKEN }}"
+    commit_author:
+      name: Israel Oña Ordoñez
+      email: israoo@outlook.com
     hooks:
       post:
         install: |
@@ -88,6 +91,9 @@ scoops:
       owner: israoo
       name: scoop-bucket
       token: "{{ .Env.GORELEASER_GITHUB_TOKEN }}"
+    commit_author:
+      name: Israel Oña Ordoñez
+      email: israoo@outlook.com
 
 nfpms:
   -
@@ -105,6 +111,7 @@ nfpms:
     vendor: Terrax
     homepage: https://github.com/israoo/terrax
     description: The interactive TUI executor for Terragrunt stacks.
+    maintainer: Israel Oña Ordoñez <israoo@outlook.com>
     license: Apache-2.0
     section: utils
     formats:
