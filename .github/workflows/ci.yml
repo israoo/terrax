@@ -12,7 +12,6 @@ env:
   ARTIFACT_RETENTION_DAYS: "7"
   COVERAGE_FILE: "coverage.out"
   COVERAGE_RETENTION_DAYS: "1"
-  GOSEC_SARIF_FILE: "gosec-results.sarif"
   GO_VERSION: "1.25.5"
   SARIF_FORMAT: "sarif"
   SECURITY_SEVERITY: "HIGH,CRITICAL"
@@ -37,8 +36,8 @@ jobs:
           version: latest
           args: --timeout=5m
 
-  security:
-    name: Security scans
+  codeql:
+    name: CodeQL analysis
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -52,10 +51,28 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
 
-      - name: Run Gosec
-        uses: securego/gosec@v2.22.10
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
         with:
-          args: "-no-fail -fmt ${{ env.SARIF_FORMAT }} -out ${{ env.GOSEC_SARIF_FILE }} ./..."
+          languages: go
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v4
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:go"
+
+  trivy:
+    name: Trivy SCA scan
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
 
       - name: Run Trivy (SCA)
         uses: aquasecurity/trivy-action@0.33.1
@@ -68,25 +85,12 @@ jobs:
           format: ${{ env.SARIF_FORMAT }}
           output: ${{ env.TRIVY_SARIF_FILE }}
 
-      - name: Display Gosec results
-        uses: github/codeql-action/upload-sarif@v4.31.7
-        with:
-          sarif_file: ${{ env.GOSEC_SARIF_FILE }}
-
-      - name: Display Trivy results
-        uses: github/codeql-action/upload-sarif@v4.31.7
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: ${{ env.TRIVY_SARIF_FILE }}
 
-      - name: Upload Gosec results
-        if: always()
-        uses: actions/upload-artifact@v5
-        with:
-          name: gosec-report
-          path: ${{ env.GOSEC_SARIF_FILE }}
-          retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
-
-      - name: Upload Trivy results
+      - name: Upload Trivy artifact
         if: always()
         uses: actions/upload-artifact@v5
         with:
@@ -94,9 +98,62 @@ jobs:
           path: ${{ env.TRIVY_SARIF_FILE }}
           retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
 
+  gitguardian:
+    name: GitGuardian scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: GitGuardian Scan
+        uses: GitGuardian/ggshield-action@v1.45.0
+        env:
+          GITHUB_PUSH_BEFORE_SHA: ${{ github.event.before }}
+          GITHUB_PUSH_BASE_SHA: ${{ github.event.base }}
+          GITHUB_PULL_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          GITHUB_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY }}
+
+  sonarcloud:
+    name: SonarCloud analysis
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go environment
+        uses: ./.github/actions/setup-go
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarqube-scan-action@@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.projectKey=israoo_terrax
+            -Dsonar.organization=israoo
+            -Dsonar.sources=.
+            -Dsonar.exclusions=**/*_test.go,**/vendor/**
+            -Dsonar.tests=.
+            -Dsonar.test.inclusions=**/*_test.go
+            -Dsonar.go.coverage.reportPaths=${{ env.COVERAGE_FILE }}
+
   build_test:
     name: Build & Test (${{ matrix.os }}-${{ matrix.arch }})
-    needs: [lint, security]
+    needs: [
+      lint,
+      codeql,
+      trivy,
+      gitguardian,
+      sonarcloud
+    ]
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -125,20 +182,6 @@ jobs:
           name: coverage-${{ matrix.os }}-${{ matrix.arch }}
           path: ${{ env.COVERAGE_FILE }}
           retention-days: ${{ env.COVERAGE_RETENTION_DAYS }}
-
-  coverage_report:
-    name: Coverage Report
-    needs: build_test
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-
-      - name: Download all coverage artifacts
-        uses: actions/download-artifact@v5
-        with:
-          pattern: coverage-*
-          merge-multiple: true
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
