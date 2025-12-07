@@ -1,0 +1,11 @@
+commands:
+  - plan
+  - apply
+  - validate
+  - fmt
+  - init
+  - output
+  - refresh
+  - destroy
+
+max_navigation_columns: 3

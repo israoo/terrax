@@ -207,19 +207,40 @@ max_navigation_columns: 3
 
 ## 🚀 Quick start
 
-### 1. Navigate to your infrastructure directory
+### Try with examples
+
+TerraX includes ready-to-use examples that work without AWS credentials:
+
+```bash
+# Clone the repository
+git clone https://github.com/israoo/terrax.git
+cd terrax
+
+# Build TerraX
+make build
+
+# Navigate manually
+cd examples/terragrunt
+../../build/terrax
+```
+
+See [`examples/terragrunt/README.md`](examples/terragrunt/README.md) for detailed testing instructions.
+
+### Use with your infrastructure
+
+#### 1. Navigate to your infrastructure directory
 
 ```bash
 cd /path/to/your/infrastructure
 ```
 
-### 2. Launch TerraX
+#### 2. Launch TerraX
 
 ```bash
 terrax
 ```
 
-### 3. Navigate the TUI
+#### 3. Navigate the TUI
 
 ```text
 ═══════════════════════════════════════════════════════════════

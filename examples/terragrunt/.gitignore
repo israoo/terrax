@@ -1,0 +1,16 @@
+# Terragrunt cache
+.terragrunt-cache/
+
+# Terraform files
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+
+# Generated files
+backend.tf
+provider.tf
+main.tf
+
+# Lock files
+.terraform.lock.hcl
