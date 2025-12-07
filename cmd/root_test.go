@@ -13,6 +13,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// testCommands defines a standard list of commands for testing.
+var testCommands = []string{
+	"plan",
+	"apply",
+	"validate",
+	"fmt",
+	"init",
+	"output",
+	"refresh",
+	"destroy",
+}
+
 // captureStdout captures stdout during test execution.
 // Returns a cleanup function that restores stdout and the captured output.
 func captureStdout(t *testing.T) (restore func() string) {
@@ -135,7 +147,7 @@ func TestDisplayResults(t *testing.T) {
 					Path:     "/test/root",
 					Children: []*stack.Node{{Name: "child", Path: "/test/root/child"}},
 				}
-				return tui.NewTestModel(stackRoot, 1, true, "plan", "/test/root")
+				return tui.NewTestModel(stackRoot, 1, testCommands, true, "plan", "/test/root")
 			},
 			expectedOutputHas: []string{
 				"✅ Selection confirmed",
@@ -156,7 +168,7 @@ func TestDisplayResults(t *testing.T) {
 					Name: "root",
 					Path: "/test/root",
 				}
-				return tui.NewModel(stackRoot, 1)
+				return tui.NewModel(stackRoot, 1, testCommands)
 			},
 			expectedOutputHas: []string{
 				"⚠️  Selection cancelled",
@@ -174,7 +186,7 @@ func TestDisplayResults(t *testing.T) {
 					Name: "root",
 					Path: "/test/root",
 				}
-				return tui.NewTestModel(stackRoot, 1, true, "destroy", "/test/root")
+				return tui.NewTestModel(stackRoot, 1, testCommands, true, "destroy", "/test/root")
 			},
 			expectedOutputHas: []string{
 				"✅ Selection confirmed",
@@ -283,7 +295,7 @@ func TestExecute_WithConfirmation(t *testing.T) {
 		}
 
 		// Return a confirmed model simulating user selecting "plan" and confirming
-		return tui.NewTestModel(stackRoot, 1, true, "plan", envDir), nil
+		return tui.NewTestModel(stackRoot, 1, testCommands, true, "plan", envDir), nil
 	}
 
 	// Inject mock runner and ensure cleanup

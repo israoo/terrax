@@ -41,23 +41,15 @@ type Model struct {
 }
 
 // NewModel creates a new TUI model instance.
-func NewModel(stackRoot *stack.Node, maxDepth int) Model {
+// commands: List of available Terragrunt commands to display.
+func NewModel(stackRoot *stack.Node, maxDepth int, commands []string) Model {
 	navigator := stack.NewNavigator(stackRoot, maxDepth)
 	navState := stack.NewNavigationState(maxDepth)
 
 	m := Model{
-		navigator: navigator,
-		navState:  navState,
-		commands: []string{
-			"plan",
-			"apply",
-			"destroy",
-			"validate",
-			"init",
-			"output",
-			"refresh",
-			"fmt",
-		},
+		navigator:        navigator,
+		navState:         navState,
+		commands:         commands,
 		selectedCommand:  0,
 		focusedColumn:    0,
 		navigationOffset: 0,

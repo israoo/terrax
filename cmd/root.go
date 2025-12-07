@@ -9,6 +9,7 @@ import (
 	"github.com/israoo/terrax/internal/stack"
 	"github.com/israoo/terrax/internal/tui"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 // TUIRunner is a function type that runs a TUI program and returns the final model.
@@ -18,18 +19,58 @@ type TUIRunner func(initialModel tui.Model) (tui.Model, error)
 // currentTUIRunner holds the active TUI runner (can be overridden in tests).
 var currentTUIRunner TUIRunner = defaultTUIRunner
 
+// defaultCommands defines the default list of Terragrunt commands.
+var defaultCommands = []string{
+	"plan",
+	"apply",
+	"validate",
+	"fmt",
+	"init",
+	"output",
+	"refresh",
+	"destroy",
+}
+
 var rootCmd = &cobra.Command{
 	Use:   "terrax",
-	Short: "Terrax - Terra eXecutor for managing Terragrunt stacks",
-	Long: `Terrax is a professional CLI tool for interactive and centralized management
+	Short: "TerraX - Terragrunt eXecutor for managing Terragrunt stacks",
+	Long: `TerraX is a professional CLI tool for interactive and centralized management
 of Terragrunt stacks. It provides a TUI for easy navigation
 and selection of infrastructure commands.`,
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		initConfig()
+	},
 	RunE: runTUI,
 }
 
 // Execute runs the root command.
 func Execute() error {
 	return rootCmd.Execute()
+}
+
+// initConfig initializes the configuration using Viper.
+func initConfig() {
+	// Set default values
+	viper.SetDefault("commands", defaultCommands)
+
+	// Configure config file search paths
+	viper.SetConfigName(".terrax")
+	viper.SetConfigType("yaml")
+
+	// Search in current directory first, then home directory
+	viper.AddConfigPath(".")
+	if home, err := os.UserHomeDir(); err == nil {
+		viper.AddConfigPath(home)
+	}
+
+	// Read config file (if exists)
+	if err := viper.ReadInConfig(); err != nil {
+		// Ignore config file not found error - use defaults
+		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+			// Config file was found but another error was produced
+			fmt.Fprintf(os.Stderr, "Warning: Error reading config file: %v\n", err)
+		}
+	}
 }
 
 // runTUI starts the TUI application.
@@ -46,8 +87,15 @@ func runTUI(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to build stack tree: %w", err)
 	}
 
+	// Get commands from config (with defaults fallback)
+	commands := viper.GetStringSlice("commands")
+	if len(commands) == 0 {
+		// Fallback to defaultCommands if config is empty
+		commands = defaultCommands
+	}
+
 	// Run TUI using the current runner (injectable for tests)
-	initialModel := tui.NewModel(stackRoot, maxDepth)
+	initialModel := tui.NewModel(stackRoot, maxDepth, commands)
 	model, err := currentTUIRunner(initialModel)
 	if err != nil {
 		return fmt.Errorf("TUI error: %w", err)

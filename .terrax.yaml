@@ -1,0 +1,14 @@
+# TerraX configuration file
+# Place this file as .terrax.yaml in your project root or home directory
+
+# commands: List of Terragrunt commands to display in the TUI
+# The order here determines the display order in the commands column
+commands:
+  - plan        # Show execution plan
+  - apply       # Apply infrastructure changes
+  - validate    # Validate configuration files
+  - fmt         # Format configuration files
+  - init        # Initialize working directory
+  - output      # Show output values
+  - refresh     # Refresh state
+  - destroy     # Destroy managed infrastructure

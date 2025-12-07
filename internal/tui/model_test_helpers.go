@@ -6,20 +6,9 @@ import (
 
 // NewTestModel creates a Model instance for testing with configurable state.
 // This function allows tests to bypass the normal initialization and set specific states.
-func NewTestModel(stackRoot *stack.Node, maxDepth int, confirmed bool, selectedCommand, selectedStackPath string) Model {
+func NewTestModel(stackRoot *stack.Node, maxDepth int, commands []string, confirmed bool, selectedCommand, selectedStackPath string) Model {
 	navigator := stack.NewNavigator(stackRoot, maxDepth)
 	navState := stack.NewNavigationState(maxDepth)
-
-	commands := []string{
-		"plan",
-		"apply",
-		"destroy",
-		"validate",
-		"init",
-		"output",
-		"refresh",
-		"fmt",
-	}
 
 	// Find the command index.
 	selectedCommandIdx := 0
