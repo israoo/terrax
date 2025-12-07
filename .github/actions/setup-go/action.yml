@@ -10,7 +10,6 @@ runs:
   using: "composite"
   steps:
     - name: Set up Go
-      id: setup-go
       uses: actions/setup-go@v6
       with:
         go-version-file: 'go.mod'
