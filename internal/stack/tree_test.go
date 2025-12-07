@@ -151,17 +151,20 @@ func buildTreeRecursiveWithFS(fs afero.Fs, node *Node, maxDepth *int) error {
 			Depth:    node.Depth + 1,
 		}
 
-		// Update max depth.
-		if childNode.Depth > *maxDepth {
-			*maxDepth = childNode.Depth
-		}
-
-		// Recursively build children.
+		// Recursively build children first.
 		if err := buildTreeRecursiveWithFS(fs, childNode, maxDepth); err != nil {
 			continue // Skip problematic subdirectories.
 		}
 
-		node.Children = append(node.Children, childNode)
+		// FILTER: Only add directories that are stacks OR contain stacks.
+		// This prevents leaf directories like "global/" with only "globals.hcl" from appearing.
+		if childNode.IsStack || len(childNode.Children) > 0 {
+			// Update max depth only for included nodes.
+			if childNode.Depth > *maxDepth {
+				*maxDepth = childNode.Depth
+			}
+			node.Children = append(node.Children, childNode)
+		}
 	}
 
 	return nil
@@ -464,6 +467,8 @@ func TestFindAndBuildTree_HiddenDirectories(t *testing.T) {
 	require.NoError(t, fs.MkdirAll("/root/visible", 0755))
 	require.NoError(t, fs.MkdirAll("/root/.hidden", 0755))
 	require.NoError(t, fs.MkdirAll("/root/.git", 0755))
+	// Make visible a stack so it appears in the tree.
+	require.NoError(t, afero.WriteFile(fs, "/root/visible/terragrunt.hcl", []byte(""), 0644))
 
 	tree, maxDepth, err := findAndBuildTreeWithFS(fs, "/root")
 
@@ -483,6 +488,8 @@ func TestFindAndBuildTree_SkippedDirectories(t *testing.T) {
 	require.NoError(t, fs.MkdirAll("/root/.terraform", 0755))
 	require.NoError(t, fs.MkdirAll("/root/vendor", 0755))
 	require.NoError(t, fs.MkdirAll("/root/.vscode", 0755))
+	// Make modules a stack so it appears in tree.
+	require.NoError(t, afero.WriteFile(fs, "/root/modules/terragrunt.hcl", []byte(""), 0644))
 
 	tree, maxDepth, err := findAndBuildTreeWithFS(fs, "/root")
 
@@ -499,6 +506,8 @@ func TestFindAndBuildTree_DeepHierarchy(t *testing.T) {
 
 	// Create deep hierarchy: level0/level1/level2/level3/level4.
 	require.NoError(t, fs.MkdirAll("/root/level1/level2/level3/level4", 0755))
+	// Make the leaf a stack so intermediate directories appear.
+	require.NoError(t, afero.WriteFile(fs, "/root/level1/level2/level3/level4/terragrunt.hcl", []byte(""), 0644))
 
 	tree, maxDepth, err := findAndBuildTreeWithFS(fs, "/root")
 
@@ -531,16 +540,66 @@ func TestFindAndBuildTree_MultipleStackFiles(t *testing.T) {
 	tree, _, err := findAndBuildTreeWithFS(fs, "/root")
 
 	require.NoError(t, err)
-	require.Len(t, tree.Children, 3)
+	// Only directories with stacks should appear (nostack should be filtered out).
+	require.Len(t, tree.Children, 2, "only stack directories should be included")
 
-	// Find stack nodes.
+	// Verify both children are stacks.
 	stackCount := 0
 	for _, child := range tree.Children {
 		if child.IsStack {
 			stackCount++
 		}
 	}
-	assert.Equal(t, 2, stackCount)
+	assert.Equal(t, 2, stackCount, "both children should be stacks")
+}
+
+// TestFindAndBuildTree_NonStackDirectoriesFiltered tests that directories without
+// terragrunt.hcl and without stack descendants are filtered out (e.g., 'global' with only 'globals.hcl').
+func TestFindAndBuildTree_NonStackDirectoriesFiltered(t *testing.T) {
+	fs := afero.NewMemMapFs()
+
+	// Create structure:
+	//  root/
+	//  ├── global/               <- NO terragrunt.hcl, only globals.hcl (should be filtered)
+	//  │   └── globals.hcl
+	//  ├── env/                  <- NO terragrunt.hcl, but contains stacks (should appear)
+	//  │   ├── dev/
+	//  │   │   └── terragrunt.hcl
+	//  │   └── prod/
+	//  │       └── terragrunt.hcl
+	//  └── modules/              <- NO terragrunt.hcl, no stack descendants (should be filtered)
+	//      └── some-module/
+	//          └── main.tf
+
+	require.NoError(t, fs.MkdirAll("/root/global", 0755))
+	require.NoError(t, afero.WriteFile(fs, "/root/global/globals.hcl", []byte("# global vars"), 0644))
+
+	require.NoError(t, fs.MkdirAll("/root/env/dev", 0755))
+	require.NoError(t, afero.WriteFile(fs, "/root/env/dev/terragrunt.hcl", []byte(""), 0644))
+	require.NoError(t, fs.MkdirAll("/root/env/prod", 0755))
+	require.NoError(t, afero.WriteFile(fs, "/root/env/prod/terragrunt.hcl", []byte(""), 0644))
+
+	require.NoError(t, fs.MkdirAll("/root/modules/some-module", 0755))
+	require.NoError(t, afero.WriteFile(fs, "/root/modules/some-module/main.tf", []byte(""), 0644))
+
+	tree, maxDepth, err := findAndBuildTreeWithFS(fs, "/root")
+
+	require.NoError(t, err)
+	require.NotNil(t, tree)
+
+	// Only 'env' should appear (contains stacks).
+	// 'global' and 'modules' should be filtered out.
+	require.Len(t, tree.Children, 1, "only 'env' should appear (contains stacks)")
+	assert.Equal(t, "env", tree.Children[0].Name)
+	assert.False(t, tree.Children[0].IsStack, "env itself is not a stack")
+
+	// Verify 'env' has 2 children (dev, prod).
+	require.Len(t, tree.Children[0].Children, 2, "env should have dev and prod")
+	assert.True(t, tree.Children[0].Children[0].IsStack, "dev should be a stack")
+	assert.True(t, tree.Children[0].Children[1].IsStack, "prod should be a stack")
+
+	// Max depth should be 2 (root=0, env=1, dev/prod=2).
+	assert.Equal(t, 2, maxDepth)
 }
 
 // TestFindAndBuildTree_RealFilesystem tests the production function with real OS calls.
@@ -641,6 +700,8 @@ func TestBuildTreeRecursive_ErrorHandling(t *testing.T) {
 
 	// Create a directory structure.
 	require.NoError(t, fs.MkdirAll("/root/accessible", 0755))
+	// Make it a stack so it appears in tree.
+	require.NoError(t, afero.WriteFile(fs, "/root/accessible/terragrunt.hcl", []byte(""), 0644))
 
 	// Create the root node.
 	root := &Node{
@@ -701,6 +762,8 @@ func TestBuildTreeRecursive_MaxDepthTracking(t *testing.T) {
 
 	// Create a deep hierarchy: root -> level1 -> level2 -> level3.
 	require.NoError(t, fs.MkdirAll("/root/level1/level2/level3", 0755))
+	// Make the leaf a stack so intermediate directories appear.
+	require.NoError(t, afero.WriteFile(fs, "/root/level1/level2/level3/terragrunt.hcl", []byte(""), 0644))
 
 	root := &Node{
 		Name:     "root",
@@ -736,6 +799,8 @@ func TestBuildTreeRecursive_SkipsNonDirectories(t *testing.T) {
 	require.NoError(t, fs.MkdirAll("/root/subdir", 0755))
 	require.NoError(t, afero.WriteFile(fs, "/root/file.txt", []byte("content"), 0644))
 	require.NoError(t, afero.WriteFile(fs, "/root/script.sh", []byte("#!/bin/bash"), 0755))
+	// Make subdir a stack so it appears.
+	require.NoError(t, afero.WriteFile(fs, "/root/subdir/terragrunt.hcl", []byte(""), 0644))
 
 	root := &Node{
 		Name:     "root",
@@ -765,6 +830,9 @@ func TestBuildTreeRecursive_ContinuesOnSubdirectoryError(t *testing.T) {
 	// Create multiple subdirectories.
 	require.NoError(t, fs.MkdirAll("/root/good1", 0755))
 	require.NoError(t, fs.MkdirAll("/root/good2", 0755))
+	// Make them stacks so they appear.
+	require.NoError(t, afero.WriteFile(fs, "/root/good1/terragrunt.hcl", []byte(""), 0644))
+	require.NoError(t, afero.WriteFile(fs, "/root/good2/terragrunt.hcl", []byte(""), 0644))
 
 	// Note: We can't easily simulate a permission error with afero's MemMapFs,
 	// but we can verify that the function continues processing after encountering issues.
@@ -803,6 +871,7 @@ func TestBuildTreeRecursive_RealFilesystem(t *testing.T) {
 	require.NoError(t, os.MkdirAll(tmpDir+"/env/dev", 0755))
 	require.NoError(t, os.MkdirAll(tmpDir+"/env/prod", 0755))
 	require.NoError(t, os.WriteFile(tmpDir+"/env/dev/terragrunt.hcl", []byte(""), 0644))
+	require.NoError(t, os.WriteFile(tmpDir+"/env/prod/terragrunt.hcl", []byte(""), 0644))
 
 	// Create the root node pointing to the real filesystem.
 	root := &Node{
