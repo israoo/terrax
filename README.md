@@ -10,6 +10,7 @@ Navigate your infrastructure as code hierarchies with an elegant, keyboard-drive
 
 [Features](#-key-features) •
 [Installation](#-installation) •
+[Configuration](#-configuration) •
 [Quick start](#-quick-start) •
 [Documentation](#-documentation) •
 [Contributing](#-contributing) •
@@ -106,7 +107,7 @@ terrax --version
 
 ---
 
-## ⚙️ Configuration
+## 🔧 Configuration
 
 TerraX allows you to customize available commands via `.terrax.yaml` configuration file.
 
@@ -291,7 +292,7 @@ TerraX/
 
 ---
 
-## 🔧 Contributing
+## 🔨 Contributing
 
 We welcome contributions! TerraX follows strict architectural principles and comprehensive testing standards.
 
