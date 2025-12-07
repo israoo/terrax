@@ -153,3 +153,40 @@ func (nav *Navigator) GetRoot() *Node {
 func (nav *Navigator) GetMaxDepth() int {
 	return nav.maxDepth
 }
+
+// GetNavigationPath builds the full navigation path up to the specified depth.
+// It constructs a filesystem path from the root through the selected nodes.
+// Returns "~" if root is nil, otherwise returns the full path.
+func (nav *Navigator) GetNavigationPath(state *NavigationState, depth int) string {
+	// Start with root directory path
+	if nav.root == nil {
+		return "~"
+	}
+
+	path := nav.root.Path
+
+	// If at root level (depth < 0), return just the root path
+	if depth < 0 || nav.maxDepth == 0 {
+		return path
+	}
+
+	// Build path from selected indices, appending subdirectories
+	for i := 0; i <= depth && i < len(state.Columns); i++ {
+		if i >= len(state.SelectedIndices) {
+			break
+		}
+
+		selectedIdx := state.SelectedIndices[i]
+		if selectedIdx >= 0 && selectedIdx < len(state.Columns[i]) {
+			// Extract directory name (remove emoji marker if present)
+			dirName := state.Columns[i][selectedIdx]
+			// Remove " 📦" marker if it exists
+			if len(dirName) > 3 && dirName[len(dirName)-2:] == "📦" {
+				dirName = dirName[:len(dirName)-3]
+			}
+			path += "/" + dirName
+		}
+	}
+
+	return path
+}

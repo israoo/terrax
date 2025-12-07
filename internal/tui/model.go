@@ -299,42 +299,10 @@ func (m Model) IsConfirmed() bool {
 }
 
 // getCurrentNavigationPath returns the current navigation path as a string.
-// It builds a breadcrumb path starting from root directory up to the focused column.
+// Delegates to Navigator for path construction business logic.
 func (m Model) getCurrentNavigationPath() string {
-	// Start with root directory path
-	rootNode := m.navigator.GetRoot()
-	if rootNode == nil {
-		return "~"
-	}
-
-	path := rootNode.Path
-
-	// If in commands column, return just the root path
-	if m.isCommandsColumnFocused() || m.navigator.GetMaxDepth() == 0 {
-		return path
-	}
-
 	depth := m.getNavigationDepth()
-
-	// Build path from selected indices, appending subdirectories
-	for i := 0; i <= depth && i < len(m.navState.Columns); i++ {
-		if i >= len(m.navState.SelectedIndices) {
-			break
-		}
-
-		selectedIdx := m.navState.SelectedIndices[i]
-		if selectedIdx >= 0 && selectedIdx < len(m.navState.Columns[i]) {
-			// Extract directory name (remove emoji marker if present)
-			dirName := m.navState.Columns[i][selectedIdx]
-			// Remove " 📦" marker if it exists
-			if len(dirName) > 3 && dirName[len(dirName)-2:] == "📦" {
-				dirName = dirName[:len(dirName)-3]
-			}
-			path += "/" + dirName
-		}
-	}
-
-	return path
+	return m.navigator.GetNavigationPath(m.navState, depth)
 }
 
 // hasLeftOverflow returns true if there are navigation columns to the left.
