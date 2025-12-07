@@ -2,7 +2,7 @@
 
 # 🌍 TerraX
 
-**The Interactive TUI Executor for Terragrunt Stacks**
+**The interactive TUI executor for Terragrunt stacks**
 
 [![Go Version](https://img.shields.io/badge/Go-1.25.5-00ADD8?logo=go)](https://go.dev/) [![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/israoo/TerraX) [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE) [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
@@ -482,7 +482,7 @@ After you confirm your selection (pressing Enter), TerraX:
 
 **Built with ❤️ for Infrastructure Engineers**
 
-[Report Bug](https://github.com/israoo/TerraX/issues) •
-[Request Feature](https://github.com/israoo/TerraX/issues)
+[Report bug](https://github.com/israoo/TerraX/issues) •
+[Request feature](https://github.com/israoo/TerraX/issues)
 
 </div>
