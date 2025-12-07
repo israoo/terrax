@@ -1,4 +1,4 @@
-# GitHub Copilot Instructions - Terrax
+# GitHub Copilot Instructions - TerraX
 
 ## Architecture Overview
 

@@ -1,13 +1,13 @@
-# Terrax Claude Agents
+# TerraX Claude Agents
 
-This directory contains specialized Claude agents for Terrax development. Each agent is an expert in a specific domain and ensures consistent, high-quality implementation following established patterns.
+This directory contains specialized Claude agents for TerraX development. Each agent is an expert in a specific domain and ensures consistent, high-quality implementation following established patterns.
 
 ## Available Agents
 
 ### agent-developer
 **Purpose:** Agent creation, maintenance, and governance
 **Invoke when:**
-- Creating new agents for Terrax subsystems
+- Creating new agents for TerraX subsystems
 - Reviewing or updating existing agents
 - Validating agent frontmatter and architecture
 - Optimizing agent instructions for context efficiency
@@ -21,7 +21,7 @@ This directory contains specialized Claude agents for Terrax development. Each a
 ---
 
 ### tui-expert
-**Purpose:** Terrax TUI development using Bubble Tea and Lipgloss
+**Purpose:** TerraX TUI development using Bubble Tea and Lipgloss
 **Invoke when:**
 - Modifying TUI layout, styling, or rendering logic
 - Working with Bubble Tea Model-Update-View pattern
@@ -46,7 +46,7 @@ This directory contains specialized Claude agents for Terrax development. Each a
 ---
 
 ### testing-expert
-**Purpose:** Terrax testing strategy across all layers (unit, integration, TUI)
+**Purpose:** TerraX testing strategy across all layers (unit, integration, TUI)
 **Invoke when:**
 - Writing unit tests for Navigator, tree parsing, or business logic
 - Setting up filesystem mocking with afero for tree scanning tests
@@ -73,7 +73,7 @@ This directory contains specialized Claude agents for Terrax development. Each a
 
 ## Agent Architecture
 
-All Terrax agents follow the **Agent-Per-Domain** pattern:
+All TerraX agents follow the **Agent-Per-Domain** pattern:
 
 - **One agent per mature subsystem** (3+ files, established patterns)
 - **Context-efficient** (target 8-20 KB, max 30 KB)
@@ -83,7 +83,7 @@ All Terrax agents follow the **Agent-Per-Domain** pattern:
 
 ## Potential Future Agents
 
-As Terrax functionality expands, new agents will be created:
+As TerraX functionality expands, new agents will be created:
 
 - **stack-parser-expert** - Tree scanning, node construction, afero testing patterns
 - **navigator-expert** - Navigation logic, offset management, sliding window algorithms

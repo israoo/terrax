@@ -4,7 +4,7 @@ Guidance for Claude Code when working with this repository.
 
 ## Project Overview
 
-**Terrax** is a professional Terminal UI (TUI) for interactive and hierarchical navigation of Terragrunt stacks. Built with Go, Bubble Tea, and Lipgloss, it provides dynamic tree-based navigation for infrastructure management.
+**TerraX** is a professional Terminal UI (TUI) for interactive and hierarchical navigation of Terragrunt stacks. Built with Go, Bubble Tea, and Lipgloss, it provides dynamic tree-based navigation for infrastructure management.
 
 **Tech Stack:**
 
@@ -25,7 +25,7 @@ go test ./...       # Run all tests
 
 ## Architecture
 
-Terrax follows strict **Separation of Concerns (SoC)** principles:
+TerraX follows strict **Separation of Concerns (SoC)** principles:
 
 ```text
 terrax/
@@ -64,7 +64,7 @@ terrax/
 
 ### Bubble Tea Architecture (MANDATORY)
 
-Terrax uses **Elm Architecture** via Bubble Tea. Strict adherence to Model-Update-View pattern:
+TerraX uses **Elm Architecture** via Bubble Tea. Strict adherence to Model-Update-View pattern:
 
 **Model** (`internal/tui/model.go`):
 
@@ -144,7 +144,7 @@ func (n *Navigator) GetSelectedPath(state *NavigationState) string
 
 ### Sliding Window Pattern (MANDATORY)
 
-Terrax implements a **sliding window** for deep hierarchies (maxDepth > 3):
+TerraX implements a **sliding window** for deep hierarchies (maxDepth > 3):
 
 **Concept**:
 
@@ -218,7 +218,7 @@ Three groups separated by blank lines, sorted alphabetically:
 
 1. Go stdlib
 2. Third-party packages
-3. Terrax internal packages (`github.com/israoo/terrax/...`)
+3. TerraX internal packages (`github.com/israoo/terrax/...`)
 
 **Example**:
 
@@ -281,7 +281,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 - Handle each message type in separate method
 - Return updated model (immutable pattern)
-- Return commands for side effects (none in Terrax currently)
+- Return commands for side effects (none in TerraX currently)
 - Keep Update method clean and delegating
 
 ### View Rendering (MANDATORY)
@@ -376,7 +376,7 @@ func TestNavigator_PropagateSelection(t *testing.T) {
 
 ### Integration Tests
 
-Terrax currently uses manual testing with sample directory structures. Consider adding:
+TerraX currently uses manual testing with sample directory structures. Consider adding:
 
 - Fixture-based tests with known directory trees
 - Golden file tests for rendering output
@@ -410,7 +410,7 @@ make build              # Final build verification
 
 ### Adding a New Command
 
-Currently Terrax has a simple structure with one command (the TUI itself). To add new commands:
+Currently TerraX has a simple structure with one command (the TUI itself). To add new commands:
 
 1. Create new file in `cmd/` (e.g., `cmd/validate.go`)
 2. Define Cobra command

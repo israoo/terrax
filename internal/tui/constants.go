@@ -45,7 +45,7 @@ const (
 
 // UI Text
 const (
-	AppTitle       = "TerraX - Terra eXecutor"
+	AppTitle       = "TerraX - Terragrunt eXecutor"
 	CommandsTitle  = "Commands"
 	StacksTitle    = "Stacks"
 	HelpText       = "↑↓/jk: navigate | ←→/hl: change column | enter: select/confirm | q: quit"

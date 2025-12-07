@@ -24,7 +24,7 @@ BUILD_TIME=$(shell date -u '+%Y-%m-%d_%H:%M:%S')
 help: ## Show this help
 	@echo ""
 	@echo "═══════════════════════════════════════════════════════════════"
-	@echo "  🌍 Terrax - Terra eXecutor"
+	@echo "  🌍 TerraX - Terragrunt eXecutor"
 	@echo "═══════════════════════════════════════════════════════════════"
 	@echo ""
 	@echo "📦 INSTALLATION & SETUP:"
