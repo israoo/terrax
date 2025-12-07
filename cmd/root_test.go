@@ -37,10 +37,10 @@ func captureStdout(t *testing.T) (restore func() string) {
 	os.Stdout = w
 
 	return func() string {
-		w.Close()
+		_ = w.Close()
 		os.Stdout = oldStdout
 		var buf bytes.Buffer
-		io.Copy(&buf, r)
+		_, _ = io.Copy(&buf, r)
 		return buf.String()
 	}
 }
@@ -241,7 +241,7 @@ func TestExecute(t *testing.T) {
 
 	// Cleanup: Restore state after test
 	t.Cleanup(func() {
-		os.Chdir(originalWd)
+		_ = os.Chdir(originalWd)
 		rootCmd.ResetFlags()
 		rootCmd.ResetCommands()
 	})
@@ -282,7 +282,7 @@ func TestExecute_WithConfirmation(t *testing.T) {
 
 	// Cleanup: Restore state after test
 	t.Cleanup(func() {
-		os.Chdir(originalWd)
+		_ = os.Chdir(originalWd)
 		rootCmd.ResetFlags()
 		rootCmd.ResetCommands()
 	})
@@ -404,7 +404,7 @@ max_navigation_columns: 2
 
 				// Cleanup function to remove home config
 				cleanup := func() {
-					os.Remove(configPath)
+					_ = os.Remove(configPath)
 				}
 
 				return tmpDir, cleanup
@@ -437,7 +437,7 @@ max_navigation_columns: 5
 				require.NoError(t, os.WriteFile(homeConfigPath, []byte(homeContent), 0644))
 
 				cleanup := func() {
-					os.Remove(homeConfigPath)
+					_ = os.Remove(homeConfigPath)
 				}
 
 				return tmpDir, cleanup
@@ -475,7 +475,7 @@ max_navigation_columns: 5
 			originalWd, err := os.Getwd()
 			require.NoError(t, err)
 			require.NoError(t, os.Chdir(configDir))
-			defer os.Chdir(originalWd)
+			defer func() { _ = os.Chdir(originalWd) }()
 
 			// Call initConfig
 			initConfig()
@@ -574,7 +574,7 @@ func TestRunTUI_ConfigValidation(t *testing.T) {
 			originalWd, err := os.Getwd()
 			require.NoError(t, err)
 			require.NoError(t, os.Chdir(tmpDir))
-			defer os.Chdir(originalWd)
+			defer func() { _ = os.Chdir(originalWd) }()
 
 			// Setup config
 			tt.setupConfig()
@@ -614,7 +614,7 @@ func TestRunTUI_TUIRunnerError(t *testing.T) {
 	originalWd, err := os.Getwd()
 	require.NoError(t, err)
 	require.NoError(t, os.Chdir(tmpDir))
-	defer os.Chdir(originalWd)
+	defer func() { _ = os.Chdir(originalWd) }()
 
 	// Mock TUI runner that returns an error
 	mockTUIRunner := func(initialModel tui.Model) (tui.Model, error) {

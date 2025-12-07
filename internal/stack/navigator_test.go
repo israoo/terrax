@@ -751,7 +751,7 @@ func TestNavigator_PropagateSelection_EdgeCases(t *testing.T) {
 				}
 				nav := NewNavigator(root, 3)
 				state := NewNavigationState(3)
-				state.SelectedIndices[0] = 0 // Valid
+				state.SelectedIndices[0] = 0  // Valid
 				state.SelectedIndices[1] = 50 // Out of bounds at depth 1
 				state.SelectedIndices[2] = 10 // Should never be used
 				return nav, state

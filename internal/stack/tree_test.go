@@ -52,9 +52,10 @@ func TestFindAndBuildTree_Success(t *testing.T) {
 	// Find dev and prod nodes (order may vary).
 	var devNode, prodNode *Node
 	for _, child := range tree.Children {
-		if child.Name == "dev" {
+		switch child.Name {
+		case "dev":
 			devNode = child
-		} else if child.Name == "prod" {
+		case "prod":
 			prodNode = child
 		}
 	}

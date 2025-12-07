@@ -63,16 +63,6 @@ var (
 				Background(lipgloss.Color("#2E2E2E")).
 				Padding(0, 2).
 				Margin(0, 0)
-
-	// Breadcrumb style for footer (deprecated, kept for compatibility)
-	breadcrumbStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(primaryColor).
-			Italic(false)
-
-	// Level counter style
-	levelCounterStyle = lipgloss.NewStyle().
-				Foreground(secondaryColor)
 )
 
 // LayoutCalculator handles all layout dimension calculations.
@@ -243,7 +233,7 @@ func (r *Renderer) buildCommandList() string {
 	}
 
 	// Map original selected index to filtered index
-	selectedFilteredIndex := -1
+	var selectedFilteredIndex int
 	if len(commands) < len(originalCommands) {
 		// Filter is active, need to map
 		selectedFilteredIndex = findFilteredIndex(originalCommands, commands, r.model.selectedCommand)
@@ -312,7 +302,7 @@ func (r *Renderer) buildNavigationList(depth int) string {
 	}
 
 	// Map original selected index to filtered index
-	selectedFilteredIndex := -1
+	var selectedFilteredIndex int
 	if len(items) < len(originalItems) {
 		// Filter is active, need to map
 		selectedFilteredIndex = findFilteredIndex(originalItems, items, selectedIndex)
