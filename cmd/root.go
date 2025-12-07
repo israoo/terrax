@@ -129,7 +129,8 @@ func buildStackTree(workDir string) (*stack.Node, int, error) {
 	fmt.Printf("✅ Found stack tree with max depth: %d\n", maxDepth)
 
 	if !stackRoot.HasChildren() {
-		fmt.Println("⚠️ No subdirectories found. Make sure you're in the right directory.")
+		fmt.Println("⚠️  No subdirectories found. Make sure you're in the right directory.")
+		return nil, 0, fmt.Errorf("no terragrunt directories found")
 	}
 
 	return stackRoot, maxDepth, nil
@@ -171,7 +172,7 @@ func displayResults(model tui.Model) {
 	fmt.Println()
 
 	if !model.IsConfirmed() {
-		fmt.Println("⚠️ Selection cancelled")
+		fmt.Println("⚠️  Selection cancelled")
 		return
 	}
 

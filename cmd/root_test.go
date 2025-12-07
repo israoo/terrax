@@ -84,11 +84,10 @@ func TestBuildStackTree(t *testing.T) {
 			setupDir: func(t *testing.T) string {
 				return t.TempDir()
 			},
-			expectError:      false,
-			expectedMaxDepth: 0,
+			expectError: true,
 			expectedOutputHas: []string{
 				"🔍 Scanning for stacks in:",
-				"⚠️ No subdirectories found",
+				"⚠️  No subdirectories found",
 			},
 		},
 		{
@@ -171,7 +170,7 @@ func TestDisplayResults(t *testing.T) {
 				return tui.NewModel(stackRoot, 1, testCommands, 3)
 			},
 			expectedOutputHas: []string{
-				"⚠️ Selection cancelled",
+				"⚠️  Selection cancelled",
 			},
 			unexpectedOutput: []string{
 				"✅ Selection confirmed",
