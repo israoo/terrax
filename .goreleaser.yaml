@@ -23,7 +23,7 @@ builds:
     ldflags:
       - -s -w
       - -X main.version={{.Version}}
-      - -extldflags "-static"
+      - -extldflags "-static" # Para binarios estáticos en Linux
 
 archives:
   - id: terrax-archive
@@ -59,32 +59,38 @@ changelog:
       - Merge branch
 
 brews:
-  - name: terrax
+  -
+    name: terrax
+    directory: Casks
+    commit_msg_template: "Brew cask update for {{ .ProjectName }} version {{ .Tag }}"
+    homepage: https://github.com/israoo/terrax
+    description: The interactive TUI executor for Terragrunt stacks
+    license: Apache-2.0
     repository:
       owner: israoo
       name: homebrew-tap
       token: "{{ .Env.GORELEASER_GITHUB_TOKEN }}"
-    folder: Formula
-    homepage: https://github.com/israoo/terrax
-    description: The interactive TUI executor for Terragrunt stacks
-    license: Apache-2.0
     install: |
       bin.install "terrax"
     test: |
       system "#{bin}/terrax", "--version"
 
-scoop:
-  name: terrax
-  bucket:
-    owner: israoo
-    name: scoop-bucket
-    token: "{{ .Env.GORELEASER_GITHUB_TOKEN }}"
-  homepage: https://github.com/israoo/terrax
-  description: The interactive TUI executor for Terragrunt stacks
-  license: Apache-2.0
+scoops:
+  -
+    name: terrax
+    directory: Scoops
+    commit_msg_template: "Scoop update for {{ .ProjectName }} version {{ .Tag }}"
+    homepage: https://github.com/israoo/terrax
+    description: The interactive TUI executor for Terragrunt stacks
+    license: Apache-2.0
+    repository:
+      owner: israoo
+      name: scoop-bucket
+      token: "{{ .Env.GORELEASER_GITHUB_TOKEN }}"
 
 nfpms:
-  - id: terrax-packages
+  -
+    id: terrax-packages
     package_name: terrax
     file_name_template: >-
       {{ .ProjectName }}_
@@ -106,7 +112,6 @@ nfpms:
     contents:
       - src: terrax
         dst: /usr/local/bin/terrax
-        type: "config|noreplace"
         file_info:
           mode: 0755
 
@@ -132,7 +137,7 @@ release:
 
     - **Scoop (Windows):**
       ```powershell
-      scoop bucket add israoo https://github.com/israoo/scoop-bucket
+      scoop bucket add israoo [https://github.com/israoo/scoop-bucket](https://github.com/israoo/scoop-bucket)
       scoop install terrax
       ```
 
