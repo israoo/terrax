@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"os/exec"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/israoo/terrax/internal/stack"
@@ -46,6 +47,12 @@ func runTUI(cmd *cobra.Command, args []string) error {
 
 	// Display results
 	displayResults(model)
+
+	// Execute command if confirmed
+	if model.IsConfirmed() {
+		return executeTerragruntCommand(model.GetSelectedCommand(), model.GetSelectedStackPath())
+	}
+
 	return nil
 }
 
@@ -114,4 +121,26 @@ func displayResults(model tui.Model) {
 	fmt.Printf("Command:    %s\n", model.GetSelectedCommand())
 	fmt.Printf("Stack Path: %s\n", model.GetSelectedStackPath())
 	fmt.Println("═══════════════════════════════════════")
+	fmt.Println()
+}
+
+// executeTerragruntCommand runs the terragrunt command with the selected parameters.
+func executeTerragruntCommand(command, stackPath string) error {
+	// Build the terragrunt command: terragrunt run --all --working-dir {PATH} -- {command}
+	args := []string{"run", "--all", "--working-dir", stackPath, "--", command}
+
+	fmt.Printf("🚀 Executing: terragrunt %v\n\n", args)
+
+	cmd := exec.Command("terragrunt", args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+
+	if err := cmd.Run(); err != nil {
+		fmt.Fprintf(os.Stderr, "\n❌ Command execution failed: %v\n", err)
+		return err
+	}
+
+	fmt.Println("\n✅ Command execution completed")
+	return nil
 }
