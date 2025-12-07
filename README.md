@@ -14,7 +14,7 @@ Navigate your infrastructure as code hierarchies with an elegant, keyboard-drive
 [Quick start](#-quick-start) •
 [Documentation](#-documentation) •
 [Contributing](#-contributing) •
-[License](#-license) •
+[License](#-license)
 
 </div>
 
@@ -223,7 +223,7 @@ The Navigator (`internal/stack/navigator.go`) handles:
 
 #### 3. **Sliding window display**
 
-TerraX displays **max 3 navigation columns** simultaneously by default (configurable via `max_navigation_columns`):
+TerraX displays **3 navigation columns** simultaneously by default (configurable via `max_navigation_columns`):
 
 - As you navigate deeper, earlier columns slide out of view
 - The focused column is always visible
@@ -483,6 +483,6 @@ After you confirm your selection (pressing Enter), TerraX:
 **Built with ❤️ for Infrastructure Engineers**
 
 [Report Bug](https://github.com/israoo/TerraX/issues) •
-[Request Feature](https://github.com/israoo/TerraX/issues) •
+[Request Feature](https://github.com/israoo/TerraX/issues)
 
 </div>
