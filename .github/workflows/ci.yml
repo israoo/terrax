@@ -40,6 +40,9 @@ jobs:
   security:
     name: Security scans
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      security-events: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
