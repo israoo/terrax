@@ -6,7 +6,7 @@
 
 [![Go Version](https://img.shields.io/badge/Go-1.25.5-00ADD8?logo=go)](https://go.dev/) [![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/israoo/TerraX) [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE) [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-Navigate your infrastructure as code hierarchies with an elegant, keyboard-driven terminal interface. **TerraX doesn't execute commands**—it outputs your selection for safe, deliberate execution.
+Navigate your infrastructure as code hierarchies with an elegant, keyboard-driven terminal interface. Select your stack and command, and **TerraX executes Terragrunt directly in your terminal** with full interactive control.
 
 [Features](#-key-features) •
 [Installation](#-installation) •
@@ -47,9 +47,9 @@ Columns appear/disappear dynamically—no empty columns, keeping the UI clean an
 
 Full keyboard navigation with arrow keys (`↑↓←→`) and Vim-style bindings (`hjkl`), plus Enter for confirmation and `q` to quit.
 
-### Selection-only philosophy
+### Direct Terragrunt execution
 
-TerraX outputs the selected command and path—it never executes infrastructure changes, ensuring safe, deliberate workflows.
+Once you confirm your selection, TerraX executes `terragrunt` directly in your terminal with full stdout/stderr/stdin passthrough. You maintain complete control and can interact with prompts as if running Terragrunt manually.
 
 ### Professional architecture
 
@@ -106,6 +106,42 @@ terrax --version
 
 ---
 
+## ⚙️ Configuration
+
+TerraX allows you to customize available commands via `.terrax.yaml` configuration file.
+
+### Configuration file locations
+
+TerraX searches for configuration in the following order (first found wins):
+
+1. `.terrax.yaml` in current directory
+2. `.terrax.yaml` in `$HOME` directory
+3. Built-in defaults (if no config file found)
+
+### Example configuration
+
+Create `.terrax.yaml` with your preferred command list:
+
+```yaml
+commands:
+  - apply
+  - plan
+  - destroy
+  - init
+  - validate
+  - output
+  - refresh
+  - fmt
+```
+
+**Notes:**
+
+- Commands appear in the TUI in the order specified in the configuration
+- Empty or missing `commands` key falls back to defaults
+- Configuration is loaded once at startup
+
+---
+
 ## 🚀 Quick start
 
 ### 1. Navigate to your infrastructure directory
@@ -142,8 +178,8 @@ terrax
 
 - `↑↓` or `k/j`: Navigate up/down in current column
 - `←→` or `h/l`: Switch between columns (wraps around)
-- `Enter`: Confirm selection and output path
-- `q` or `Ctrl+C`: Quit
+- `Enter`: Confirm selection and execute Terragrunt command
+- `q` or `Ctrl+C`: Quit without executing
 
 ---
 
@@ -181,21 +217,23 @@ TerraX displays **max 3 navigation columns** simultaneously:
 
 #### 4. **Dual execution modes**
 
-**Commands column (full depth):**
+**Commands column (full depth execution):**
 
 ```text
 Selected: Commands > infrastructure > network > subnets
-Output: /infrastructure/network/subnets  (full path)
+Executes: terragrunt run --all --working-dir /infrastructure/network/subnets -- plan
 ```
 
-**Navigation column (specific level):**
+**Navigation column (specific level execution):**
 
 ```text
 Selected: Level 1 "infrastructure"
-Output: /infrastructure  (ignores deeper levels)
+Executes: terragrunt run --all --working-dir /infrastructure -- plan
+(ignores deeper levels)
 
 Selected: Level 2 "network"
-Output: /infrastructure/network  (ignores subnets)
+Executes: terragrunt run --all --working-dir /infrastructure/network -- plan
+(ignores subnets selection)
 ```
 
 ### Example directory structure
@@ -374,32 +412,41 @@ under the License.
 
 ---
 
-## ⚠️ Important note
+## ⚠️ How TerraX executes commands
 
-**TerraX is a navigation and selection tool only.**
+**TerraX executes Terragrunt directly in your terminal.**
 
-It does **NOT** execute infrastructure commands. The tool outputs your selection (command + path) to stdout, allowing you to:
+After you confirm your selection (pressing Enter), TerraX:
 
-- Review before execution
-- Integrate with CI/CD pipelines
-- Pipe to automation scripts
-- Maintain audit trails
-- Ensure deliberate, safe infrastructure changes
+1. **Shows your selection** for review:
 
-**Example safe workflow:**
+   ```text
+   ═══════════════════════════════════════
+     ✅ Selection confirmed
+   ═══════════════════════════════════════
+   Command:    plan
+   Stack Path: /infrastructure/vpc
+   ═══════════════════════════════════════
+   ```
 
-```bash
-# 1. Use TerraX to select
-TerraX
+2. **Executes Terragrunt** with full passthrough:
 
-# 2. Review output
-# ✅ Selection confirmed
-# Command:    apply
-# Stack Path: /infrastructure/vpc
+   ```bash
+   🚀 Executing: terragrunt run --all --working-dir /infrastructure/vpc -- plan
+   ```
 
-# 3. Execute manually (or in script)
-cd /infrastructure/vpc && terragrunt apply
-```
+3. **Maintains full control**: All stdout, stderr, and stdin are connected to your terminal
+
+   - You see all Terragrunt output in real-time
+   - You can respond to interactive prompts (like approval requests)
+   - You can interrupt with `Ctrl+C` if needed
+
+**This means:**
+
+- ✅ Same experience as running `terragrunt` manually
+- ✅ Full interactive control during execution
+- ✅ All output visible in your terminal
+- ⚠️ Commands execute immediately after confirmation—review your selection carefully
 
 ---
 
