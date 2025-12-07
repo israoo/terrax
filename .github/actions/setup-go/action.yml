@@ -10,6 +10,7 @@ runs:
   using: "composite"
   steps:
     - name: Set up Go
+      id: setup-go
       uses: actions/setup-go@v6
       with:
         go-version: ${{ inputs.go-version }}
@@ -22,8 +23,8 @@ runs:
       uses: actions/cache@v4
       with:
         path: |
-          ~/go/pkg/mod
-          ~/.cache/go-build
+          ${{ steps.setup-go.outputs.GOCACHE }}
+          ${{ steps.setup-go.outputs.GOMODCACHE }}
         key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
         restore-keys: |
           ${{ runner.os }}-go-

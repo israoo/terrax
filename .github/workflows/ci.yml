@@ -4,9 +4,27 @@ on:
   push:
     branches:
       - "**"
+    paths:
+      - "**.go"
+      - "go.mod"
+      - "go.sum"
+      - ".github/workflows/**"
+      - ".github/actions/**"
+      - "cmd/**"
+      - "internal/**"
+      - "pkg/**"
   pull_request:
     branches:
       - main
+    paths:
+      - "**.go"
+      - "go.mod"
+      - "go.sum"
+      - ".github/workflows/**"
+      - ".github/actions/**"
+      - "cmd/**"
+      - "internal/**"
+      - "pkg/**"
 
 env:
   ARTIFACT_RETENTION_DAYS: "7"
@@ -147,13 +165,7 @@ jobs:
 
   build_test:
     name: Build & Test (${{ matrix.os }}-${{ matrix.arch }})
-    needs: [
-      lint,
-      codeql,
-      trivy,
-      gitguardian,
-      sonarcloud
-    ]
+    needs: [lint, codeql, trivy, gitguardian, sonarcloud]
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
