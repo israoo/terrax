@@ -11,6 +11,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// TUIRunner is a function type that runs a TUI program and returns the final model.
+// This allows dependency injection for testing.
+type TUIRunner func(initialModel tui.Model) (tui.Model, error)
+
+// currentTUIRunner holds the active TUI runner (can be overridden in tests).
+var currentTUIRunner TUIRunner = defaultTUIRunner
+
 var rootCmd = &cobra.Command{
 	Use:   "terrax",
 	Short: "Terrax - Terra eXecutor for managing Terragrunt stacks",
@@ -39,8 +46,9 @@ func runTUI(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to build stack tree: %w", err)
 	}
 
-	// Run TUI
-	model, err := runInteractiveTUI(stackRoot, maxDepth)
+	// Run TUI using the current runner (injectable for tests)
+	initialModel := tui.NewModel(stackRoot, maxDepth)
+	model, err := currentTUIRunner(initialModel)
 	if err != nil {
 		return fmt.Errorf("TUI error: %w", err)
 	}
@@ -83,10 +91,8 @@ func buildStackTree(workDir string) (*stack.Node, int, error) {
 	return stackRoot, maxDepth, nil
 }
 
-// runInteractiveTUI starts the Bubble Tea program and returns the final model.
-func runInteractiveTUI(stackRoot *stack.Node, maxDepth int) (tui.Model, error) {
-	initialModel := tui.NewModel(stackRoot, maxDepth)
-
+// defaultTUIRunner is the default implementation that runs Bubble Tea interactively.
+func defaultTUIRunner(initialModel tui.Model) (tui.Model, error) {
 	p := tea.NewProgram(
 		initialModel,
 		tea.WithAltScreen(),
@@ -106,6 +112,16 @@ func runInteractiveTUI(stackRoot *stack.Node, maxDepth int) (tui.Model, error) {
 	return model, nil
 }
 
+// setTUIRunner allows tests to inject a custom TUI runner.
+// Returns a cleanup function to restore the original runner.
+func setTUIRunner(runner TUIRunner) func() {
+	original := currentTUIRunner
+	currentTUIRunner = runner
+	return func() {
+		currentTUIRunner = original
+	}
+}
+
 // displayResults shows the final selection to the user.
 func displayResults(model tui.Model) {
 	fmt.Println()
@@ -116,7 +132,7 @@ func displayResults(model tui.Model) {
 	}
 
 	fmt.Println("═══════════════════════════════════════")
-	fmt.Println("  ✅ Selection Confirmed")
+	fmt.Println("  ✅ Selection confirmed")
 	fmt.Println("═══════════════════════════════════════")
 	fmt.Printf("Command:    %s\n", model.GetSelectedCommand())
 	fmt.Printf("Stack Path: %s\n", model.GetSelectedStackPath())

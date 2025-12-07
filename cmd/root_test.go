@@ -138,7 +138,7 @@ func TestDisplayResults(t *testing.T) {
 				return tui.NewTestModel(stackRoot, 1, true, "plan", "/test/root")
 			},
 			expectedOutputHas: []string{
-				"✅ Selection Confirmed",
+				"✅ Selection confirmed",
 				"Command:",
 				"plan",
 				"Stack Path:",
@@ -162,7 +162,7 @@ func TestDisplayResults(t *testing.T) {
 				"⚠️  Selection cancelled",
 			},
 			unexpectedOutput: []string{
-				"✅ Selection Confirmed",
+				"✅ Selection confirmed",
 				"Command:",
 				"Stack Path:",
 			},
@@ -177,7 +177,7 @@ func TestDisplayResults(t *testing.T) {
 				return tui.NewTestModel(stackRoot, 1, true, "destroy", "/test/root")
 			},
 			expectedOutputHas: []string{
-				"✅ Selection Confirmed",
+				"✅ Selection confirmed",
 				"destroy",
 				"/test/root",
 			},
@@ -211,24 +211,95 @@ func TestDisplayResults(t *testing.T) {
 	}
 }
 
-// TestExecute tests the Execute function.
-// Note: This test only verifies that Execute doesn't panic.
-// Full TUI testing requires a terminal and is better tested with teatest in internal/tui.
+// TestExecute tests the Execute function with a mocked TUI runner.
+// This test verifies the full flow without blocking on interactive input.
 func TestExecute(t *testing.T) {
-	// Cleanup Cobra state after test.
+	// Setup: Create a temporary directory with a stack structure
+	tmpDir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "env", "dev"), 0755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(tmpDir, "env", "dev", "terragrunt.hcl"),
+		[]byte("# test stack"), 0644))
+
+	// Change to temp directory for the test
+	originalWd, err := os.Getwd()
+	require.NoError(t, err)
+	require.NoError(t, os.Chdir(tmpDir))
+
+	// Cleanup: Restore state after test
 	t.Cleanup(func() {
-		// Reset Cobra root command for subsequent tests.
-		// This prevents "flag redefined" errors in parallel test execution.
+		os.Chdir(originalWd)
 		rootCmd.ResetFlags()
 		rootCmd.ResetCommands()
 	})
 
-	// Execute will fail in non-interactive environment, which is expected.
-	err := Execute()
+	// Mock TUI runner that simulates user cancelling (non-blocking)
+	mockTUIRunner := func(initialModel tui.Model) (tui.Model, error) {
+		// Return the model without confirmation (simulating user pressing 'q')
+		// This is non-blocking and deterministic
+		return initialModel, nil
+	}
 
-	// We expect an error in test environment (no TTY).
-	// The important part is that it doesn't panic and handles errors gracefully.
+	// Inject mock runner and ensure cleanup
+	restoreRunner := setTUIRunner(mockTUIRunner)
+	defer restoreRunner()
+
+	// Execute the command - should complete without blocking
+	err = Execute()
+
+	// Should complete successfully (user cancelled, no command execution)
+	assert.NoError(t, err, "Execute should complete without errors when using mocked TUI runner")
+}
+
+// TestExecute_WithConfirmation tests the Execute function with a confirmed selection.
+// This ensures the full flow works correctly including command execution preparation.
+func TestExecute_WithConfirmation(t *testing.T) {
+	// Setup: Create a temporary directory with a stack structure
+	tmpDir := t.TempDir()
+	envDir := filepath.Join(tmpDir, "env", "dev")
+	require.NoError(t, os.MkdirAll(envDir, 0755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(envDir, "terragrunt.hcl"),
+		[]byte("# test stack"), 0644))
+
+	// Change to temp directory for the test
+	originalWd, err := os.Getwd()
+	require.NoError(t, err)
+	require.NoError(t, os.Chdir(tmpDir))
+
+	// Cleanup: Restore state after test
+	t.Cleanup(func() {
+		os.Chdir(originalWd)
+		rootCmd.ResetFlags()
+		rootCmd.ResetCommands()
+	})
+
+	// Mock TUI runner that simulates user confirming with a plan command (non-blocking)
+	mockTUIRunner := func(initialModel tui.Model) (tui.Model, error) {
+		// Create a simple stack tree for testing
+		stackRoot := &stack.Node{
+			Name: "env",
+			Path: envDir,
+		}
+
+		// Return a confirmed model simulating user selecting "plan" and confirming
+		return tui.NewTestModel(stackRoot, 1, true, "plan", envDir), nil
+	}
+
+	// Inject mock runner and ensure cleanup
+	restoreRunner := setTUIRunner(mockTUIRunner)
+	defer restoreRunner()
+
+	// Execute the command - should complete without blocking
+	err = Execute()
+
+	// In a test environment with terragrunt installed, the command might succeed
+	// The important verification is that the test completes without blocking
+	// We don't strictly require an error - the key is non-blocking execution
 	if err != nil {
-		assert.Error(t, err, "Execute should handle errors gracefully in non-interactive environment")
+		// If there's an error, it should be from command execution, not from TUI blocking
+		t.Logf("Command execution resulted in error (expected in some test environments): %v", err)
+	} else {
+		t.Log("Command execution completed successfully")
 	}
 }

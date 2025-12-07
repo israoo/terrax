@@ -393,7 +393,7 @@ It does **NOT** execute infrastructure commands. The tool outputs your selection
 TerraX
 
 # 2. Review output
-# ✅ Selection Confirmed
+# ✅ Selection confirmed
 # Command:    apply
 # Stack Path: /infrastructure/vpc
 
