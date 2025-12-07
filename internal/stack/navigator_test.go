@@ -614,3 +614,363 @@ func TestNavigator_ClearColumnsFrom(t *testing.T) {
 		})
 	}
 }
+
+// TestNavigator_PropagateSelection_EdgeCases tests edge cases and error conditions.
+func TestNavigator_PropagateSelection_EdgeCases(t *testing.T) {
+	tests := []struct {
+		name     string
+		setupNav func() (*Navigator, *NavigationState)
+		verify   func(t *testing.T, state *NavigationState, result *Node)
+	}{
+		{
+			name: "nil state returns nil",
+			setupNav: func() (*Navigator, *NavigationState) {
+				root := &Node{Name: "root", Path: "/root"}
+				nav := NewNavigator(root, 1)
+				return nav, nil
+			},
+			verify: func(t *testing.T, state *NavigationState, result *Node) {
+				assert.Nil(t, result)
+			},
+		},
+		{
+			name: "nil navigator returns nil",
+			setupNav: func() (*Navigator, *NavigationState) {
+				state := NewNavigationState(1)
+				return nil, state
+			},
+			verify: func(t *testing.T, state *NavigationState, result *Node) {
+				assert.Nil(t, result)
+			},
+		},
+		{
+			name: "maxDepth 0 returns nil",
+			setupNav: func() (*Navigator, *NavigationState) {
+				root := &Node{Name: "root", Path: "/root"}
+				nav := NewNavigator(root, 0)
+				state := NewNavigationState(0)
+				return nav, state
+			},
+			verify: func(t *testing.T, state *NavigationState, result *Node) {
+				assert.Nil(t, result)
+			},
+		},
+		{
+			name: "selected index out of bounds - clamped to 0",
+			setupNav: func() (*Navigator, *NavigationState) {
+				root := &Node{
+					Name: "root",
+					Path: "/root",
+					Children: []*Node{
+						{Name: "child1", Path: "/root/child1"},
+						{Name: "child2", Path: "/root/child2"},
+					},
+				}
+				nav := NewNavigator(root, 1)
+				state := NewNavigationState(1)
+				state.SelectedIndices[0] = 99 // Out of bounds
+				return nav, state
+			},
+			verify: func(t *testing.T, state *NavigationState, result *Node) {
+				assert.NotNil(t, result)
+				assert.Equal(t, "child1", result.Name)
+				assert.Equal(t, 0, state.SelectedIndices[0])
+				assert.Equal(t, []string{"child1", "child2"}, state.Columns[0])
+			},
+		},
+		{
+			name: "irregular tree - shallow branch clears subsequent columns",
+			setupNav: func() (*Navigator, *NavigationState) {
+				root := &Node{
+					Name: "root",
+					Path: "/root",
+					Children: []*Node{
+						{
+							Name: "deep",
+							Path: "/root/deep",
+							Children: []*Node{
+								{Name: "level2", Path: "/root/deep/level2"},
+							},
+						},
+						{
+							Name: "shallow",
+							Path: "/root/shallow",
+							// No children - selecting this should clear depth 1
+						},
+					},
+				}
+				nav := NewNavigator(root, 2)
+				state := NewNavigationState(2)
+				// Pre-populate with data that should be cleared
+				state.Columns[1] = []string{"should", "be", "cleared"}
+				state.SelectedIndices[0] = 1 // Select "shallow"
+				return nav, state
+			},
+			verify: func(t *testing.T, state *NavigationState, result *Node) {
+				assert.NotNil(t, result)
+				assert.Equal(t, "shallow", result.Name)
+				assert.Equal(t, []string{"deep", "shallow"}, state.Columns[0])
+				assert.Empty(t, state.Columns[1], "Column 1 should be cleared")
+				assert.Equal(t, 0, state.SelectedIndices[1])
+			},
+		},
+		{
+			name: "node with empty children array",
+			setupNav: func() (*Navigator, *NavigationState) {
+				root := &Node{
+					Name:     "root",
+					Path:     "/root",
+					Children: []*Node{}, // Empty children slice
+				}
+				nav := NewNavigator(root, 1)
+				state := NewNavigationState(1)
+				return nav, state
+			},
+			verify: func(t *testing.T, state *NavigationState, result *Node) {
+				// Returns root since it has no children to navigate to
+				assert.NotNil(t, result)
+				assert.Equal(t, "root", result.Name)
+				assert.Empty(t, state.Columns[0])
+			},
+		},
+		{
+			name: "deep tree with mid-level index out of bounds",
+			setupNav: func() (*Navigator, *NavigationState) {
+				root := &Node{
+					Name: "root",
+					Path: "/root",
+					Children: []*Node{
+						{
+							Name: "env",
+							Path: "/root/env",
+							Children: []*Node{
+								{Name: "dev", Path: "/root/env/dev"},
+							},
+						},
+					},
+				}
+				nav := NewNavigator(root, 3)
+				state := NewNavigationState(3)
+				state.SelectedIndices[0] = 0 // Valid
+				state.SelectedIndices[1] = 50 // Out of bounds at depth 1
+				state.SelectedIndices[2] = 10 // Should never be used
+				return nav, state
+			},
+			verify: func(t *testing.T, state *NavigationState, result *Node) {
+				assert.NotNil(t, result)
+				assert.Equal(t, "dev", result.Name)
+				assert.Equal(t, 0, state.SelectedIndices[1], "Out of bounds index should be clamped to 0")
+				assert.Empty(t, state.Columns[2], "Depth 2 should be empty (dev is leaf)")
+			},
+		},
+		{
+			name: "all selected indices out of bounds",
+			setupNav: func() (*Navigator, *NavigationState) {
+				root := &Node{
+					Name: "root",
+					Path: "/root",
+					Children: []*Node{
+						{
+							Name: "a",
+							Path: "/root/a",
+							Children: []*Node{
+								{Name: "b", Path: "/root/a/b"},
+							},
+						},
+					},
+				}
+				nav := NewNavigator(root, 2)
+				state := NewNavigationState(2)
+				state.SelectedIndices[0] = 100
+				state.SelectedIndices[1] = 200
+				return nav, state
+			},
+			verify: func(t *testing.T, state *NavigationState, result *Node) {
+				assert.NotNil(t, result)
+				assert.Equal(t, "b", result.Name)
+				assert.Equal(t, 0, state.SelectedIndices[0])
+				assert.Equal(t, 0, state.SelectedIndices[1])
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			nav, state := tt.setupNav()
+			result := nav.PropagateSelection(state)
+			tt.verify(t, state, result)
+		})
+	}
+}
+
+// TestNavigator_GetNavigationPath tests building navigation paths.
+func TestNavigator_GetNavigationPath(t *testing.T) {
+	tests := []struct {
+		name     string
+		setupNav func() (*Navigator, *NavigationState)
+		depth    int
+		expected string
+	}{
+		{
+			name: "nil root returns tilde",
+			setupNav: func() (*Navigator, *NavigationState) {
+				nav := NewNavigator(nil, 1)
+				state := NewNavigationState(1)
+				return nav, state
+			},
+			depth:    0,
+			expected: "~",
+		},
+		{
+			name: "root level (depth -1) returns root path",
+			setupNav: func() (*Navigator, *NavigationState) {
+				root := &Node{
+					Name: "root",
+					Path: "/test/root",
+				}
+				nav := NewNavigator(root, 1)
+				state := NewNavigationState(1)
+				return nav, state
+			},
+			depth:    -1,
+			expected: "/test/root",
+		},
+		{
+			name: "max depth 0 returns root path",
+			setupNav: func() (*Navigator, *NavigationState) {
+				root := &Node{
+					Name: "root",
+					Path: "/test/root",
+				}
+				nav := NewNavigator(root, 0)
+				state := NewNavigationState(0)
+				return nav, state
+			},
+			depth:    0,
+			expected: "/test/root",
+		},
+		{
+			name: "single level deep path",
+			setupNav: func() (*Navigator, *NavigationState) {
+				root := &Node{
+					Name: "root",
+					Path: "/test/root",
+					Children: []*Node{
+						{Name: "env"},
+						{Name: "modules"},
+					},
+				}
+				nav := NewNavigator(root, 1)
+				state := NewNavigationState(1)
+				state.Columns[0] = []string{"env", "modules"}
+				state.SelectedIndices[0] = 0 // Select "env"
+				return nav, state
+			},
+			depth:    0,
+			expected: "/test/root/env",
+		},
+		{
+			name: "multi level deep path",
+			setupNav: func() (*Navigator, *NavigationState) {
+				root := &Node{
+					Name: "root",
+					Path: "/test/root",
+					Children: []*Node{
+						{Name: "env"},
+					},
+				}
+				nav := NewNavigator(root, 3)
+				state := NewNavigationState(3)
+				state.Columns[0] = []string{"env"}
+				state.Columns[1] = []string{"dev", "prod"}
+				state.Columns[2] = []string{"us-east", "us-west"}
+				state.SelectedIndices[0] = 0 // "env"
+				state.SelectedIndices[1] = 1 // "prod"
+				state.SelectedIndices[2] = 0 // "us-east"
+				return nav, state
+			},
+			depth:    2,
+			expected: "/test/root/env/prod/us-east",
+		},
+		{
+			name: "path with stack marker (emoji)",
+			setupNav: func() (*Navigator, *NavigationState) {
+				root := &Node{
+					Name: "root",
+					Path: "/test/root",
+				}
+				nav := NewNavigator(root, 1)
+				state := NewNavigationState(1)
+				state.Columns[0] = []string{"env 📦", "modules"}
+				state.SelectedIndices[0] = 0 // Select "env 📦"
+				return nav, state
+			},
+			depth:    0,
+			expected: "/test/root/env 📦", // Emoji is included in path as-is
+		},
+		{
+			name: "partial path (depth less than columns)",
+			setupNav: func() (*Navigator, *NavigationState) {
+				root := &Node{
+					Name: "root",
+					Path: "/test/root",
+				}
+				nav := NewNavigator(root, 3)
+				state := NewNavigationState(3)
+				state.Columns[0] = []string{"env"}
+				state.Columns[1] = []string{"dev", "prod"}
+				state.Columns[2] = []string{"us-east"}
+				state.SelectedIndices[0] = 0
+				state.SelectedIndices[1] = 1
+				state.SelectedIndices[2] = 0
+				return nav, state
+			},
+			depth:    1, // Only go to depth 1
+			expected: "/test/root/env/prod",
+		},
+		{
+			name: "invalid selection index skipped",
+			setupNav: func() (*Navigator, *NavigationState) {
+				root := &Node{
+					Name: "root",
+					Path: "/test/root",
+				}
+				nav := NewNavigator(root, 2)
+				state := NewNavigationState(2)
+				state.Columns[0] = []string{"env"}
+				state.Columns[1] = []string{"dev"}
+				state.SelectedIndices[0] = 0
+				state.SelectedIndices[1] = -1 // Invalid index
+				return nav, state
+			},
+			depth:    1,
+			expected: "/test/root/env",
+		},
+		{
+			name: "selected index out of bounds skipped",
+			setupNav: func() (*Navigator, *NavigationState) {
+				root := &Node{
+					Name: "root",
+					Path: "/test/root",
+				}
+				nav := NewNavigator(root, 2)
+				state := NewNavigationState(2)
+				state.Columns[0] = []string{"env"}
+				state.Columns[1] = []string{"dev"}
+				state.SelectedIndices[0] = 0
+				state.SelectedIndices[1] = 99 // Out of bounds
+				return nav, state
+			},
+			depth:    1,
+			expected: "/test/root/env",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			nav, state := tt.setupNav()
+			path := nav.GetNavigationPath(state, tt.depth)
+			assert.Equal(t, tt.expected, path)
+		})
+	}
+}

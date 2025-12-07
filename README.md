@@ -44,9 +44,13 @@ Columns appear/disappear dynamically—no empty columns, keeping the UI clean an
 - Commands column: Execute at the full propagated depth (deepest selected level)
 - Navigation column: Execute at specific levels only (ignore deeper selections)
 
+### ✔︎ Interactive filtering
+
+Filter items in any column with `/` key. Navigate through filtered results in real-time, with multiple filters active simultaneously across columns.
+
 ### ✔︎ Keyboard-first design
 
-Full keyboard navigation with arrow keys (`↑↓←→`) and Vim-style bindings (`hjkl`), plus Enter for confirmation and `q` to quit.
+Full keyboard navigation with arrow keys (`↑↓←→`), Enter for confirmation, and `q` to quit.
 
 ### ✔︎ Direct Terragrunt execution
 
@@ -177,13 +181,15 @@ terrax
  │   validate │  │                  │  │                │
  │   init     │  │                  │  │                │
  └────────────┘  └──────────────────┘  ╰────────────────╯
-↑↓/jk: navigate | ←→/hl: change column | enter: confirm | q: quit
+↑↓: navigate | ←→: change column | /: filter | enter: confirm | q: quit
 ```
 
 **Keyboard controls:**
 
-- `↑↓` or `k/j`: Navigate up/down in current column
-- `←→` or `h/l`: Switch between columns (wraps around)
+- `↑↓`: Navigate up/down in current column (works while filtering)
+- `←→`: Switch between columns (wraps around)
+- `/`: Activate filter for current column
+- `Esc`: Clear filter and return to title view
 - `Enter`: Confirm selection and execute Terragrunt command
 - `q` or `Ctrl+C`: Quit without executing
 
@@ -214,14 +220,49 @@ The Navigator (`internal/stack/navigator.go`) handles:
 
 #### 3. **Sliding window display**
 
-TerraX displays **max 3 navigation columns** simultaneously:
+TerraX displays **max 3 navigation columns** simultaneously by default (configurable via `max_navigation_columns`):
 
 - As you navigate deeper, earlier columns slide out of view
 - The focused column is always visible
 - Navigation offset tracks the window position
 - **No empty columns** are ever shown
 
-#### 4. **Dual execution modes**
+#### 4. **Interactive filtering**
+
+The filtering system (`internal/tui/model.go`, `internal/tui/view.go`):
+
+- **Per-column filters**: Each column maintains its own independent filter
+- **Visual replacement**: Filter input replaces column title when active
+- **Real-time filtering**: Items filtered as you type (case-insensitive)
+- **Navigation aware**: Arrow keys navigate only through filtered results
+- **Auto-reactivation**: Returning to a filtered column automatically resumes editing
+- **Persistent filters**: Multiple filters can be active simultaneously
+
+**Filter workflow:**
+
+```text
+1. Press / on any column → Filter input replaces title
+2. Type filter text → Items filter in real-time
+3. ↑↓ navigate only filtered items
+4. ←→ move to another column → filter stays active
+5. Return to column → editing resumes automatically
+6. Esc → removes filter, title reappears
+7. Enter → executes command with current selection
+```
+
+**Example:**
+
+```text
+Before filtering:
+┌─ Commands ─┐       After pressing / and typing "pl":
+│ ► plan     │       ┌─────────────┐
+│   apply    │       │ 🔍 pl_      │  ← Filter input replaces title
+│   destroy  │       │             │
+│   validate │       │ ► plan      │  ← Only matching items shown
+└────────────┘       └─────────────┘
+```
+
+#### 5. **Dual execution modes**
 
 **Commands column (full depth execution):**
 
@@ -281,7 +322,7 @@ TerraX/
 │   │   ├── tree.go       # Filesystem scanning & tree building
 │   │   └── navigator.go  # Navigation business logic (zero UI deps)
 │   └── tui/
-│       ├── model.go      # Bubble Tea Model-Update-View
+│       ├── model.go      # Bubble Tea Model-Update-View + filtering logic
 │       ├── view.go       # Rendering (LayoutCalculator + Renderer)
 │       └── constants.go  # UI configuration
 ├── main.go               # Entry point
@@ -324,8 +365,10 @@ make test-coverage
 |-----------|------------|---------|
 | **Language** | Go | 1.25.5 |
 | **TUI Framework** | [Bubble Tea](https://github.com/charmbracelet/bubbletea) | 1.3.10 |
+| **UI Components** | [Bubbles](https://github.com/charmbracelet/bubbles) | 0.21.0 |
 | **Styling** | [Lipgloss](https://github.com/charmbracelet/lipgloss) | 1.1.0 |
 | **CLI Framework** | [Cobra](https://github.com/spf13/cobra) | 1.10.2 |
+| **Configuration** | [Viper](https://github.com/spf13/viper) | 1.21.0 |
 | **Testing** | [Testify](https://github.com/stretchr/testify) | 1.11.1 |
 | **Filesystem Mocking** | [Afero](https://github.com/spf13/afero) | 1.15.0 |
 

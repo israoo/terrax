@@ -204,19 +204,60 @@ func min(a, b int) int {
 
 // renderCommandsColumn renders the commands column content.
 func (r *Renderer) renderCommandsColumn() string {
-	title := titleStyle.Render("⚡ " + CommandsTitle)
+	parts := []string{}
+
+	// Show filter input OR title (not both)
+	// Show filter if it exists (even if empty, user might be typing)
+	if filter, exists := r.model.columnFilters[0]; exists {
+		// Show filter input instead of title
+		filterView := filter.View()
+		filterStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#00D9FF")).
+			Padding(0, 1)
+		parts = append(parts, filterStyle.Render(filterView))
+	} else {
+		// Show normal title
+		title := titleStyle.Render("⚡" + CommandsTitle)
+		parts = append(parts, title)
+	}
+
+	parts = append(parts, "") // Empty line after title/filter
+
 	content := r.buildCommandList()
-	return lipgloss.JoinVertical(lipgloss.Left, title, "", content)
+	parts = append(parts, content)
+
+	return lipgloss.JoinVertical(lipgloss.Left, parts...)
 }
 
 // buildCommandList builds the list of commands with selection indicator.
 func (r *Renderer) buildCommandList() string {
+	originalCommands := r.model.commands
+	commands := r.model.commands
+
+	// Apply filter if this column (0) has an active filter
+	if filter, exists := r.model.columnFilters[0]; exists {
+		filterValue := filter.Value()
+		if filterValue != "" {
+			commands = filterItems(commands, filterValue)
+		}
+	}
+
+	// Map original selected index to filtered index
+	selectedFilteredIndex := -1
+	if len(commands) < len(originalCommands) {
+		// Filter is active, need to map
+		selectedFilteredIndex = findFilteredIndex(originalCommands, commands, r.model.selectedCommand)
+	} else {
+		// No filter, use original index
+		selectedFilteredIndex = r.model.selectedCommand
+	}
+
 	var content string
-	for i, cmd := range r.model.commands {
+	for i, cmd := range commands {
 		cursor := " "
 		style := itemStyle
 
-		if i == r.model.selectedCommand {
+		if i == selectedFilteredIndex {
 			cursor = "►"
 			style = selectedItemStyle
 		}
@@ -228,22 +269,64 @@ func (r *Renderer) buildCommandList() string {
 
 // renderNavigationColumn renders a navigation column at the given depth.
 func (r *Renderer) renderNavigationColumn(depth int) string {
-	title := titleStyle.Render("📦 " + r.getLevelTitle(depth))
+	parts := []string{}
+
+	// Show filter input OR title (not both)
+	// Navigation columns: depth 0 -> columnID 1, depth 1 -> columnID 2, etc.
+	columnID := depth + 1
+	if filter, exists := r.model.columnFilters[columnID]; exists {
+		// Show filter input instead of title
+		filterView := filter.View()
+		filterStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#00D9FF")).
+			Padding(0, 1)
+		parts = append(parts, filterStyle.Render(filterView))
+	} else {
+		// Show normal title
+		title := titleStyle.Render("📦 " + r.getLevelTitle(depth))
+		parts = append(parts, title)
+	}
+
+	parts = append(parts, "") // Empty line after title/filter
+
 	content := r.buildNavigationList(depth)
-	return lipgloss.JoinVertical(lipgloss.Left, title, "", content)
+	parts = append(parts, content)
+
+	return lipgloss.JoinVertical(lipgloss.Left, parts...)
 }
 
 // buildNavigationList builds the list of items for a navigation column.
 func (r *Renderer) buildNavigationList(depth int) string {
+	originalItems := r.model.navState.Columns[depth]
 	items := r.model.navState.Columns[depth]
 	selectedIndex := r.model.navState.SelectedIndices[depth]
+
+	// Apply filter if this navigation column has an active filter
+	// Navigation columns are indexed as: depth 0 -> columnID 1, depth 1 -> columnID 2, etc.
+	columnID := depth + 1
+	if filter, exists := r.model.columnFilters[columnID]; exists {
+		filterValue := filter.Value()
+		if filterValue != "" {
+			items = filterItems(items, filterValue)
+		}
+	}
+
+	// Map original selected index to filtered index
+	selectedFilteredIndex := -1
+	if len(items) < len(originalItems) {
+		// Filter is active, need to map
+		selectedFilteredIndex = findFilteredIndex(originalItems, items, selectedIndex)
+	} else {
+		// No filter, use original index
+		selectedFilteredIndex = selectedIndex
+	}
 
 	var content string
 	for i, item := range items {
 		cursor := " "
 		style := itemStyle
 
-		if i == selectedIndex {
+		if i == selectedFilteredIndex {
 			cursor = "►"
 			style = selectedItemStyle
 		}

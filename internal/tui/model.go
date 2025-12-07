@@ -1,6 +1,9 @@
 package tui
 
 import (
+	"strings"
+
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/israoo/terrax/internal/stack"
@@ -38,6 +41,10 @@ type Model struct {
 	columnWidth          int // Pre-calculated static column width
 	maxNavigationColumns int // Maximum navigation columns visible (sliding window)
 
+	// Filtering (per-column)
+	columnFilters      map[int]textinput.Model // Filter inputs per column (0=commands, 1+=navigation)
+	activeFilterColumn int                     // Which column's filter is currently being edited (-1 = none)
+
 	// State flags
 	ready bool
 }
@@ -59,6 +66,8 @@ func NewModel(stackRoot *stack.Node, maxDepth int, commands []string, maxNavigat
 		confirmed:            false,
 		ready:                false,
 		maxNavigationColumns: maxNavigationColumns,
+		columnFilters:        make(map[int]textinput.Model),
+		activeFilterColumn:   -1,
 	}
 
 	// Initialize navigation state
@@ -114,19 +123,77 @@ func (m Model) calculateColumnWidth() int {
 
 // handleKeyPress processes keyboard input.
 func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// Handle filter input editing mode
+	if m.activeFilterColumn >= 0 {
+		switch msg.String() {
+		case KeyEsc:
+			// Exit filter input mode and remove the filter completely
+			delete(m.columnFilters, m.activeFilterColumn)
+			m.activeFilterColumn = -1
+			return m, nil
+		case KeyEnter:
+			// Execute command with current selection
+			return m.handleEnterKey()
+		case KeyUp:
+			// Allow navigation while filtering
+			return m.handleVerticalMove(true), nil
+		case KeyDown:
+			// Allow navigation while filtering
+			return m.handleVerticalMove(false), nil
+		case KeyLeft:
+			// Allow navigation while filtering
+			return m.handleHorizontalMove(true)
+		case KeyRight:
+			// Allow navigation while filtering
+			return m.handleHorizontalMove(false)
+		default:
+			// Delegate to the active filter's text input
+			if filter, exists := m.columnFilters[m.activeFilterColumn]; exists {
+				oldValue := filter.Value()
+				var cmd tea.Cmd
+				filter, cmd = filter.Update(msg)
+				m.columnFilters[m.activeFilterColumn] = filter
+
+				// If filter value changed, adjust selection if needed
+				if filter.Value() != oldValue {
+					m.adjustSelectionAfterFilter()
+				}
+
+				return m, cmd
+			}
+		}
+	}
+
+	// Normal navigation mode (always available)
 	switch msg.String() {
 	case KeyCtrlC, KeyQ:
 		return m, tea.Quit
+	case KeySlash:
+		// Activate filter for current focused column
+		columnID := m.focusedColumn
+		if _, exists := m.columnFilters[columnID]; !exists {
+			// Create new filter for this column
+			ti := textinput.New()
+			ti.Placeholder = "Filter..."
+			ti.CharLimit = 50
+			ti.Width = 20
+			m.columnFilters[columnID] = ti
+		}
+		filter := m.columnFilters[columnID]
+		filter.Focus()
+		m.columnFilters[columnID] = filter
+		m.activeFilterColumn = columnID
+		return m, textinput.Blink
 	case KeyEnter:
 		return m.handleEnterKey()
-	case KeyUp, KeyK:
+	case KeyUp:
 		return m.handleVerticalMove(true), nil
-	case KeyDown, KeyJ:
+	case KeyDown:
 		return m.handleVerticalMove(false), nil
-	case KeyLeft, KeyH:
-		return m.handleHorizontalMove(true), nil
-	case KeyRight, KeyL:
-		return m.handleHorizontalMove(false), nil
+	case KeyLeft:
+		return m.handleHorizontalMove(true)
+	case KeyRight:
+		return m.handleHorizontalMove(false)
 	}
 	return m, nil
 }
@@ -163,22 +230,77 @@ func (m Model) handleVerticalMove(isUp bool) Model {
 }
 
 // handleHorizontalMove processes left/right column switching.
-func (m Model) handleHorizontalMove(isLeft bool) Model {
+func (m Model) handleHorizontalMove(isLeft bool) (tea.Model, tea.Cmd) {
+	// If we're editing a filter, blur it when moving to another column
+	if m.activeFilterColumn >= 0 {
+		if filter, exists := m.columnFilters[m.activeFilterColumn]; exists {
+			filter.Blur()
+			m.columnFilters[m.activeFilterColumn] = filter
+		}
+		m.activeFilterColumn = -1
+	}
+
 	if isLeft {
 		m.moveToPreviousColumn()
 	} else {
 		m.moveToNextColumn()
 	}
-	return m
+
+	// After moving to a new column, check if that column has a filter
+	// If it does, automatically activate it for editing
+	if filter, exists := m.columnFilters[m.focusedColumn]; exists {
+		filter.Focus()
+		m.columnFilters[m.focusedColumn] = filter
+		m.activeFilterColumn = m.focusedColumn
+		return m, textinput.Blink
+	}
+
+	return m, nil
 }
 
 // moveCommandSelection moves selection in commands column.
 func (m *Model) moveCommandSelection(isUp bool) {
-	if isUp && m.selectedCommand > 0 {
-		m.selectedCommand--
-	} else if !isUp && m.selectedCommand < len(m.commands)-1 {
-		m.selectedCommand++
+	filteredCommands := m.getFilteredCommands()
+	if len(filteredCommands) == 0 {
+		return
 	}
+
+	// Check if filter is active
+	hasFilter := false
+	if filter, exists := m.columnFilters[0]; exists && filter.Value() != "" {
+		hasFilter = true
+	}
+
+	if !hasFilter {
+		// No filter: simple navigation
+		if isUp && m.selectedCommand > 0 {
+			m.selectedCommand--
+		} else if !isUp && m.selectedCommand < len(m.commands)-1 {
+			m.selectedCommand++
+		}
+		return
+	}
+
+	// Filter is active: navigate within filtered list
+	filteredIndex := findFilteredIndex(m.commands, filteredCommands, m.selectedCommand)
+	if filteredIndex < 0 {
+		// Current selection not in filtered list, select first filtered item
+		m.selectedCommand = findOriginalIndex(m.commands, filteredCommands, 0)
+		return
+	}
+
+	// Move within filtered list
+	if isUp && filteredIndex > 0 {
+		filteredIndex--
+	} else if !isUp && filteredIndex < len(filteredCommands)-1 {
+		filteredIndex++
+	} else {
+		// At boundary, don't move
+		return
+	}
+
+	// Map back to original index
+	m.selectedCommand = findOriginalIndex(m.commands, filteredCommands, filteredIndex)
 }
 
 // moveNavigationSelection moves selection in navigation column.
@@ -188,14 +310,61 @@ func (m *Model) moveNavigationSelection(isUp bool) {
 		return
 	}
 
-	var moved bool
-	if isUp {
-		moved = m.navigator.MoveUp(m.navState, depth)
-	} else {
-		moved = m.navigator.MoveDown(m.navState, depth)
+	filteredItems := m.getFilteredNavigationItems(depth)
+	if len(filteredItems) == 0 {
+		return
 	}
 
-	if moved {
+	originalItems := m.navState.Columns[depth]
+	currentIndex := m.navState.SelectedIndices[depth]
+
+	// Check if filter is active for this column
+	columnID := depth + 1
+	hasFilter := false
+	if filter, exists := m.columnFilters[columnID]; exists && filter.Value() != "" {
+		hasFilter = true
+	}
+
+	if !hasFilter {
+		// No filter: use original navigator logic
+		var moved bool
+		if isUp {
+			moved = m.navigator.MoveUp(m.navState, depth)
+		} else {
+			moved = m.navigator.MoveDown(m.navState, depth)
+		}
+		if moved {
+			m.navigator.PropagateSelection(m.navState)
+		}
+		return
+	}
+
+	// Filter is active: navigate within filtered list
+	filteredIndex := findFilteredIndex(originalItems, filteredItems, currentIndex)
+	if filteredIndex < 0 {
+		// Current selection not in filtered list, select first filtered item
+		newOriginalIndex := findOriginalIndex(originalItems, filteredItems, 0)
+		if newOriginalIndex >= 0 {
+			m.navState.SelectedIndices[depth] = newOriginalIndex
+			m.navigator.PropagateSelection(m.navState)
+		}
+		return
+	}
+
+	// Move within filtered list
+	if isUp && filteredIndex > 0 {
+		filteredIndex--
+	} else if !isUp && filteredIndex < len(filteredItems)-1 {
+		filteredIndex++
+	} else {
+		// At boundary, don't move
+		return
+	}
+
+	// Map back to original index and update
+	newOriginalIndex := findOriginalIndex(originalItems, filteredItems, filteredIndex)
+	if newOriginalIndex >= 0 {
+		m.navState.SelectedIndices[depth] = newOriginalIndex
 		m.navigator.PropagateSelection(m.navState)
 	}
 }
@@ -249,6 +418,53 @@ func (m *Model) moveToNextColumn() {
 		// Wrap to commands column
 		m.focusedColumn = 0
 		m.navigationOffset = 0
+	}
+}
+
+// adjustSelectionAfterFilter adjusts the current selection to ensure it's within the filtered list.
+func (m *Model) adjustSelectionAfterFilter() {
+	if m.activeFilterColumn < 0 {
+		return
+	}
+
+	if m.activeFilterColumn == 0 {
+		// Commands column
+		filteredCommands := m.getFilteredCommands()
+		if len(filteredCommands) == 0 {
+			return
+		}
+
+		// Check if current selection is in filtered list
+		filteredIndex := findFilteredIndex(m.commands, filteredCommands, m.selectedCommand)
+		if filteredIndex < 0 {
+			// Current selection not visible, select first filtered item
+			m.selectedCommand = findOriginalIndex(m.commands, filteredCommands, 0)
+		}
+	} else {
+		// Navigation column
+		depth := m.activeFilterColumn - 1
+		if depth < 0 || depth >= len(m.navState.Columns) {
+			return
+		}
+
+		filteredItems := m.getFilteredNavigationItems(depth)
+		if len(filteredItems) == 0 {
+			return
+		}
+
+		originalItems := m.navState.Columns[depth]
+		currentIndex := m.navState.SelectedIndices[depth]
+
+		// Check if current selection is in filtered list
+		filteredIndex := findFilteredIndex(originalItems, filteredItems, currentIndex)
+		if filteredIndex < 0 {
+			// Current selection not visible, select first filtered item
+			newIndex := findOriginalIndex(originalItems, filteredItems, 0)
+			if newIndex >= 0 {
+				m.navState.SelectedIndices[depth] = newIndex
+				m.navigator.PropagateSelection(m.navState)
+			}
+		}
 	}
 }
 
@@ -350,4 +566,81 @@ func (m Model) hasRightOverflow() bool {
 	}
 
 	return true
+}
+
+// filterItems filters a list of items based on the filter text (case-insensitive).
+func filterItems(items []string, filterText string) []string {
+	if filterText == "" {
+		return items
+	}
+
+	filtered := make([]string, 0)
+	filterLower := strings.ToLower(filterText)
+
+	for _, item := range items {
+		if strings.Contains(strings.ToLower(item), filterLower) {
+			filtered = append(filtered, item)
+		}
+	}
+
+	return filtered
+}
+
+// getFilteredCommands returns the commands list with active filter applied.
+func (m *Model) getFilteredCommands() []string {
+	if filter, exists := m.columnFilters[0]; exists {
+		filterValue := filter.Value()
+		if filterValue != "" {
+			return filterItems(m.commands, filterValue)
+		}
+	}
+	return m.commands
+}
+
+// getFilteredNavigationItems returns the navigation items for a depth with active filter applied.
+func (m *Model) getFilteredNavigationItems(depth int) []string {
+	if depth < 0 || depth >= len(m.navState.Columns) {
+		return []string{}
+	}
+
+	items := m.navState.Columns[depth]
+	columnID := depth + 1
+
+	if filter, exists := m.columnFilters[columnID]; exists {
+		filterValue := filter.Value()
+		if filterValue != "" {
+			return filterItems(items, filterValue)
+		}
+	}
+	return items
+}
+
+// findOriginalIndex maps a filtered index back to the original unfiltered index.
+func findOriginalIndex(originalItems []string, filteredItems []string, filteredIndex int) int {
+	if filteredIndex < 0 || filteredIndex >= len(filteredItems) {
+		return -1
+	}
+
+	targetItem := filteredItems[filteredIndex]
+	for i, item := range originalItems {
+		if item == targetItem {
+			return i
+		}
+	}
+	return -1
+}
+
+// findFilteredIndex maps an original index to the filtered index.
+func findFilteredIndex(originalItems []string, filteredItems []string, originalIndex int) int {
+	if originalIndex < 0 || originalIndex >= len(originalItems) {
+		return -1
+	}
+
+	targetItem := originalItems[originalIndex]
+	for i, item := range filteredItems {
+		if item == targetItem {
+			return i
+		}
+	}
+	return -1
 }

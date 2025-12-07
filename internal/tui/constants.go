@@ -35,12 +35,7 @@ const (
 	KeyCtrlC = "ctrl+c"
 	KeyQ     = "q"
 	KeyEsc   = "esc"
-
-	// Vim-style navigation
-	KeyH = "h"
-	KeyJ = "j"
-	KeyK = "k"
-	KeyL = "l"
+	KeySlash = "/"
 )
 
 // UI Text
@@ -48,7 +43,7 @@ const (
 	AppTitle       = "TerraX - Terragrunt eXecutor"
 	CommandsTitle  = "Commands"
 	StacksTitle    = "Stacks"
-	HelpText       = "↑↓/jk: navigate | ←→/hl: change column | enter: select/confirm | q: quit"
+	HelpText       = "↑↓: navigate | ←→: change column | enter: select/confirm | q: quit"
 	NoItemSelected = "None"
 	Initializing   = "Initializing..."
 	ScanningStacks = "Scanning stacks..."

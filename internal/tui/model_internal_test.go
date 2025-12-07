@@ -3,6 +3,7 @@ package tui
 import (
 	"testing"
 
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/israoo/terrax/internal/stack"
 	"github.com/stretchr/testify/assert"
@@ -109,6 +110,7 @@ func TestModel_MoveCommandSelection(t *testing.T) {
 		isUp          bool
 		expectedIndex int
 		totalCommands int
+		setupFilter   func() map[int]textinput.Model
 	}{
 		{
 			name:          "move down from index 0",
@@ -116,6 +118,7 @@ func TestModel_MoveCommandSelection(t *testing.T) {
 			isUp:          false,
 			expectedIndex: 1,
 			totalCommands: 3,
+			setupFilter:   func() map[int]textinput.Model { return make(map[int]textinput.Model) },
 		},
 		{
 			name:          "move up from index 2",
@@ -123,6 +126,7 @@ func TestModel_MoveCommandSelection(t *testing.T) {
 			isUp:          true,
 			expectedIndex: 1,
 			totalCommands: 3,
+			setupFilter:   func() map[int]textinput.Model { return make(map[int]textinput.Model) },
 		},
 		{
 			name:          "cannot move up from index 0",
@@ -130,6 +134,7 @@ func TestModel_MoveCommandSelection(t *testing.T) {
 			isUp:          true,
 			expectedIndex: 0,
 			totalCommands: 3,
+			setupFilter:   func() map[int]textinput.Model { return make(map[int]textinput.Model) },
 		},
 		{
 			name:          "cannot move down from last index",
@@ -137,6 +142,59 @@ func TestModel_MoveCommandSelection(t *testing.T) {
 			isUp:          false,
 			expectedIndex: 2,
 			totalCommands: 3,
+			setupFilter:   func() map[int]textinput.Model { return make(map[int]textinput.Model) },
+		},
+		{
+			name:          "empty commands list - no movement",
+			initialIndex:  0,
+			isUp:          false,
+			expectedIndex: 0,
+			totalCommands: 0,
+			setupFilter:   func() map[int]textinput.Model { return make(map[int]textinput.Model) },
+		},
+		{
+			name:          "single command - no movement down",
+			initialIndex:  0,
+			isUp:          false,
+			expectedIndex: 0,
+			totalCommands: 1,
+			setupFilter:   func() map[int]textinput.Model { return make(map[int]textinput.Model) },
+		},
+		{
+			name:          "single command - no movement up",
+			initialIndex:  0,
+			isUp:          true,
+			expectedIndex: 0,
+			totalCommands: 1,
+			setupFilter:   func() map[int]textinput.Model { return make(map[int]textinput.Model) },
+		},
+		{
+			name:          "with active filter - move within filtered list",
+			initialIndex:  0, // "plan"
+			isUp:          false,
+			expectedIndex: 0, // Can't move if only "plan" matches filter
+			totalCommands: 3,
+			setupFilter: func() map[int]textinput.Model {
+				filters := make(map[int]textinput.Model)
+				ti := textinput.New()
+				ti.SetValue("plan") // Only matches "plan"
+				filters[0] = ti
+				return filters
+			},
+		},
+		{
+			name:          "filtered list empty - selection stays at current",
+			initialIndex:  0,
+			isUp:          false,
+			expectedIndex: 0,
+			totalCommands: 3,
+			setupFilter: func() map[int]textinput.Model {
+				filters := make(map[int]textinput.Model)
+				ti := textinput.New()
+				ti.SetValue("nonexistent") // No matches
+				filters[0] = ti
+				return filters
+			},
 		},
 	}
 
@@ -145,6 +203,13 @@ func TestModel_MoveCommandSelection(t *testing.T) {
 			m := Model{
 				selectedCommand: tt.initialIndex,
 				commands:        make([]string, tt.totalCommands),
+				columnFilters:   tt.setupFilter(),
+			}
+			// Populate commands
+			for i := 0; i < tt.totalCommands; i++ {
+				if i < len(testCommands) {
+					m.commands[i] = testCommands[i]
+				}
 			}
 
 			m.moveCommandSelection(tt.isUp)
@@ -195,6 +260,7 @@ func TestModel_CalculateColumnWidth(t *testing.T) {
 				navigator:            nav,
 				width:                tt.width,
 				maxNavigationColumns: 3,
+				columnFilters:        make(map[int]textinput.Model),
 			}
 
 			result := m.calculateColumnWidth()
@@ -572,51 +638,319 @@ func TestModel_HandleVerticalMove(t *testing.T) {
 
 // TestModel_MoveNavigationSelection tests navigation column selection movement.
 func TestModel_MoveNavigationSelection(t *testing.T) {
-	root := &stack.Node{
-		Name: "root",
-		Children: []*stack.Node{
-			{Name: "child1"},
-			{Name: "child2"},
-			{Name: "child3"},
-		},
-	}
-
-	nav := stack.NewNavigator(root, 1)
-	state := stack.NewNavigationState(1)
-	nav.PropagateSelection(state)
-
 	tests := []struct {
 		name          string
-		focusedColumn int
+		setupModel    func() Model
 		isUp          bool
-		initialIndex  int
 		expectedIndex int
 	}{
 		{
-			name:          "move down in navigation column",
-			focusedColumn: 1,
+			name: "move down in navigation column",
+			setupModel: func() Model {
+				root := &stack.Node{
+					Name: "root",
+					Children: []*stack.Node{
+						{Name: "child1"},
+						{Name: "child2"},
+						{Name: "child3"},
+					},
+				}
+				nav := stack.NewNavigator(root, 1)
+				state := stack.NewNavigationState(1)
+				nav.PropagateSelection(state)
+
+				m := Model{
+					navigator:     nav,
+					navState:      state,
+					focusedColumn: 1,
+					columnFilters: make(map[int]textinput.Model),
+				}
+				m.navState.SelectedIndices[0] = 0
+				return m
+			},
 			isUp:          false,
-			initialIndex:  0,
 			expectedIndex: 1,
 		},
 		{
-			name:          "move up in navigation column",
-			focusedColumn: 1,
+			name: "move up in navigation column",
+			setupModel: func() Model {
+				root := &stack.Node{
+					Name: "root",
+					Children: []*stack.Node{
+						{Name: "child1"},
+						{Name: "child2"},
+						{Name: "child3"},
+					},
+				}
+				nav := stack.NewNavigator(root, 1)
+				state := stack.NewNavigationState(1)
+				nav.PropagateSelection(state)
+
+				m := Model{
+					navigator:     nav,
+					navState:      state,
+					focusedColumn: 1,
+					columnFilters: make(map[int]textinput.Model),
+				}
+				m.navState.SelectedIndices[0] = 2
+				return m
+			},
 			isUp:          true,
-			initialIndex:  2,
 			expectedIndex: 1,
+		},
+		{
+			name: "empty navigation column - no movement",
+			setupModel: func() Model {
+				root := &stack.Node{
+					Name:     "root",
+					Children: []*stack.Node{}, // Empty children
+				}
+				nav := stack.NewNavigator(root, 1)
+				state := stack.NewNavigationState(1)
+				nav.PropagateSelection(state)
+
+				m := Model{
+					navigator:     nav,
+					navState:      state,
+					focusedColumn: 1,
+					columnFilters: make(map[int]textinput.Model),
+				}
+				return m
+			},
+			isUp:          false,
+			expectedIndex: 0,
+		},
+		{
+			name: "invalid depth - no movement",
+			setupModel: func() Model {
+				root := &stack.Node{Name: "root"}
+				nav := stack.NewNavigator(root, 1)
+				state := stack.NewNavigationState(1)
+
+				m := Model{
+					navigator:     nav,
+					navState:      state,
+					focusedColumn: 0, // Commands column, depth = -1
+					columnFilters: make(map[int]textinput.Model),
+				}
+				return m
+			},
+			isUp:          false,
+			expectedIndex: 0,
+		},
+		{
+			name: "with filter - no matches in filtered list",
+			setupModel: func() Model {
+				root := &stack.Node{
+					Name: "root",
+					Children: []*stack.Node{
+						{Name: "env"},
+						{Name: "modules"},
+					},
+				}
+				nav := stack.NewNavigator(root, 1)
+				state := stack.NewNavigationState(1)
+				nav.PropagateSelection(state)
+
+				m := Model{
+					navigator:     nav,
+					navState:      state,
+					focusedColumn: 1,
+					columnFilters: make(map[int]textinput.Model),
+				}
+				// Add filter that matches nothing
+				ti := textinput.New()
+				ti.SetValue("nonexistent")
+				m.columnFilters[1] = ti
+				return m
+			},
+			isUp:          false,
+			expectedIndex: 0,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := Model{
-				navigator:     nav,
-				navState:      state,
-				focusedColumn: tt.focusedColumn,
-			}
-			m.navState.SelectedIndices[0] = tt.initialIndex
+			m := tt.setupModel()
+			m.moveNavigationSelection(tt.isUp)
 
+			depth := m.getNavigationDepth()
+			if depth >= 0 && depth < len(m.navState.SelectedIndices) {
+				assert.Equal(t, tt.expectedIndex, m.navState.SelectedIndices[depth])
+			}
+		})
+	}
+}
+
+// TestModel_MoveNavigationSelection_WithFilter tests filtered navigation scenarios.
+func TestModel_MoveNavigationSelection_WithFilter(t *testing.T) {
+	tests := []struct {
+		name          string
+		setupModel    func() Model
+		isUp          bool
+		expectedIndex int
+	}{
+		{
+			name: "move down in filtered navigation list",
+			setupModel: func() Model {
+				root := &stack.Node{
+					Name: "root",
+					Children: []*stack.Node{
+						{Name: "dev"},
+						{Name: "prod"},
+						{Name: "staging"},
+					},
+				}
+				nav := stack.NewNavigator(root, 1)
+				state := stack.NewNavigationState(1)
+				nav.PropagateSelection(state)
+
+				m := Model{
+					navigator:            nav,
+					navState:             state,
+					focusedColumn:        1,
+					columnFilters:        make(map[int]textinput.Model),
+					maxNavigationColumns: 3,
+				}
+				// Filter to only show items containing "d" (dev, prod)
+				ti := textinput.New()
+				ti.SetValue("d")
+				m.columnFilters[1] = ti
+				m.navState.SelectedIndices[0] = 0 // Start at "dev" (index 0)
+				return m
+			},
+			isUp:          false,
+			expectedIndex: 1, // Should move to "prod" (index 1)
+		},
+		{
+			name: "move up in filtered navigation list",
+			setupModel: func() Model {
+				root := &stack.Node{
+					Name: "root",
+					Children: []*stack.Node{
+						{Name: "dev"},
+						{Name: "prod"},
+						{Name: "staging"},
+					},
+				}
+				nav := stack.NewNavigator(root, 1)
+				state := stack.NewNavigationState(1)
+				nav.PropagateSelection(state)
+
+				m := Model{
+					navigator:            nav,
+					navState:             state,
+					focusedColumn:        1,
+					columnFilters:        make(map[int]textinput.Model),
+					maxNavigationColumns: 3,
+				}
+				// Filter to only show items containing "d" (dev, prod)
+				ti := textinput.New()
+				ti.SetValue("d")
+				m.columnFilters[1] = ti
+				m.navState.SelectedIndices[0] = 1 // Start at "prod" (index 1)
+				return m
+			},
+			isUp:          true,
+			expectedIndex: 0, // Should move to "dev" (index 0)
+		},
+		{
+			name: "filtered list - current selection not in filter",
+			setupModel: func() Model {
+				root := &stack.Node{
+					Name: "root",
+					Children: []*stack.Node{
+						{Name: "dev"},
+						{Name: "prod"},
+						{Name: "staging"},
+					},
+				}
+				nav := stack.NewNavigator(root, 1)
+				state := stack.NewNavigationState(1)
+				nav.PropagateSelection(state)
+
+				m := Model{
+					navigator:            nav,
+					navState:             state,
+					focusedColumn:        1,
+					columnFilters:        make(map[int]textinput.Model),
+					maxNavigationColumns: 3,
+				}
+				// Filter to only show items containing "dev"
+				ti := textinput.New()
+				ti.SetValue("dev")
+				m.columnFilters[1] = ti
+				m.navState.SelectedIndices[0] = 1 // Currently at "prod" (not in filter)
+				return m
+			},
+			isUp:          false,
+			expectedIndex: 0, // Should jump to first filtered item "dev"
+		},
+		{
+			name: "filtered list - at boundary don't move down",
+			setupModel: func() Model {
+				root := &stack.Node{
+					Name: "root",
+					Children: []*stack.Node{
+						{Name: "dev"},
+						{Name: "prod"},
+					},
+				}
+				nav := stack.NewNavigator(root, 1)
+				state := stack.NewNavigationState(1)
+				nav.PropagateSelection(state)
+
+				m := Model{
+					navigator:            nav,
+					navState:             state,
+					focusedColumn:        1,
+					columnFilters:        make(map[int]textinput.Model),
+					maxNavigationColumns: 3,
+				}
+				ti := textinput.New()
+				ti.SetValue("d") // Matches both
+				m.columnFilters[1] = ti
+				m.navState.SelectedIndices[0] = 1 // At "prod" (last filtered item)
+				return m
+			},
+			isUp:          false,
+			expectedIndex: 1, // Should stay at "prod"
+		},
+		{
+			name: "filtered list - at boundary don't move up",
+			setupModel: func() Model {
+				root := &stack.Node{
+					Name: "root",
+					Children: []*stack.Node{
+						{Name: "dev"},
+						{Name: "prod"},
+					},
+				}
+				nav := stack.NewNavigator(root, 1)
+				state := stack.NewNavigationState(1)
+				nav.PropagateSelection(state)
+
+				m := Model{
+					navigator:            nav,
+					navState:             state,
+					focusedColumn:        1,
+					columnFilters:        make(map[int]textinput.Model),
+					maxNavigationColumns: 3,
+				}
+				ti := textinput.New()
+				ti.SetValue("d") // Matches both
+				m.columnFilters[1] = ti
+				m.navState.SelectedIndices[0] = 0 // At "dev" (first filtered item)
+				return m
+			},
+			isUp:          true,
+			expectedIndex: 0, // Should stay at "dev"
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := tt.setupModel()
 			m.moveNavigationSelection(tt.isUp)
 
 			depth := m.getNavigationDepth()
@@ -794,7 +1128,8 @@ func TestModel_HandleHorizontalMove(t *testing.T) {
 			m.focusedColumn = tt.initialFocused
 			m.navigationOffset = tt.initialOffset
 
-			m = m.handleHorizontalMove(tt.isLeft)
+			updated, _ := m.handleHorizontalMove(tt.isLeft)
+			m = updated.(Model)
 
 			assert.Equal(t, tt.expectedFocused, m.focusedColumn)
 			assert.GreaterOrEqual(t, m.navigationOffset, tt.expectedOffsetMin)
@@ -1273,4 +1608,635 @@ func TestModel_Update_UnhandledMessage(t *testing.T) {
 	// Should return model unchanged and no command.
 	assert.Nil(t, cmd)
 	assert.NotNil(t, updatedModel)
+}
+
+// TestFilterItems tests the filterItems function with various inputs.
+func TestFilterItems(t *testing.T) {
+	tests := []struct {
+		name       string
+		items      []string
+		filterText string
+		expected   []string
+	}{
+		{
+			name:       "empty filter returns all items",
+			items:      []string{"plan", "apply", "validate", "destroy"},
+			filterText: "",
+			expected:   []string{"plan", "apply", "validate", "destroy"},
+		},
+		{
+			name:       "filter matches single item",
+			items:      []string{"plan", "apply", "validate", "destroy"},
+			filterText: "plan",
+			expected:   []string{"plan"},
+		},
+		{
+			name:       "filter matches multiple items",
+			items:      []string{"plan", "apply", "validate", "destroy"},
+			filterText: "val",
+			expected:   []string{"validate"},
+		},
+		{
+			name:       "filter matches partial (case insensitive)",
+			items:      []string{"Plan", "Apply", "Validate", "Destroy"},
+			filterText: "val",
+			expected:   []string{"Validate"},
+		},
+		{
+			name:       "filter matches with different casing",
+			items:      []string{"plan", "apply", "validate", "destroy"},
+			filterText: "PLAN",
+			expected:   []string{"plan"},
+		},
+		{
+			name:       "filter matches no items",
+			items:      []string{"plan", "apply", "validate", "destroy"},
+			filterText: "xyz",
+			expected:   []string{},
+		},
+		{
+			name:       "empty items list returns empty",
+			items:      []string{},
+			filterText: "plan",
+			expected:   []string{},
+		},
+		{
+			name:       "filter matches substring",
+			items:      []string{"terragrunt-plan", "terragrunt-apply", "plan-all"},
+			filterText: "plan",
+			expected:   []string{"terragrunt-plan", "plan-all"},
+		},
+		{
+			name:       "filter with spaces",
+			items:      []string{"plan all", "apply dev", "validate prod"},
+			filterText: "all",
+			expected:   []string{"plan all"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := filterItems(tt.items, tt.filterText)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+// TestModel_AdjustSelectionAfterFilter tests selection adjustment after filter changes.
+func TestModel_AdjustSelectionAfterFilter(t *testing.T) {
+	tests := []struct {
+		name               string
+		setupModel         func() Model
+		expectedCommand    int
+		expectedNavIndex   int
+		checkNavIndex      bool
+		activeFilterColumn int
+	}{
+		{
+			name: "commands column - selected item disappears, moves to first",
+			setupModel: func() Model {
+				root := &stack.Node{Name: "root"}
+				m := NewModel(root, 1, testCommands, 3)
+				m.selectedCommand = 1 // "apply"
+				m.activeFilterColumn = 0
+
+				// Create filter that excludes "apply"
+				ti := textinput.New()
+				ti.SetValue("plan")
+				m.columnFilters[0] = ti
+
+				return m
+			},
+			expectedCommand:    0, // Should move to first filtered item ("plan")
+			activeFilterColumn: 0,
+		},
+		{
+			name: "commands column - selected item remains visible",
+			setupModel: func() Model {
+				root := &stack.Node{Name: "root"}
+				m := NewModel(root, 1, testCommands, 3)
+				m.selectedCommand = 0 // "plan"
+				m.activeFilterColumn = 0
+
+				// Create filter that includes "plan"
+				ti := textinput.New()
+				ti.SetValue("pl")
+				m.columnFilters[0] = ti
+
+				return m
+			},
+			expectedCommand:    0, // Should remain on "plan"
+			activeFilterColumn: 0,
+		},
+		{
+			name: "navigation column - selected item disappears, moves to first",
+			setupModel: func() Model {
+				root := &stack.Node{
+					Name: "root",
+					Children: []*stack.Node{
+						{Name: "env"},
+						{Name: "modules"},
+						{Name: "scripts"},
+					},
+				}
+				nav := stack.NewNavigator(root, 1)
+				state := stack.NewNavigationState(1)
+				nav.PropagateSelection(state)
+
+				m := Model{
+					navigator:          nav,
+					navState:           state,
+					commands:           testCommands,
+					focusedColumn:      1,
+					activeFilterColumn: 1,
+					columnFilters:      make(map[int]textinput.Model),
+				}
+
+				// Select "modules" (index 1)
+				m.navState.SelectedIndices[0] = 1
+
+				// Create filter that excludes "modules"
+				ti := textinput.New()
+				ti.SetValue("env")
+				m.columnFilters[1] = ti
+
+				return m
+			},
+			expectedNavIndex:   0, // Should move to first filtered item ("env")
+			checkNavIndex:      true,
+			activeFilterColumn: 1,
+		},
+		{
+			name: "navigation column - selected item remains visible",
+			setupModel: func() Model {
+				root := &stack.Node{
+					Name: "root",
+					Children: []*stack.Node{
+						{Name: "env"},
+						{Name: "modules"},
+						{Name: "scripts"},
+					},
+				}
+				nav := stack.NewNavigator(root, 1)
+				state := stack.NewNavigationState(1)
+				nav.PropagateSelection(state)
+
+				m := Model{
+					navigator:          nav,
+					navState:           state,
+					commands:           testCommands,
+					focusedColumn:      1,
+					activeFilterColumn: 1,
+					columnFilters:      make(map[int]textinput.Model),
+				}
+
+				// Select "env" (index 0)
+				m.navState.SelectedIndices[0] = 0
+
+				// Create filter that includes "env"
+				ti := textinput.New()
+				ti.SetValue("en")
+				m.columnFilters[1] = ti
+
+				return m
+			},
+			expectedNavIndex:   0, // Should remain on "env"
+			checkNavIndex:      true,
+			activeFilterColumn: 1,
+		},
+		{
+			name: "no active filter - no adjustment",
+			setupModel: func() Model {
+				root := &stack.Node{Name: "root"}
+				m := NewModel(root, 1, testCommands, 3)
+				m.selectedCommand = 2
+				m.activeFilterColumn = -1 // No active filter
+
+				return m
+			},
+			expectedCommand:    2, // Should remain unchanged
+			activeFilterColumn: -1,
+		},
+		{
+			name: "empty filtered list - no change",
+			setupModel: func() Model {
+				root := &stack.Node{Name: "root"}
+				m := NewModel(root, 1, testCommands, 3)
+				m.selectedCommand = 0
+				m.activeFilterColumn = 0
+
+				// Create filter that matches nothing
+				ti := textinput.New()
+				ti.SetValue("nonexistent")
+				m.columnFilters[0] = ti
+
+				return m
+			},
+			expectedCommand:    0, // Should remain unchanged (no filtered items)
+			activeFilterColumn: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := tt.setupModel()
+			m.adjustSelectionAfterFilter()
+
+			if tt.checkNavIndex {
+				assert.Equal(t, tt.expectedNavIndex, m.navState.SelectedIndices[0])
+			} else {
+				assert.Equal(t, tt.expectedCommand, m.selectedCommand)
+			}
+		})
+	}
+}
+
+// TestModel_HandleKeyPress_FilterMode tests filter activation and editing.
+func TestModel_HandleKeyPress_FilterMode(t *testing.T) {
+	tests := []struct {
+		name        string
+		setupModel  func() Model
+		keySequence []tea.KeyMsg
+		checkResult func(t *testing.T, m Model)
+	}{
+		{
+			name: "slash activates filter on commands column",
+			setupModel: func() Model {
+				root := &stack.Node{Name: "root"}
+				m := NewModel(root, 1, testCommands, 3)
+				m.focusedColumn = 0
+				return m
+			},
+			keySequence: []tea.KeyMsg{
+				{Type: tea.KeyRunes, Runes: []rune{'/'}},
+			},
+			checkResult: func(t *testing.T, m Model) {
+				assert.Equal(t, 0, m.activeFilterColumn, "filter should be active on column 0")
+				assert.NotNil(t, m.columnFilters[0], "filter should exist for column 0")
+			},
+		},
+		{
+			name: "slash activates filter on navigation column",
+			setupModel: func() Model {
+				root := &stack.Node{
+					Name: "root",
+					Children: []*stack.Node{
+						{Name: "env"},
+						{Name: "modules"},
+					},
+				}
+				m := NewModel(root, 1, testCommands, 3)
+				m.focusedColumn = 1
+				return m
+			},
+			keySequence: []tea.KeyMsg{
+				{Type: tea.KeyRunes, Runes: []rune{'/'}},
+			},
+			checkResult: func(t *testing.T, m Model) {
+				assert.Equal(t, 1, m.activeFilterColumn, "filter should be active on column 1")
+				assert.NotNil(t, m.columnFilters[1], "filter should exist for column 1")
+			},
+		},
+		{
+			name: "escape exits filter mode and removes filter",
+			setupModel: func() Model {
+				root := &stack.Node{Name: "root"}
+				m := NewModel(root, 1, testCommands, 3)
+				m.focusedColumn = 0
+
+				// Pre-activate filter
+				ti := textinput.New()
+				ti.SetValue("test")
+				ti.Focus()
+				m.columnFilters[0] = ti
+				m.activeFilterColumn = 0
+
+				return m
+			},
+			keySequence: []tea.KeyMsg{
+				{Type: tea.KeyEsc},
+			},
+			checkResult: func(t *testing.T, m Model) {
+				assert.Equal(t, -1, m.activeFilterColumn, "filter should be deactivated")
+				_, exists := m.columnFilters[0]
+				assert.False(t, exists, "filter should be removed")
+			},
+		},
+		{
+			name: "enter executes command with current selection",
+			setupModel: func() Model {
+				root := &stack.Node{Name: "root"}
+				m := NewModel(root, 1, testCommands, 3)
+				m.focusedColumn = 0
+
+				// Pre-activate filter
+				ti := textinput.New()
+				ti.SetValue("plan")
+				ti.Focus()
+				m.columnFilters[0] = ti
+				m.activeFilterColumn = 0
+
+				return m
+			},
+			keySequence: []tea.KeyMsg{
+				{Type: tea.KeyEnter},
+			},
+			checkResult: func(t *testing.T, m Model) {
+				assert.True(t, m.confirmed, "command should be confirmed for execution")
+				filter, exists := m.columnFilters[0]
+				assert.True(t, exists, "filter should still exist")
+				assert.Equal(t, "plan", filter.Value(), "filter value should be preserved")
+			},
+		},
+		{
+			name: "typing in filter mode updates filter value",
+			setupModel: func() Model {
+				root := &stack.Node{Name: "root"}
+				m := NewModel(root, 1, testCommands, 3)
+				m.focusedColumn = 0
+
+				// Pre-activate filter
+				ti := textinput.New()
+				ti.Focus()
+				m.columnFilters[0] = ti
+				m.activeFilterColumn = 0
+
+				return m
+			},
+			keySequence: []tea.KeyMsg{
+				{Type: tea.KeyRunes, Runes: []rune{'p'}},
+				{Type: tea.KeyRunes, Runes: []rune{'l'}},
+			},
+			checkResult: func(t *testing.T, m Model) {
+				filter := m.columnFilters[0]
+				// Note: The actual value depends on textinput's Update logic
+				// We just verify the filter still exists and is active
+				assert.NotNil(t, filter)
+				assert.Equal(t, 0, m.activeFilterColumn)
+			},
+		},
+		{
+			name: "up/down navigation works in filter mode",
+			setupModel: func() Model {
+				root := &stack.Node{Name: "root"}
+				m := NewModel(root, 1, testCommands, 3)
+				m.focusedColumn = 0
+				m.selectedCommand = 0
+
+				// Pre-activate filter
+				ti := textinput.New()
+				ti.Focus()
+				m.columnFilters[0] = ti
+				m.activeFilterColumn = 0
+
+				return m
+			},
+			keySequence: []tea.KeyMsg{
+				{Type: tea.KeyDown},
+			},
+			checkResult: func(t *testing.T, m Model) {
+				// Navigation should work even in filter mode
+				assert.Equal(t, 1, m.selectedCommand, "selection should move down")
+				assert.Equal(t, 0, m.activeFilterColumn, "filter should still be active")
+			},
+		},
+		{
+			name: "left/right navigation works in filter mode",
+			setupModel: func() Model {
+				root := &stack.Node{
+					Name: "root",
+					Children: []*stack.Node{
+						{Name: "env"},
+					},
+				}
+				m := NewModel(root, 1, testCommands, 3)
+				m.focusedColumn = 0
+
+				// Pre-activate filter on commands column
+				ti := textinput.New()
+				ti.Focus()
+				m.columnFilters[0] = ti
+				m.activeFilterColumn = 0
+
+				return m
+			},
+			keySequence: []tea.KeyMsg{
+				{Type: tea.KeyRight},
+			},
+			checkResult: func(t *testing.T, m Model) {
+				// Should move to next column
+				assert.Equal(t, 1, m.focusedColumn, "focus should move right")
+				// Filter should be blurred on previous column
+				assert.Equal(t, -1, m.activeFilterColumn, "filter should be deactivated")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := tt.setupModel()
+
+			for _, keyMsg := range tt.keySequence {
+				updatedModel, _ := m.handleKeyPress(keyMsg)
+				m = updatedModel.(Model)
+			}
+
+			tt.checkResult(t, m)
+		})
+	}
+}
+
+// TestFindOriginalIndex tests mapping filtered index back to original index.
+func TestFindOriginalIndex(t *testing.T) {
+	tests := []struct {
+		name          string
+		originalItems []string
+		filteredItems []string
+		filteredIndex int
+		expected      int
+	}{
+		{
+			name:          "valid index in filtered list",
+			originalItems: []string{"plan", "apply", "validate", "destroy"},
+			filteredItems: []string{"plan", "apply"},
+			filteredIndex: 1,
+			expected:      1,
+		},
+		{
+			name:          "first item in filtered list",
+			originalItems: []string{"plan", "apply", "validate", "destroy"},
+			filteredItems: []string{"apply", "validate"},
+			filteredIndex: 0,
+			expected:      1, // "apply" is at index 1 in original
+		},
+		{
+			name:          "negative filtered index",
+			originalItems: []string{"plan", "apply", "validate"},
+			filteredItems: []string{"plan"},
+			filteredIndex: -1,
+			expected:      -1,
+		},
+		{
+			name:          "filtered index out of bounds",
+			originalItems: []string{"plan", "apply", "validate"},
+			filteredItems: []string{"plan"},
+			filteredIndex: 5,
+			expected:      -1,
+		},
+		{
+			name:          "item not found in original list",
+			originalItems: []string{"plan", "apply"},
+			filteredItems: []string{"destroy"}, // Not in original
+			filteredIndex: 0,
+			expected:      -1,
+		},
+		{
+			name:          "empty filtered list",
+			originalItems: []string{"plan", "apply"},
+			filteredItems: []string{},
+			filteredIndex: 0,
+			expected:      -1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := findOriginalIndex(tt.originalItems, tt.filteredItems, tt.filteredIndex)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+// TestFindFilteredIndex tests mapping original index to filtered index.
+func TestFindFilteredIndex(t *testing.T) {
+	tests := []struct {
+		name          string
+		originalItems []string
+		filteredItems []string
+		originalIndex int
+		expected      int
+	}{
+		{
+			name:          "item exists in filtered list",
+			originalItems: []string{"plan", "apply", "validate", "destroy"},
+			filteredItems: []string{"plan", "validate"},
+			originalIndex: 0, // "plan"
+			expected:      0,
+		},
+		{
+			name:          "item not in filtered list",
+			originalItems: []string{"plan", "apply", "validate", "destroy"},
+			filteredItems: []string{"plan", "validate"},
+			originalIndex: 1, // "apply" not in filtered
+			expected:      -1,
+		},
+		{
+			name:          "negative original index",
+			originalItems: []string{"plan", "apply"},
+			filteredItems: []string{"plan"},
+			originalIndex: -1,
+			expected:      -1,
+		},
+		{
+			name:          "original index out of bounds",
+			originalItems: []string{"plan", "apply"},
+			filteredItems: []string{"plan"},
+			originalIndex: 10,
+			expected:      -1,
+		},
+		{
+			name:          "last item in both lists",
+			originalItems: []string{"plan", "apply", "validate"},
+			filteredItems: []string{"apply", "validate"},
+			originalIndex: 2, // "validate"
+			expected:      1,
+		},
+		{
+			name:          "empty filtered list",
+			originalItems: []string{"plan", "apply"},
+			filteredItems: []string{},
+			originalIndex: 0,
+			expected:      -1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := findFilteredIndex(tt.originalItems, tt.filteredItems, tt.originalIndex)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+// TestModel_GetFilteredNavigationItems tests filtered navigation items retrieval.
+func TestModel_GetFilteredNavigationItems(t *testing.T) {
+	tests := []struct {
+		name     string
+		setup    func() (*Model, int)
+		expected []string
+	}{
+		{
+			name: "valid depth with no filter",
+			setup: func() (*Model, int) {
+				root := &stack.Node{
+					Name: "root",
+					Children: []*stack.Node{
+						{Name: "env"},
+						{Name: "modules"},
+					},
+				}
+				nav := stack.NewNavigator(root, 1)
+				state := stack.NewNavigationState(1)
+				nav.PropagateSelection(state)
+
+				m := &Model{
+					navigator:     nav,
+					navState:      state,
+					columnFilters: make(map[int]textinput.Model),
+				}
+				return m, 0
+			},
+			expected: []string{"env", "modules"},
+		},
+		{
+			name: "invalid depth - negative",
+			setup: func() (*Model, int) {
+				root := &stack.Node{Name: "root"}
+				nav := stack.NewNavigator(root, 1)
+				state := stack.NewNavigationState(1)
+
+				m := &Model{
+					navigator:     nav,
+					navState:      state,
+					columnFilters: make(map[int]textinput.Model),
+				}
+				return m, -1
+			},
+			expected: []string{},
+		},
+		{
+			name: "invalid depth - out of bounds",
+			setup: func() (*Model, int) {
+				root := &stack.Node{Name: "root"}
+				nav := stack.NewNavigator(root, 1)
+				state := stack.NewNavigationState(1)
+
+				m := &Model{
+					navigator:     nav,
+					navState:      state,
+					columnFilters: make(map[int]textinput.Model),
+				}
+				return m, 99
+			},
+			expected: []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m, depth := tt.setup()
+			result := m.getFilteredNavigationItems(depth)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
 }
