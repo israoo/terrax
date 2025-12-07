@@ -49,6 +49,30 @@ var (
 				Bold(true).
 				Foreground(accentColor).
 				Padding(0, 1)
+
+	// Arrow indicator style
+	arrowStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(secondaryColor).
+			Padding(0, 1)
+
+	// Breadcrumb bar style (prominent top bar below header)
+	breadcrumbBarStyle = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(textColor).
+				Background(lipgloss.Color("#2E2E2E")).
+				Padding(0, 2).
+				Margin(0, 0)
+
+	// Breadcrumb style for footer (deprecated, kept for compatibility)
+	breadcrumbStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(primaryColor).
+			Italic(false)
+
+	// Level counter style
+	levelCounterStyle = lipgloss.NewStyle().
+				Foreground(secondaryColor)
 )
 
 // LayoutCalculator handles all layout dimension calculations.
@@ -109,27 +133,37 @@ func NewRenderer(model Model, layout *LayoutCalculator) *Renderer {
 
 // Render builds the complete UI view.
 func (r *Renderer) Render() string {
-	columns := r.renderColumns()
+	columns := r.renderColumnsWithArrows()
 	content := lipgloss.JoinHorizontal(lipgloss.Top, columns...)
 
 	header := r.renderHeader()
+	breadcrumbBar := r.renderBreadcrumbBar()
 	footer := r.renderFooter()
 
-	return lipgloss.JoinVertical(lipgloss.Left, header, content, footer)
+	return lipgloss.JoinVertical(lipgloss.Left, header, breadcrumbBar, content, footer)
 }
 
-// renderColumns renders all visible columns.
-func (r *Renderer) renderColumns() []string {
+// renderColumnsWithArrows renders all visible columns with overflow indicators.
+func (r *Renderer) renderColumnsWithArrows() []string {
 	columns := make([]string, 0)
 
-	// Render commands column
+	// Render commands column (always visible)
 	commandsView := r.renderCommandsColumn()
 	styledCommands := r.styleColumn(commandsView, r.model.isCommandsColumnFocused())
 	columns = append(columns, styledCommands)
 
-	// Render navigation columns
+	// Left overflow indicator
+	if r.model.hasLeftOverflow() {
+		leftArrow := r.renderArrowIndicator("«")
+		columns = append(columns, leftArrow)
+	}
+
+	// Render navigation columns in sliding window (max 3 visible)
 	maxDepth := r.model.navigator.GetMaxDepth()
-	for depth := 0; depth < maxDepth; depth++ {
+	startDepth := r.model.navigationOffset
+	endDepth := min(startDepth+3, maxDepth) // Show max 3 columns
+
+	for depth := startDepth; depth < endDepth; depth++ {
 		// Skip empty columns
 		if len(r.model.navState.Columns[depth]) == 0 {
 			break
@@ -141,7 +175,31 @@ func (r *Renderer) renderColumns() []string {
 		columns = append(columns, styledNav)
 	}
 
+	// Right overflow indicator
+	if r.model.hasRightOverflow() {
+		rightArrow := r.renderArrowIndicator("»")
+		columns = append(columns, rightArrow)
+	}
+
 	return columns
+}
+
+// renderArrowIndicator renders an arrow indicator for overflow.
+func (r *Renderer) renderArrowIndicator(arrow string) string {
+	content := arrowStyle.Render(arrow)
+	return lipgloss.NewStyle().
+		Height(r.layout.GetContentHeight()).
+		Padding(0, 0).
+		AlignVertical(lipgloss.Center).
+		Render(content)
+}
+
+// min returns the minimum of two integers.
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 // renderCommandsColumn renders the commands column content.
@@ -208,7 +266,23 @@ func (r *Renderer) renderHeader() string {
 	return headerStyle.Width(r.model.width).Render("🌍 " + AppTitle)
 }
 
-// renderFooter renders the footer help text.
+// renderBreadcrumbBar renders the navigation context bar below the header.
+func (r *Renderer) renderBreadcrumbBar() string {
+	navPath := r.model.getCurrentNavigationPath()
+
+	// Format breadcrumb with visual separator
+	var content string
+	if navPath == "~" {
+		content = "🏠 Home"
+	} else {
+		// Replace " / " with visual separator
+		content = fmt.Sprintf("📁 %s", navPath)
+	}
+
+	return breadcrumbBarStyle.Width(r.model.width).Render(content)
+}
+
+// renderFooter renders the footer with help text only.
 func (r *Renderer) renderFooter() string {
 	return footerStyle.Render(HelpText)
 }

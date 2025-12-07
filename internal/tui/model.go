@@ -27,8 +27,9 @@ type Model struct {
 	selectedCommand int
 
 	// UI State
-	focusedColumn int  // 0 = commands, 1+ = navigation columns
-	confirmed     bool // Whether user confirmed selection
+	focusedColumn    int  // 0 = commands, 1+ = navigation columns
+	navigationOffset int  // First visible navigation level (sliding window)
+	confirmed        bool // Whether user confirmed selection
 
 	// Layout
 	width       int
@@ -57,10 +58,11 @@ func NewModel(stackRoot *stack.Node, maxDepth int) Model {
 			"refresh",
 			"fmt",
 		},
-		selectedCommand: 0,
-		focusedColumn:   0,
-		confirmed:       false,
-		ready:           false,
+		selectedCommand:  0,
+		focusedColumn:    0,
+		navigationOffset: 0,
+		confirmed:        false,
+		ready:            false,
 	}
 
 	// Initialize navigation state
@@ -95,16 +97,18 @@ func (m Model) handleWindowResize(msg tea.WindowSizeMsg) Model {
 }
 
 // calculateColumnWidth computes the static width for all columns.
+// Fixed: 1 commands column + max 3 navigation columns in sliding window.
 func (m Model) calculateColumnWidth() int {
 	maxDepth := m.navigator.GetMaxDepth()
 	if maxDepth == 0 {
 		return MinColumnWidth
 	}
 
-	maxTotalColumns := 1 + maxDepth
-	totalOverhead := ColumnOverhead * maxTotalColumns
+	// Always calculate for 1 commands + 3 navigation columns max
+	maxVisibleColumns := 4 // 1 commands + 3 navigation
+	totalOverhead := ColumnOverhead * maxVisibleColumns
 	availableWidth := m.width - totalOverhead
-	colWidth := availableWidth / maxTotalColumns
+	colWidth := availableWidth / maxVisibleColumns
 
 	if colWidth < MinColumnWidth {
 		return MinColumnWidth
@@ -200,24 +204,55 @@ func (m *Model) moveNavigationSelection(isUp bool) {
 	}
 }
 
-// moveToPreviousColumn moves focus to the previous column (with wrap-around).
+// moveToPreviousColumn moves focus to the previous column with sliding window.
 func (m *Model) moveToPreviousColumn() {
 	if m.focusedColumn > 0 {
+		// Move focus left
 		m.focusedColumn--
+
+		// If new focus is outside left window boundary (and not commands column)
+		if m.focusedColumn > 0 && m.focusedColumn < m.navigationOffset+1 {
+			// Slide window left
+			if m.navigationOffset > 0 {
+				m.navigationOffset--
+			}
+		}
 	} else {
 		// Wrap to last visible column
-		m.focusedColumn = m.navigator.GetMaxVisibleDepth(m.navState)
+		maxVisibleDepth := m.navigator.GetMaxVisibleDepth(m.navState)
+		m.focusedColumn = maxVisibleDepth
+
+		// Adjust window to show the last column
+		if maxVisibleDepth > 3 {
+			m.navigationOffset = maxVisibleDepth - 3
+		} else {
+			m.navigationOffset = 0
+		}
 	}
 }
 
-// moveToNextColumn moves focus to the next column (with wrap-around).
+// moveToNextColumn moves focus to the next column with sliding window.
 func (m *Model) moveToNextColumn() {
 	maxVisibleDepth := m.navigator.GetMaxVisibleDepth(m.navState)
+
 	if m.focusedColumn < maxVisibleDepth {
+		// Move focus right
 		m.focusedColumn++
+
+		// If new focus is outside right window boundary
+		// Window shows levels: navigationOffset, navigationOffset+1, navigationOffset+2
+		// Focus is at column index (1 + depth), so depth = focusedColumn - 1
+		if m.focusedColumn > 0 {
+			depth := m.focusedColumn - 1 // Convert to 0-based depth
+			if depth > m.navigationOffset+2 {
+				// Slide window right
+				m.navigationOffset++
+			}
+		}
 	} else {
 		// Wrap to commands column
 		m.focusedColumn = 0
+		m.navigationOffset = 0
 	}
 }
 
@@ -263,4 +298,85 @@ func (m Model) GetSelectedStackPath() string {
 // IsConfirmed returns whether the user confirmed the selection.
 func (m Model) IsConfirmed() bool {
 	return m.confirmed
+}
+
+// getCurrentNavigationPath returns the current navigation path as a string.
+// It builds a breadcrumb path from the selected nodes up to the focused column.
+func (m Model) getCurrentNavigationPath() string {
+	if m.isCommandsColumnFocused() || m.navigator.GetMaxDepth() == 0 {
+		return "~"
+	}
+
+	path := ""
+	depth := m.getNavigationDepth()
+
+	// Build path from selected indices
+	for i := 0; i <= depth && i < len(m.navState.Columns); i++ {
+		if i >= len(m.navState.SelectedIndices) {
+			break
+		}
+
+		selectedIdx := m.navState.SelectedIndices[i]
+		if selectedIdx >= 0 && selectedIdx < len(m.navState.Columns[i]) {
+			if path != "" {
+				path += " / "
+			}
+			path += m.navState.Columns[i][selectedIdx]
+		}
+	}
+
+	if path == "" {
+		return "~"
+	}
+	return path
+}
+
+// hasLeftOverflow returns true if there are navigation columns to the left.
+func (m Model) hasLeftOverflow() bool {
+	return m.navigationOffset > 0
+}
+
+// canAdvanceFurther returns true if the currently focused node has children.
+// This determines if the user can navigate deeper into the hierarchy.
+func (m Model) canAdvanceFurther() bool {
+	// Commands column has no children to advance to
+	if m.isCommandsColumnFocused() {
+		return false
+	}
+
+	depth := m.getNavigationDepth()
+	if depth < 0 || depth >= len(m.navState.CurrentNodes) {
+		return false
+	}
+
+	// Get the currently focused node
+	currentNode := m.navState.CurrentNodes[depth]
+	if currentNode == nil {
+		return false
+	}
+
+	// Check if this node has children
+	return currentNode.HasChildren()
+}
+
+// hasRightOverflow returns true if there are navigation columns to the right.
+// Uses dynamic logic: shows indicator only if current node has children.
+func (m Model) hasRightOverflow() bool {
+	// Don't show right arrow if we can't advance further
+	if !m.canAdvanceFurther() {
+		return false
+	}
+
+	// Check if there are more levels beyond the visible window
+	maxDepth := m.navigator.GetMaxDepth()
+	depth := m.getNavigationDepth()
+
+	// If we're in a navigation column and it's not the last visible column
+	// and there are more depths available, show the indicator
+	if depth >= 0 && depth < maxDepth-1 {
+		// Show arrow if current depth is at or beyond the right edge of window
+		return depth >= m.navigationOffset+2
+	}
+
+	return false
 }
