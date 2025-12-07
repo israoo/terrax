@@ -110,7 +110,7 @@ nfpms:
       - rpm
     bindir: /usr/local/bin
     contents:
-      - src: terrax
+      - src: "{{ .Builds.terrax.Path }}"
         dst: /usr/local/bin/terrax
         file_info:
           mode: 0755
