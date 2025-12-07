@@ -15,7 +15,6 @@ Navigate your infrastructure as code hierarchies with an elegant, keyboard-drive
 [Documentation](#-documentation) •
 [Contributing](#-contributing) •
 [License](#-license) •
-[Acknowledgments](#-acknowledgments) •
 
 </div>
 
@@ -33,7 +32,7 @@ Identifies Terragrunt (`terragrunt.hcl`) stacks with extensible detection patter
 
 ### ✔︎ Sliding window navigation
 
-Displays max 3 navigation columns simultaneously (plus commands column) with dynamic sliding as you navigate deeper hierarchies.
+Displays 3 navigation columns simultaneously (plus commands column) with dynamic sliding as you navigate deeper hierarchies.
 
 ### ✔︎ Smart column display
 
@@ -47,6 +46,10 @@ Columns appear/disappear dynamically—no empty columns, keeping the UI clean an
 ### ✔︎ Interactive filtering
 
 Filter items in any column with `/` key. Navigate through filtered results in real-time, with multiple filters active simultaneously across columns.
+
+### ✔︎ Customizable configuration
+
+Configure available commands and UI behavior via `.terrax.yaml` in your project or home directory. Customize command list and maximum visible columns.
 
 ### ✔︎ Keyboard-first design
 
@@ -238,30 +241,6 @@ The filtering system (`internal/tui/model.go`, `internal/tui/view.go`):
 - **Auto-reactivation**: Returning to a filtered column automatically resumes editing
 - **Persistent filters**: Multiple filters can be active simultaneously
 
-**Filter workflow:**
-
-```text
-1. Press / on any column → Filter input replaces title
-2. Type filter text → Items filter in real-time
-3. ↑↓ navigate only filtered items
-4. ←→ move to another column → filter stays active
-5. Return to column → editing resumes automatically
-6. Esc → removes filter, title reappears
-7. Enter → executes command with current selection
-```
-
-**Example:**
-
-```text
-Before filtering:
-┌─ Commands ─┐       After pressing / and typing "pl":
-│ ► plan     │       ┌─────────────┐
-│   apply    │       │ 🔍 pl_      │  ← Filter input replaces title
-│   destroy  │       │             │
-│   validate │       │ ► plan      │  ← Only matching items shown
-└────────────┘       └─────────────┘
-```
-
 #### 5. **Dual execution modes**
 
 **Commands column (full depth execution):**
@@ -363,7 +342,7 @@ make test-coverage
 
 | Component | Technology | Version |
 |-----------|------------|---------|
-| **Language** | Go | 1.25.5 |
+| **Language** | [Go](https://go.dev/) | 1.25.5 |
 | **TUI Framework** | [Bubble Tea](https://github.com/charmbracelet/bubbletea) | 1.3.10 |
 | **UI Components** | [Bubbles](https://github.com/charmbracelet/bubbles) | 0.21.0 |
 | **Styling** | [Lipgloss](https://github.com/charmbracelet/lipgloss) | 1.1.0 |
