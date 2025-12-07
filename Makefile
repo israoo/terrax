@@ -53,8 +53,8 @@ help: ## Show this help
 
 build: ## Build the binary
 	@echo "🔨 Building $(BINARY_NAME)..."
-	$(GOBUILD) $(LDFLAGS) -o $(BINARY_NAME) $(MAIN_PACKAGE)
-	@echo "✅ Binary built: ./$(BINARY_NAME)"
+	$(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) $(MAIN_PACKAGE)
+	@echo "✅ Binary built: $(BUILD_DIR)/$(BINARY_NAME)"
 
 build-all: ## Build for multiple platforms
 	@echo "🔨 Building for multiple platforms..."
@@ -126,17 +126,21 @@ release: clean test build-all ## Create release (clean + test + build-all)
 	@ls -lh $(DIST_DIR)/
 
 run: build ## Build and run
-	@echo "🚀 Running $(BINARY_NAME)..."
-	./$(BINARY_NAME)
+	@echo "🚀 Running $(BUILD_DIR)/$(BINARY_NAME)..."
+	$(BUILD_DIR)/$(BINARY_NAME)
 
 test: ## Run tests
 	@echo "🧪 Running tests..."
 	$(GOTEST) -v -race -coverprofile=coverage.out ./...
 	@echo "✅ Tests completed"
 
-test-coverage: test ## Run tests and show coverage
-	@echo "📊 Showing coverage..."
-	$(GOCMD) tool cover -html=coverage.out
+test-coverage: ## Run tests and show coverage by file/directory
+	@echo "🧪 Running tests with coverage..."
+	@$(GOTEST) -race -coverprofile=coverage.out ./... > /dev/null 2>&1
+	@echo ""
+	@echo "📊 Coverage by package and file:"
+	@echo "════════════════════════════════════════════════════════════════"
+	@$(GOCMD) tool cover -func=coverage.out
 
 tidy: ## Clean and update dependencies
 	@echo "🧹 Cleaning dependencies..."
