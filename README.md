@@ -4,7 +4,7 @@
 
 **The interactive TUI executor for Terragrunt stacks**
 
-[![Go Version](https://img.shields.io/badge/Go-1.25.5-00ADD8?logo=go)](https://go.dev/) [![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/israoo/TerraX) [![codecov](https://codecov.io/github/israoo/terrax/graph/badge.svg?token=X28KESXI19)](https://codecov.io/github/israoo/terrax) [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=israoo_terrax&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=israoo_terrax) [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE) [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+[![Go Version](https://img.shields.io/badge/Go-1.25.5-00ADD8?logo=go)](https://go.dev/) [![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/israoo/terrax) [![codecov](https://codecov.io/github/israoo/terrax/graph/badge.svg?token=X28KESXI19)](https://codecov.io/github/israoo/terrax) [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=israoo_terrax&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=israoo_terrax) [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE) [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
 Navigate your infrastructure as code hierarchies with an elegant, keyboard-driven terminal interface. Select your stack and command, and **TerraX executes Terragrunt directly in your terminal** with full interactive control.
 
@@ -63,25 +63,75 @@ Once you confirm your selection, TerraX executes `terragrunt` directly in your t
 
 ## 📦 Installation
 
-### From binary (recommended)
+Choose your preferred installation method:
 
-Download the latest release for your platform:
+### Homebrew (macOS/Linux)
+
+```bash
+brew tap israoo/tap
+brew install --cask terrax
+```
+
+### Scoop (Windows)
+
+```powershell
+scoop bucket add israoo https://github.com/israoo/scoop-bucket
+scoop install israoo/terrax
+```
+
+### APT (Debian/Ubuntu)
+
+```bash
+# Download the .deb package (replace VERSION with actual version, e.g., 0.1.0)
+wget https://github.com/israoo/terrax/releases/download/vVERSION/terrax_VERSION_linux_x86_64.deb
+
+# Install
+sudo dpkg -i terrax_VERSION_linux_x86_64.deb
+```
+
+### YUM/DNF (Fedora/RHEL/CentOS)
+
+```bash
+# Download the .rpm package (replace VERSION with actual version, e.g., 0.1.0)
+wget https://github.com/israoo/terrax/releases/download/vVERSION/terrax_VERSION_linux_x86_64.rpm
+
+# Install with YUM
+sudo yum install terrax_VERSION_linux_x86_64.rpm
+
+# Or with DNF
+sudo dnf install terrax_VERSION_linux_x86_64.rpm
+```
+
+### Direct binary download
+
+Download the latest pre-built binary for your platform from the [releases page](https://github.com/israoo/terrax/releases/latest):
 
 ```bash
 # macOS (Intel)
-curl -Lo TerraX https://github.com/israoo/TerraX/releases/latest/download/TerraX-darwin-amd64
-chmod +x TerraX
-sudo mv TerraX /usr/local/bin/
+curl -LO https://github.com/israoo/terrax/releases/latest/download/terrax_Darwin_x86_64.tar.gz
+tar -xzf terrax_Darwin_x86_64.tar.gz
+chmod +x terrax
+sudo mv terrax /usr/local/bin/
 
 # macOS (Apple Silicon)
-curl -Lo TerraX https://github.com/israoo/TerraX/releases/latest/download/TerraX-darwin-arm64
-chmod +x TerraX
-sudo mv TerraX /usr/local/bin/
+curl -LO https://github.com/israoo/terrax/releases/latest/download/terrax_Darwin_arm64.tar.gz
+tar -xzf terrax_Darwin_arm64.tar.gz
+chmod +x terrax
+sudo mv terrax /usr/local/bin/
 
 # Linux (AMD64)
-curl -Lo TerraX https://github.com/israoo/TerraX/releases/latest/download/TerraX-linux-amd64
-chmod +x TerraX
-sudo mv TerraX /usr/local/bin/
+curl -LO https://github.com/israoo/terrax/releases/latest/download/terrax_Linux_x86_64.tar.gz
+tar -xzf terrax_Linux_x86_64.tar.gz
+chmod +x terrax
+sudo mv terrax /usr/local/bin/
+
+# Linux (ARM64)
+curl -LO https://github.com/israoo/terrax/releases/latest/download/terrax_Linux_arm64.tar.gz
+tar -xzf terrax_Linux_arm64.tar.gz
+chmod +x terrax
+sudo mv terrax /usr/local/bin/
+
+# Windows (download .zip from releases page and add to PATH)
 ```
 
 ### From source
@@ -90,11 +140,11 @@ Requires **Go 1.25.5** or higher:
 
 ```bash
 # Install directly
-go install github.com/israoo/TerraX@latest
+go install github.com/israoo/terrax@latest
 
 # Or clone and build
-git clone https://github.com/israoo/TerraX.git
-cd TerraX
+git clone https://github.com/israoo/terrax.git
+cd terrax
 make build
 ```
 
@@ -325,8 +375,8 @@ We welcome contributions! TerraX follows strict architectural principles and com
 
 ```bash
 # Clone repository
-git clone https://github.com/israoo/TerraX.git
-cd TerraX
+git clone https://github.com/israoo/terrax.git
+cd terrax
 
 # Initialize (install dependencies + verify setup)
 make init
@@ -483,7 +533,7 @@ After you confirm your selection (pressing Enter), TerraX:
 
 **Built with ❤️ for Infrastructure Engineers**
 
-[Report bug](https://github.com/israoo/TerraX/issues) •
-[Request feature](https://github.com/israoo/TerraX/issues)
+[Report bug](https://github.com/israoo/terrax/issues) •
+[Request feature](https://github.com/israoo/terrax/issues)
 
 </div>

@@ -13,8 +13,8 @@ import (
 	"github.com/spf13/viper"
 )
 
-// Version holds the application version.
-// This variable is set by the main package and injected by GoReleaser during builds.
+// This variable is injected by GoReleaser during builds via ldflags.
+// Default value is "dev" for local development builds.
 var Version = "dev"
 
 // TUIRunner is a function type that runs a TUI program and returns the final model.

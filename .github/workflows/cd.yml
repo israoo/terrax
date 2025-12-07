@@ -17,9 +17,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Fetch all tags
-        run: git fetch --force --tags
-
       - name: Setup Go environment
         uses: actions/setup-go@v6
         with:
@@ -30,8 +27,7 @@ jobs:
         uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
-          version: latest
+          version: "~> v2"
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
-          GORELEASER_GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
