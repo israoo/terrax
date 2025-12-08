@@ -16,6 +16,10 @@ Navigate your infrastructure as code hierarchies with an elegant, keyboard-drive
 [Contributing](#-contributing) •
 [License](#-license)
 
+---
+
+<img src="docs/demo.gif" alt="Demo" />*<br/>Example of running TerraX to execute Terragrunt stacks.*
+
 </div>
 
 ---
