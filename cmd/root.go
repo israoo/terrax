@@ -1,12 +1,15 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/israoo/terrax/internal/config"
+	"github.com/israoo/terrax/internal/history"
 	"github.com/israoo/terrax/internal/stack"
 	"github.com/israoo/terrax/internal/tui"
 	"github.com/spf13/cobra"
@@ -54,6 +57,7 @@ func initConfig() {
 	// Set default values
 	viper.SetDefault("commands", config.DefaultCommands)
 	viper.SetDefault("max_navigation_columns", config.DefaultMaxNavigationColumns)
+	viper.SetDefault("history.max_entries", config.DefaultHistoryMaxEntries)
 
 	// Configure config file search paths
 	viper.SetConfigName(".terrax")
@@ -198,7 +202,21 @@ func displayResults(model tui.Model) {
 }
 
 // executeTerragruntCommand runs the terragrunt command with the selected parameters.
+// It also logs the execution to the history file for audit and replay purposes.
 func executeTerragruntCommand(command, stackPath string) error {
+	ctx := context.Background()
+
+	// Get next ID for this execution
+	nextID, err := history.GetNextID(ctx)
+	if err != nil {
+		// Log error but don't fail execution
+		fmt.Fprintf(os.Stderr, "Warning: Failed to get history ID: %v\n", err)
+		nextID = 0 // Use 0 as fallback
+	}
+
+	// Record execution start time
+	startTime := time.Now()
+
 	// Build the terragrunt command: terragrunt run --all --working-dir {PATH} -- {command}
 	args := []string{"run", "--all", "--working-dir", stackPath, "--", command}
 
@@ -209,11 +227,54 @@ func executeTerragruntCommand(command, stackPath string) error {
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
 
-	if err := cmd.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "\n❌ Command execution failed: %v\n", err)
-		return err
+	// Execute command and capture exit code
+	execErr := cmd.Run()
+	exitCode := 0
+	summary := "Command completed successfully"
+
+	if execErr != nil {
+		fmt.Fprintf(os.Stderr, "\n❌ Command execution failed: %v\n", execErr)
+		// Extract exit code from error
+		if exitErr, ok := execErr.(*exec.ExitError); ok {
+			exitCode = exitErr.ExitCode()
+		} else {
+			exitCode = 1 // Generic error code
+		}
+		summary = fmt.Sprintf("Command failed: %v", execErr)
+	} else {
+		fmt.Println("\n✅ Command execution completed")
 	}
 
-	fmt.Println("\n✅ Command execution completed")
-	return nil
+	// Calculate duration
+	duration := time.Since(startTime)
+
+	// Log execution to history
+	entry := history.ExecutionLogEntry{
+		ID:        nextID,
+		Timestamp: startTime,
+		User:      history.GetCurrentUser(),
+		StackPath: stackPath,
+		Command:   command,
+		ExitCode:  exitCode,
+		DurationS: duration.Seconds(),
+		Summary:   summary,
+	}
+
+	if err := history.AppendToHistory(ctx, entry); err != nil {
+		// Log error but don't fail the overall execution
+		fmt.Fprintf(os.Stderr, "Warning: Failed to append to history: %v\n", err)
+	}
+
+	// Trim history if configured
+	maxEntries := viper.GetInt("history.max_entries")
+	if maxEntries < config.MinHistoryMaxEntries {
+		maxEntries = config.DefaultHistoryMaxEntries
+	}
+
+	if err := history.TrimHistory(ctx, maxEntries); err != nil {
+		// Log error but don't fail the overall execution
+		fmt.Fprintf(os.Stderr, "Warning: Failed to trim history: %v\n", err)
+	}
+
+	return execErr
 }
