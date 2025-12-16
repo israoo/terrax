@@ -129,18 +129,18 @@ func TestModel_MoveCommandSelection(t *testing.T) {
 			setupFilter:   func() map[int]textinput.Model { return make(map[int]textinput.Model) },
 		},
 		{
-			name:          "cannot move up from index 0",
+			name:          "cyclic move up from index 0 wraps to last",
 			initialIndex:  0,
 			isUp:          true,
-			expectedIndex: 0,
+			expectedIndex: 2,
 			totalCommands: 3,
 			setupFilter:   func() map[int]textinput.Model { return make(map[int]textinput.Model) },
 		},
 		{
-			name:          "cannot move down from last index",
+			name:          "cyclic move down from last index wraps to first",
 			initialIndex:  2,
 			isUp:          false,
-			expectedIndex: 2,
+			expectedIndex: 0,
 			totalCommands: 3,
 			setupFilter:   func() map[int]textinput.Model { return make(map[int]textinput.Model) },
 		},
@@ -887,7 +887,7 @@ func TestModel_MoveNavigationSelection_WithFilter(t *testing.T) {
 			expectedIndex: 0, // Should jump to first filtered item "dev"
 		},
 		{
-			name: "filtered list - at boundary don't move down",
+			name: "filtered list - cyclic move down from last wraps to first",
 			setupModel: func() Model {
 				root := &stack.Node{
 					Name: "root",
@@ -914,10 +914,10 @@ func TestModel_MoveNavigationSelection_WithFilter(t *testing.T) {
 				return m
 			},
 			isUp:          false,
-			expectedIndex: 1, // Should stay at "prod"
+			expectedIndex: 0, // Cyclic: wraps to "dev"
 		},
 		{
-			name: "filtered list - at boundary don't move up",
+			name: "filtered list - cyclic move up from first wraps to last",
 			setupModel: func() Model {
 				root := &stack.Node{
 					Name: "root",
@@ -944,7 +944,7 @@ func TestModel_MoveNavigationSelection_WithFilter(t *testing.T) {
 				return m
 			},
 			isUp:          true,
-			expectedIndex: 0, // Should stay at "dev"
+			expectedIndex: 1, // Cyclic: wraps to "prod"
 		},
 	}
 

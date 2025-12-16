@@ -126,21 +126,43 @@ func (nav *Navigator) CanMoveDown(state *NavigationState, depth int) bool {
 
 // MoveUp moves the selection up in the specified depth column.
 // Returns true if the move was successful.
+// Implements cyclic navigation: wraps to bottom when at top.
 func (nav *Navigator) MoveUp(state *NavigationState, depth int) bool {
-	if !nav.CanMoveUp(state, depth) {
+	if depth < 0 || depth >= nav.maxDepth {
 		return false
 	}
-	state.SelectedIndices[depth]--
+	maxIndex := len(state.Columns[depth]) - 1
+	if maxIndex < 0 {
+		return false
+	}
+
+	if state.SelectedIndices[depth] > 0 {
+		state.SelectedIndices[depth]--
+	} else {
+		// Wrap to bottom
+		state.SelectedIndices[depth] = maxIndex
+	}
 	return true
 }
 
 // MoveDown moves the selection down in the specified depth column.
 // Returns true if the move was successful.
+// Implements cyclic navigation: wraps to top when at bottom.
 func (nav *Navigator) MoveDown(state *NavigationState, depth int) bool {
-	if !nav.CanMoveDown(state, depth) {
+	if depth < 0 || depth >= nav.maxDepth {
 		return false
 	}
-	state.SelectedIndices[depth]++
+	maxIndex := len(state.Columns[depth]) - 1
+	if maxIndex < 0 {
+		return false
+	}
+
+	if state.SelectedIndices[depth] < maxIndex {
+		state.SelectedIndices[depth]++
+	} else {
+		// Wrap to top
+		state.SelectedIndices[depth] = 0
+	}
 	return true
 }
 

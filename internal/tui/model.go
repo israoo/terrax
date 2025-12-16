@@ -272,11 +272,21 @@ func (m *Model) moveCommandSelection(isUp bool) {
 	}
 
 	if !hasFilter {
-		// No filter: simple navigation
-		if isUp && m.selectedCommand > 0 {
-			m.selectedCommand--
-		} else if !isUp && m.selectedCommand < len(m.commands)-1 {
-			m.selectedCommand++
+		// No filter: cyclic navigation
+		if isUp {
+			if m.selectedCommand > 0 {
+				m.selectedCommand--
+			} else {
+				// Wrap to bottom
+				m.selectedCommand = len(m.commands) - 1
+			}
+		} else {
+			if m.selectedCommand < len(m.commands)-1 {
+				m.selectedCommand++
+			} else {
+				// Wrap to top
+				m.selectedCommand = 0
+			}
 		}
 		return
 	}
@@ -289,14 +299,21 @@ func (m *Model) moveCommandSelection(isUp bool) {
 		return
 	}
 
-	// Move within filtered list
-	if isUp && filteredIndex > 0 {
-		filteredIndex--
-	} else if !isUp && filteredIndex < len(filteredCommands)-1 {
-		filteredIndex++
+	// Move within filtered list (cyclic)
+	if isUp {
+		if filteredIndex > 0 {
+			filteredIndex--
+		} else {
+			// Wrap to bottom
+			filteredIndex = len(filteredCommands) - 1
+		}
 	} else {
-		// At boundary, don't move
-		return
+		if filteredIndex < len(filteredCommands)-1 {
+			filteredIndex++
+		} else {
+			// Wrap to top
+			filteredIndex = 0
+		}
 	}
 
 	// Map back to original index
@@ -351,14 +368,21 @@ func (m *Model) moveNavigationSelection(isUp bool) {
 		return
 	}
 
-	// Move within filtered list
-	if isUp && filteredIndex > 0 {
-		filteredIndex--
-	} else if !isUp && filteredIndex < len(filteredItems)-1 {
-		filteredIndex++
+	// Move within filtered list (cyclic)
+	if isUp {
+		if filteredIndex > 0 {
+			filteredIndex--
+		} else {
+			// Wrap to bottom
+			filteredIndex = len(filteredItems) - 1
+		}
 	} else {
-		// At boundary, don't move
-		return
+		if filteredIndex < len(filteredItems)-1 {
+			filteredIndex++
+		} else {
+			// Wrap to top
+			filteredIndex = 0
+		}
 	}
 
 	// Map back to original index and update
