@@ -259,6 +259,19 @@ func executeTerragruntCommand(command, stackPath string) error {
 	// Calculate duration
 	duration := time.Since(startTime)
 
+	// Display execution summary
+	fmt.Println()
+	fmt.Println("═══════════════════════════════════════")
+	fmt.Println("  📊 Execution Summary")
+	fmt.Println("═══════════════════════════════════════")
+	fmt.Printf("Command:    %s\n", command)
+	fmt.Printf("Stack Path: %s\n", stackPath)
+	fmt.Printf("Duration:   %.2fs\n", duration.Seconds())
+	fmt.Printf("Exit Code:  %d\n", exitCode)
+	fmt.Printf("Timestamp:  %s\n", startTime.Format("2006-01-02 15:04:05"))
+	fmt.Println("═══════════════════════════════════════")
+	fmt.Println()
+
 	// Log execution to history
 	entry := history.ExecutionLogEntry{
 		ID:        nextID,
