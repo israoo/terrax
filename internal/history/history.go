@@ -269,3 +269,47 @@ func GetNextID(ctx context.Context) (int, error) {
 
 	return lastID + 1, nil
 }
+
+// GetLastExecution reads the history file and returns the most recent execution entry.
+// Returns nil if the history is empty or doesn't exist.
+func GetLastExecution(ctx context.Context) (*ExecutionLogEntry, error) {
+	historyPath, err := GetHistoryFilePath()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get history file path: %w", err)
+	}
+
+	file, err := os.Open(historyPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// File doesn't exist, no history
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to open history file: %w", err)
+	}
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("failed to close history file: %w", closeErr)
+		}
+	}()
+
+	// Read all lines and keep track of the last valid entry
+	var lastEntry *ExecutionLogEntry
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		var entry ExecutionLogEntry
+		if err := json.Unmarshal([]byte(scanner.Text()), &entry); err != nil {
+			// Skip invalid lines
+			continue
+		}
+		// Keep track of entry with highest ID (most recent)
+		if lastEntry == nil || entry.ID > lastEntry.ID {
+			lastEntry = &entry
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("failed to read history file: %w", err)
+	}
+
+	return lastEntry, nil
+}

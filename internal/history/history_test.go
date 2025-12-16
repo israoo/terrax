@@ -448,6 +448,134 @@ func TestAppendAndTrimIntegration(t *testing.T) {
 	assert.Equal(t, maxEntries+3, len(lines))
 }
 
+func TestGetLastExecution(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("empty file returns nil", func(t *testing.T) {
+		tempDir := t.TempDir()
+		tempHistoryPath := filepath.Join(tempDir, HistoryFileName)
+
+		originalFunc := historyFilePathFunc
+		historyFilePathFunc = func() (string, error) {
+			return tempHistoryPath, nil
+		}
+		defer func() {
+			historyFilePathFunc = originalFunc
+		}()
+
+		entry, err := GetLastExecution(ctx)
+		require.NoError(t, err)
+		assert.Nil(t, entry)
+	})
+
+	t.Run("file doesn't exist returns nil", func(t *testing.T) {
+		tempDir := t.TempDir()
+		tempHistoryPath := filepath.Join(tempDir, HistoryFileName)
+
+		originalFunc := historyFilePathFunc
+		historyFilePathFunc = func() (string, error) {
+			return tempHistoryPath, nil
+		}
+		defer func() {
+			historyFilePathFunc = originalFunc
+		}()
+
+		entry, err := GetLastExecution(ctx)
+		require.NoError(t, err)
+		assert.Nil(t, entry)
+	})
+
+	t.Run("returns entry with highest ID", func(t *testing.T) {
+		tempDir := t.TempDir()
+		tempHistoryPath := filepath.Join(tempDir, HistoryFileName)
+
+		originalFunc := historyFilePathFunc
+		historyFilePathFunc = func() (string, error) {
+			return tempHistoryPath, nil
+		}
+		defer func() {
+			historyFilePathFunc = originalFunc
+		}()
+
+		// Add entries with non-sequential IDs
+		entries := []ExecutionLogEntry{
+			{
+				ID:        1,
+				Timestamp: time.Date(2025, 12, 16, 10, 0, 0, 0, time.UTC),
+				User:      "user1",
+				StackPath: "/path/1",
+				Command:   "plan",
+				ExitCode:  0,
+				DurationS: 1.0,
+				Summary:   "first",
+			},
+			{
+				ID:        5,
+				Timestamp: time.Date(2025, 12, 16, 11, 0, 0, 0, time.UTC),
+				User:      "user2",
+				StackPath: "/path/5",
+				Command:   "apply",
+				ExitCode:  0,
+				DurationS: 2.0,
+				Summary:   "fifth",
+			},
+			{
+				ID:        3,
+				Timestamp: time.Date(2025, 12, 16, 10, 30, 0, 0, time.UTC),
+				User:      "user3",
+				StackPath: "/path/3",
+				Command:   "destroy",
+				ExitCode:  1,
+				DurationS: 1.5,
+				Summary:   "third",
+			},
+		}
+
+		for _, entry := range entries {
+			err := AppendToHistory(ctx, entry)
+			require.NoError(t, err)
+		}
+
+		// Should return entry with ID 5 (highest)
+		lastEntry, err := GetLastExecution(ctx)
+		require.NoError(t, err)
+		require.NotNil(t, lastEntry)
+		assert.Equal(t, 5, lastEntry.ID)
+		assert.Equal(t, "apply", lastEntry.Command)
+		assert.Equal(t, "/path/5", lastEntry.StackPath)
+		assert.Equal(t, "user2", lastEntry.User)
+	})
+
+	t.Run("handles invalid JSON lines", func(t *testing.T) {
+		tempDir := t.TempDir()
+		tempHistoryPath := filepath.Join(tempDir, HistoryFileName)
+
+		originalFunc := historyFilePathFunc
+		historyFilePathFunc = func() (string, error) {
+			return tempHistoryPath, nil
+		}
+		defer func() {
+			historyFilePathFunc = originalFunc
+		}()
+
+		// Write mixed valid and invalid lines
+		content := `{"id":1,"timestamp":"2025-12-16T10:00:00Z","user":"user1","stack_path":"/path/1","command":"plan","exit_code":0,"duration_s":1.0,"summary":"first"}
+invalid json line
+{"id":2,"timestamp":"2025-12-16T11:00:00Z","user":"user2","stack_path":"/path/2","command":"apply","exit_code":0,"duration_s":2.0,"summary":"second"}
+another bad line
+`
+		err := os.WriteFile(tempHistoryPath, []byte(content), 0644)
+		require.NoError(t, err)
+
+		// Should return the last valid entry (ID 2)
+		lastEntry, err := GetLastExecution(ctx)
+		require.NoError(t, err)
+		require.NotNil(t, lastEntry)
+		assert.Equal(t, 2, lastEntry.ID)
+		assert.Equal(t, "apply", lastEntry.Command)
+	})
+}
+
 // Helper function to split lines and filter empty ones
 func splitLines(s string) []string {
 	var lines []string

@@ -45,6 +45,9 @@ func init() {
 
 	// Configure professional CLI behavior
 	rootCmd.SilenceUsage = true
+
+	// Add --last flag for executing the most recent command
+	rootCmd.Flags().BoolP("last", "l", false, "Execute the last command from history")
 }
 
 // Execute runs the root command.
@@ -79,8 +82,16 @@ func initConfig() {
 	}
 }
 
-// runTUI starts the TUI application.
+// runTUI starts the TUI application or executes the last command if --last flag is set.
 func runTUI(cmd *cobra.Command, args []string) error {
+	ctx := context.Background()
+
+	// Check if --last flag is set
+	lastFlag, _ := cmd.Flags().GetBool("last")
+	if lastFlag {
+		return executeLastCommand(ctx)
+	}
+
 	// Get working directory
 	workDir, err := getWorkingDirectory()
 	if err != nil {
@@ -277,4 +288,32 @@ func executeTerragruntCommand(command, stackPath string) error {
 	}
 
 	return execErr
+}
+
+// executeLastCommand retrieves and executes the most recent command from history.
+func executeLastCommand(ctx context.Context) error {
+	// Get last execution from history
+	lastEntry, err := history.GetLastExecution(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get last execution: %w", err)
+	}
+
+	if lastEntry == nil {
+		fmt.Println("⚠️  No execution history found")
+		fmt.Println("Run terrax interactively first to build history")
+		return nil
+	}
+
+	// Display what will be executed
+	fmt.Println("═══════════════════════════════════════")
+	fmt.Println("  🔄 Re-executing last command")
+	fmt.Println("═══════════════════════════════════════")
+	fmt.Printf("Command:    %s\n", lastEntry.Command)
+	fmt.Printf("Stack Path: %s\n", lastEntry.StackPath)
+	fmt.Printf("Previous:   %s (exit code: %d)\n", lastEntry.Timestamp.Format("2006-01-02 15:04:05"), lastEntry.ExitCode)
+	fmt.Println("═══════════════════════════════════════")
+	fmt.Println()
+
+	// Execute the command
+	return executeTerragruntCommand(lastEntry.Command, lastEntry.StackPath)
 }
