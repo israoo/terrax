@@ -48,6 +48,9 @@ func init() {
 
 	// Add --last flag for executing the most recent command
 	rootCmd.Flags().BoolP("last", "l", false, "Execute the last command from history")
+
+	// Add --history flag for viewing execution history interactively
+	rootCmd.Flags().Bool("history", false, "View execution history interactively")
 }
 
 // Execute runs the root command.
@@ -90,6 +93,12 @@ func runTUI(cmd *cobra.Command, args []string) error {
 	lastFlag, _ := cmd.Flags().GetBool("last")
 	if lastFlag {
 		return executeLastCommand(ctx)
+	}
+
+	// Check if --history flag is set
+	historyFlag, _ := cmd.Flags().GetBool("history")
+	if historyFlag {
+		return runHistoryViewer(ctx)
 	}
 
 	// Get working directory
@@ -329,4 +338,29 @@ func executeLastCommand(ctx context.Context) error {
 
 	// Execute the command
 	return executeTerragruntCommand(lastEntry.Command, lastEntry.StackPath)
+}
+
+// runHistoryViewer loads and displays the execution history in an interactive TUI.
+func runHistoryViewer(ctx context.Context) error {
+	// Load history from file
+	historyEntries, err := history.LoadHistory(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to load history: %w", err)
+	}
+
+	// Create history model
+	model := tui.NewHistoryModel(historyEntries)
+
+	// Run TUI with stderr output (to keep stdout clean for data)
+	p := tea.NewProgram(
+		model,
+		tea.WithAltScreen(),
+		tea.WithOutput(os.Stderr),
+	)
+
+	if _, err := p.Run(); err != nil {
+		return fmt.Errorf("history viewer error: %w", err)
+	}
+
+	return nil
 }

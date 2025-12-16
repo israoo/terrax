@@ -6,7 +6,18 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/israoo/terrax/internal/history"
 	"github.com/israoo/terrax/internal/stack"
+)
+
+// AppState represents the current state of the application.
+type AppState int
+
+const (
+	// StateNavigation is the default state for navigating stacks and commands.
+	StateNavigation AppState = iota
+	// StateHistory is the state for viewing execution history.
+	StateHistory
 )
 
 // ColumnType represents the type of column being focused.
@@ -22,6 +33,9 @@ const (
 // Model is the main TUI model following Bubble Tea architecture.
 // It maintains minimal state and delegates business logic to Navigator.
 type Model struct {
+	// Application State
+	state AppState
+
 	// Navigation
 	navigator *stack.Navigator
 	navState  *stack.NavigationState
@@ -29,6 +43,10 @@ type Model struct {
 	// Commands
 	commands        []string
 	selectedCommand int
+
+	// History
+	history       []history.ExecutionLogEntry
+	historyCursor int
 
 	// UI State
 	focusedColumn    int  // 0 = commands, 1+ = navigation columns
@@ -57,6 +75,7 @@ func NewModel(stackRoot *stack.Node, maxDepth int, commands []string, maxNavigat
 	navState := stack.NewNavigationState(maxDepth)
 
 	m := Model{
+		state:                StateNavigation,
 		navigator:            navigator,
 		navState:             navState,
 		commands:             commands,
@@ -68,11 +87,24 @@ func NewModel(stackRoot *stack.Node, maxDepth int, commands []string, maxNavigat
 		maxNavigationColumns: maxNavigationColumns,
 		columnFilters:        make(map[int]textinput.Model),
 		activeFilterColumn:   -1,
+		history:              nil,
+		historyCursor:        0,
 	}
 
 	// Initialize navigation state
 	navigator.PropagateSelection(navState)
 
+	return m
+}
+
+// NewHistoryModel creates a model initialized in history viewing mode.
+func NewHistoryModel(historyEntries []history.ExecutionLogEntry) Model {
+	m := Model{
+		state:         StateHistory,
+		history:       historyEntries,
+		historyCursor: 0,
+		ready:         false,
+	}
 	return m
 }
 
@@ -83,6 +115,12 @@ func (m Model) Init() tea.Cmd {
 
 // Update handles messages and updates state (BubbleTea interface).
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// Delegate to appropriate handler based on state
+	if m.state == StateHistory {
+		return m.handleHistoryUpdate(msg)
+	}
+
+	// Default: StateNavigation
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		return m.handleKeyPress(msg)
@@ -119,6 +157,49 @@ func (m Model) calculateColumnWidth() int {
 		return MinColumnWidth
 	}
 	return colWidth
+}
+
+// handleHistoryUpdate handles updates when in StateHistory mode.
+func (m Model) handleHistoryUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+		m.ready = true
+		return m, nil
+
+	case tea.KeyMsg:
+		switch msg.String() {
+		case KeyQ, KeyEsc:
+			// Return to navigation state and clear history data
+			m.state = StateNavigation
+			m.history = nil
+			m.historyCursor = 0
+			return m, tea.Quit
+
+		case KeyUp:
+			if len(m.history) > 0 {
+				m.historyCursor--
+				if m.historyCursor < 0 {
+					// Cyclic wrap to last item
+					m.historyCursor = len(m.history) - 1
+				}
+			}
+			return m, nil
+
+		case KeyDown:
+			if len(m.history) > 0 {
+				m.historyCursor++
+				if m.historyCursor >= len(m.history) {
+					// Cyclic wrap to first item
+					m.historyCursor = 0
+				}
+			}
+			return m, nil
+		}
+	}
+
+	return m, nil
 }
 
 // handleKeyPress processes keyboard input.

@@ -217,6 +217,54 @@ func TrimHistory(ctx context.Context, maxEntries int) error {
 	return nil
 }
 
+// LoadHistory reads all execution entries from the history file and returns them
+// in chronological order (oldest first). Returns an empty slice if the file doesn't exist.
+func LoadHistory(ctx context.Context) ([]ExecutionLogEntry, error) {
+	historyPath, err := GetHistoryFilePath()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get history file path: %w", err)
+	}
+
+	// Check if file exists
+	if _, err := os.Stat(historyPath); os.IsNotExist(err) {
+		return []ExecutionLogEntry{}, nil
+	}
+
+	file, err := os.Open(historyPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open history file: %w", err)
+	}
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to close history file: %v\n", closeErr)
+		}
+	}()
+
+	var entries []ExecutionLogEntry
+	scanner := bufio.NewScanner(file)
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		if line == "" {
+			continue
+		}
+
+		var entry ExecutionLogEntry
+		if err := json.Unmarshal([]byte(line), &entry); err != nil {
+			// Skip invalid lines but continue reading
+			continue
+		}
+
+		entries = append(entries, entry)
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("error reading history file: %w", err)
+	}
+
+	return entries, nil
+}
+
 // GetCurrentUser returns the current OS username for audit purposes.
 // Falls back to "unknown" if user cannot be determined.
 func GetCurrentUser() string {

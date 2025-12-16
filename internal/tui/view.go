@@ -2,8 +2,10 @@ package tui
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/israoo/terrax/internal/history"
 )
 
 // Styles using lipgloss
@@ -93,6 +95,12 @@ func (lc *LayoutCalculator) GetColumnWidth() int {
 
 // View renders the complete UI (BubbleTea interface).
 func (m Model) View() string {
+	// Delegate to history view if in StateHistory
+	if m.state == StateHistory {
+		return m.renderHistoryView()
+	}
+
+	// Default: StateNavigation view
 	if !m.ready || m.width == 0 {
 		return Initializing
 	}
@@ -374,4 +382,223 @@ func columnStyle(focused bool) lipgloss.Style {
 	return style.
 		Border(normalBorder).
 		BorderForeground(dimColor)
+}
+
+// historyTableStyles holds all the lipgloss styles for the history table
+type historyTableStyles struct {
+	headerRow   lipgloss.Style
+	cursor      lipgloss.Style
+	normalRow   lipgloss.Style
+	successIcon lipgloss.Style
+	errorIcon   lipgloss.Style
+}
+
+// newHistoryTableStyles creates the styles for the history table
+func newHistoryTableStyles() historyTableStyles {
+	return historyTableStyles{
+		headerRow: lipgloss.NewStyle().
+			Bold(true).
+			Foreground(secondaryColor),
+		cursor: lipgloss.NewStyle().
+			Bold(true).
+			Foreground(accentColor).
+			Background(lipgloss.Color("#3A3A3A")),
+		normalRow: lipgloss.NewStyle().
+			Foreground(textColor),
+		successIcon: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#00FF00")).
+			Bold(true),
+		errorIcon: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#FF0000")).
+			Bold(true),
+	}
+}
+
+// historyTableColumns defines the column widths for the history table
+type historyTableColumns struct {
+	id        int
+	timestamp int
+	command   int
+	exitCode  int
+	duration  int
+	cursor    int
+}
+
+// newHistoryTableColumns creates the column definitions
+func newHistoryTableColumns() historyTableColumns {
+	return historyTableColumns{
+		id:        4,
+		timestamp: 19,
+		command:   12,
+		exitCode:  9,
+		duration:  10,
+		cursor:    2, // "▶ " prefix
+	}
+}
+
+// formatExitCode formats the exit code with color and proper padding
+func formatExitCode(exitCode int, styles historyTableStyles, width int) string {
+	var display string
+	if exitCode == 0 {
+		display = styles.successIcon.Render("✓")
+	} else {
+		display = styles.errorIcon.Render("✗")
+	}
+
+	display += fmt.Sprintf(" %d", exitCode)
+
+	// Calculate padding: icon (1) + space (1) + number length
+	visualWidth := 2 + len(fmt.Sprintf("%d", exitCode))
+	paddingNeeded := width - visualWidth
+	if paddingNeeded > 0 {
+		display += strings.Repeat(" ", paddingNeeded)
+	}
+
+	return display
+}
+
+// calculateVisibleRange calculates the start and end indices for the visible window
+func calculateVisibleRange(totalItems, cursorPos, contentHeight int) (start, end int) {
+	start = 0
+	end = totalItems
+
+	if totalItems <= contentHeight {
+		return start, end
+	}
+
+	// Center window around cursor
+	start = cursorPos - contentHeight/2
+	if start < 0 {
+		start = 0
+	}
+
+	end = start + contentHeight
+	if end > totalItems {
+		end = totalItems
+		start = end - contentHeight
+		if start < 0 {
+			start = 0
+		}
+	}
+
+	return start, end
+}
+
+// buildHistoryTableHeader builds the table header row
+func buildHistoryTableHeader(cols historyTableColumns, style lipgloss.Style) string {
+	return style.Render(
+		fmt.Sprintf(
+			"  %-*s  %-*s  %-*s  %-*s  %-*s  %s",
+			cols.id, "ID",
+			cols.timestamp, "Timestamp",
+			cols.command, "Command",
+			cols.exitCode, "Exit Code",
+			cols.duration, "Duration",
+			"Stack Path",
+		),
+	)
+}
+
+// buildHistoryTableRow builds a single data row for the history table
+func buildHistoryTableRow(entry history.ExecutionLogEntry, cols historyTableColumns, styles historyTableStyles) string {
+	exitCodeStr := formatExitCode(entry.ExitCode, styles, cols.exitCode)
+	timestampStr := entry.Timestamp.Format("2006-01-02 15:04:05")
+	durationStr := fmt.Sprintf("%.2fs", entry.DurationS)
+
+	return fmt.Sprintf(
+		"%-*d  %-*s  %-*s  %s  %-*s  %s",
+		cols.id, entry.ID,
+		cols.timestamp, timestampStr,
+		cols.command, entry.Command,
+		exitCodeStr,
+		cols.duration, durationStr,
+		entry.StackPath,
+	)
+}
+
+// renderHistoryView renders the history viewing interface as a formatted table.
+func (m Model) renderHistoryView() string {
+	if !m.ready || m.width == 0 {
+		return Initializing
+	}
+
+	header := headerStyle.Width(m.width).Render("📜 Execution History")
+
+	if len(m.history) == 0 {
+		return m.renderEmptyHistory(header)
+	}
+
+	styles := newHistoryTableStyles()
+	cols := newHistoryTableColumns()
+
+	tableHeader := buildHistoryTableHeader(cols, styles.headerRow)
+	separator := lipgloss.NewStyle().Foreground(dimColor).Render(strings.Repeat("─", m.width))
+
+	contentHeight := m.height - HeaderHeight - FooterHeight - 6
+	startIdx, endIdx := calculateVisibleRange(len(m.history), m.historyCursor, contentHeight)
+
+	rows := m.buildHistoryTableRows(startIdx, endIdx, cols, styles)
+	tableContent := lipgloss.JoinVertical(lipgloss.Left, rows...)
+
+	footer := m.buildHistoryFooter(startIdx, endIdx)
+
+	return lipgloss.JoinVertical(
+		lipgloss.Left,
+		header,
+		"",
+		tableHeader,
+		separator,
+		tableContent,
+		"",
+		footer,
+	)
+}
+
+// renderEmptyHistory renders the view when there's no history
+func (m Model) renderEmptyHistory(header string) string {
+	emptyMsg := lipgloss.NewStyle().
+		Foreground(dimColor).
+		Padding(2, 4).
+		Render("No execution history found.\nExecute commands through TerraX to build history.")
+
+	footer := footerStyle.Render("Press 'q' or 'esc' to exit")
+
+	return lipgloss.JoinVertical(
+		lipgloss.Left,
+		header,
+		"",
+		emptyMsg,
+		"",
+		footer,
+	)
+}
+
+// buildHistoryTableRows builds all visible rows for the history table
+func (m Model) buildHistoryTableRows(startIdx, endIdx int, cols historyTableColumns, styles historyTableStyles) []string {
+	rows := make([]string, 0, endIdx-startIdx)
+
+	for i := startIdx; i < endIdx; i++ {
+		row := buildHistoryTableRow(m.history[i], cols, styles)
+
+		if i == m.historyCursor {
+			row = styles.cursor.Render("▶ " + row)
+		} else {
+			row = styles.normalRow.Render("  " + row)
+		}
+
+		rows = append(rows, row)
+	}
+
+	return rows
+}
+
+// buildHistoryFooter builds the footer with navigation info
+func (m Model) buildHistoryFooter(startIdx, endIdx int) string {
+	footerText := fmt.Sprintf(
+		"Showing %d-%d of %d entries | Use ↑/↓ to navigate | Press 'q' or 'esc' to exit",
+		startIdx+1,
+		endIdx,
+		len(m.history),
+	)
+	return footerStyle.Render(footerText)
 }
