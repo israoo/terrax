@@ -262,6 +262,11 @@ func LoadHistory(ctx context.Context) ([]ExecutionLogEntry, error) {
 		return nil, fmt.Errorf("error reading history file: %w", err)
 	}
 
+	// Reverse entries to show most recent first
+	for i, j := 0, len(entries)-1; i < j; i, j = i+1, j-1 {
+		entries[i], entries[j] = entries[j], entries[i]
+	}
+
 	return entries, nil
 }
 
