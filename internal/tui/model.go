@@ -171,10 +171,7 @@ func (m Model) handleHistoryUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case KeyQ, KeyEsc:
-			// Return to navigation state and clear history data
-			m.state = StateNavigation
-			m.history = nil
-			m.historyCursor = 0
+			// Exit the history viewer
 			return m, tea.Quit
 
 		case KeyUp:
