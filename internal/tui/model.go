@@ -45,8 +45,10 @@ type Model struct {
 	selectedCommand int
 
 	// History
-	history       []history.ExecutionLogEntry
-	historyCursor int
+	history              []history.ExecutionLogEntry
+	historyCursor        int
+	selectedHistoryEntry *history.ExecutionLogEntry // Entry selected for re-execution
+	reExecuteFromHistory bool                       // Flag to indicate re-execution from history
 
 	// UI State
 	focusedColumn    int  // 0 = commands, 1+ = navigation columns
@@ -89,6 +91,8 @@ func NewModel(stackRoot *stack.Node, maxDepth int, commands []string, maxNavigat
 		activeFilterColumn:   -1,
 		history:              nil,
 		historyCursor:        0,
+		selectedHistoryEntry: nil,
+		reExecuteFromHistory: false,
 	}
 
 	// Initialize navigation state
@@ -100,10 +104,12 @@ func NewModel(stackRoot *stack.Node, maxDepth int, commands []string, maxNavigat
 // NewHistoryModel creates a model initialized in history viewing mode.
 func NewHistoryModel(historyEntries []history.ExecutionLogEntry) Model {
 	m := Model{
-		state:         StateHistory,
-		history:       historyEntries,
-		historyCursor: 0,
-		ready:         false,
+		state:                StateHistory,
+		history:              historyEntries,
+		historyCursor:        0,
+		ready:                false,
+		selectedHistoryEntry: nil,
+		reExecuteFromHistory: false,
 	}
 	return m
 }
@@ -193,6 +199,14 @@ func (m Model) handleHistoryUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 			return m, nil
+
+		case KeyEnter:
+			// Re-execute the selected history entry
+			if len(m.history) > 0 && m.historyCursor >= 0 && m.historyCursor < len(m.history) {
+				m.selectedHistoryEntry = &m.history[m.historyCursor]
+				m.reExecuteFromHistory = true
+			}
+			return m, tea.Quit
 		}
 	}
 
@@ -745,4 +759,15 @@ func findFilteredIndex(originalItems []string, filteredItems []string, originalI
 		}
 	}
 	return -1
+}
+
+// ShouldReExecuteFromHistory returns true if a history entry was selected for re-execution.
+func (m Model) ShouldReExecuteFromHistory() bool {
+	return m.reExecuteFromHistory
+}
+
+// GetSelectedHistoryEntry returns the history entry selected for re-execution.
+// Returns nil if no entry was selected.
+func (m Model) GetSelectedHistoryEntry() *history.ExecutionLogEntry {
+	return m.selectedHistoryEntry
 }

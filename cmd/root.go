@@ -371,6 +371,7 @@ func executeLastCommand(ctx context.Context) error {
 
 // runHistoryViewer loads and displays the execution history in an interactive TUI.
 // It filters the history to show only entries from the current project.
+// If the user selects an entry and presses Enter, it re-executes that command.
 func runHistoryViewer(ctx context.Context) error {
 	// Load history from file
 	historyEntries, err := history.LoadHistory(ctx)
@@ -393,17 +394,42 @@ func runHistoryViewer(ctx context.Context) error {
 	}
 
 	// Create history model with filtered entries
-	model := tui.NewHistoryModel(filteredEntries)
+	initialModel := tui.NewHistoryModel(filteredEntries)
 
 	// Run TUI with stderr output (to keep stdout clean for data)
 	p := tea.NewProgram(
-		model,
+		initialModel,
 		tea.WithAltScreen(),
 		tea.WithOutput(os.Stderr),
 	)
 
-	if _, err := p.Run(); err != nil {
+	finalModel, err := p.Run()
+	if err != nil {
 		return fmt.Errorf("history viewer error: %w", err)
+	}
+
+	// Check if a history entry was selected for re-execution
+	model, ok := finalModel.(tui.Model)
+	if !ok {
+		return fmt.Errorf("unexpected model type")
+	}
+
+	if model.ShouldReExecuteFromHistory() {
+		entry := model.GetSelectedHistoryEntry()
+		if entry != nil {
+			fmt.Fprintf(os.Stderr, "\n🔄 Re-executing command from history...\n")
+			fmt.Fprintf(os.Stderr, "Command: %s\n", entry.Command)
+			fmt.Fprintf(os.Stderr, "Path: %s\n\n", entry.StackPath)
+
+			// Use AbsolutePath for execution
+			absolutePath := entry.AbsolutePath
+			if absolutePath == "" {
+				// Backward compatibility: old entries only have StackPath (which was absolute)
+				absolutePath = entry.StackPath
+			}
+
+			return executeTerragruntCommand(entry.Command, absolutePath)
+		}
 	}
 
 	return nil

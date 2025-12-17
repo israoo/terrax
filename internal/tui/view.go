@@ -633,7 +633,7 @@ func (m Model) buildHistoryTableRows(startIdx, endIdx int, cols historyTableColu
 // buildHistoryFooter builds the footer with navigation info
 func (m Model) buildHistoryFooter(startIdx, endIdx int) string {
 	footerText := fmt.Sprintf(
-		"Showing %d-%d of %d entries | Use ↑/↓ to navigate | Press 'q' or 'esc' to exit",
+		"Showing %d-%d of %d entries | Use ↑/↓ to navigate | Press Enter to re-execute | Press 'q' or 'esc' to exit",
 		startIdx+1,
 		endIdx,
 		len(m.history),
