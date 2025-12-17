@@ -419,20 +419,40 @@ type historyTableColumns struct {
 	id        int
 	timestamp int
 	command   int
+	stackPath int
 	exitCode  int
 	duration  int
 	cursor    int
 }
 
-// newHistoryTableColumns creates the column definitions
-func newHistoryTableColumns() historyTableColumns {
+// newHistoryTableColumns creates the column definitions with dynamic stackPath width
+func newHistoryTableColumns(terminalWidth int) historyTableColumns {
+	// Fixed widths for all columns except stackPath
+	id := 4
+	timestamp := 19
+	command := 8
+	exitCode := 9
+	duration := 10
+	cursor := 2  // "▶ " prefix
+	spaces := 10 // Spacing between columns (2 spaces * 5 separators)
+
+	// Calculate remaining width for stackPath
+	fixedWidths := id + timestamp + command + exitCode + duration + cursor + spaces
+	stackPath := terminalWidth - fixedWidths
+
+	// Ensure minimum width for readability
+	if stackPath < 20 {
+		stackPath = 20
+	}
+
 	return historyTableColumns{
-		id:        4,
-		timestamp: 19,
-		command:   12,
-		exitCode:  9,
-		duration:  10,
-		cursor:    2, // "▶ " prefix
+		id:        id,
+		timestamp: timestamp,
+		command:   command,
+		stackPath: stackPath,
+		exitCode:  exitCode,
+		duration:  duration,
+		cursor:    cursor,
 	}
 }
 
@@ -492,9 +512,9 @@ func buildHistoryTableHeader(cols historyTableColumns, style lipgloss.Style) str
 			cols.id, "#",
 			cols.timestamp, "Timestamp",
 			cols.command, "Command",
+			cols.stackPath, "Stack Path",
 			cols.exitCode, "Exit Code",
-			cols.duration, "Duration",
-			"Stack Path",
+			"Duration",
 		),
 	)
 }
@@ -506,14 +526,24 @@ func buildHistoryTableRow(entry history.ExecutionLogEntry, displayID int, cols h
 	timestampStr := entry.Timestamp.Format("2006-01-02 15:04:05")
 	durationStr := fmt.Sprintf("%.2fs", entry.DurationS)
 
+	// Truncate stack path if it exceeds the column width
+	stackPathDisplay := entry.StackPath
+	if len(stackPathDisplay) > cols.stackPath {
+		if cols.stackPath > 3 {
+			stackPathDisplay = stackPathDisplay[:cols.stackPath-3] + "..."
+		} else {
+			stackPathDisplay = stackPathDisplay[:cols.stackPath]
+		}
+	}
+
 	return fmt.Sprintf(
-		"%-*d  %-*s  %-*s  %s  %-*s  %s",
+		"%-*d  %-*s  %-*s  %-*s  %s  %s",
 		cols.id, displayID,
 		cols.timestamp, timestampStr,
 		cols.command, entry.Command,
+		cols.stackPath, stackPathDisplay,
 		exitCodeStr,
-		cols.duration, durationStr,
-		entry.StackPath,
+		durationStr,
 	)
 }
 
@@ -530,7 +560,7 @@ func (m Model) renderHistoryView() string {
 	}
 
 	styles := newHistoryTableStyles()
-	cols := newHistoryTableColumns()
+	cols := newHistoryTableColumns(m.width)
 
 	tableHeader := buildHistoryTableHeader(cols, styles.headerRow)
 	separator := lipgloss.NewStyle().Foreground(dimColor).Render(strings.Repeat("─", m.width))
