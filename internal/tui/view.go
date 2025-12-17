@@ -456,16 +456,17 @@ func newHistoryTableColumns(terminalWidth int) historyTableColumns {
 	}
 }
 
-// formatExitCode formats the exit code with color and proper padding
+// formatExitCode formats the exit code without applying lipgloss styles
+// to avoid breaking the row's background when the cursor style is applied
 func formatExitCode(exitCode int, styles historyTableStyles, width int) string {
-	var display string
+	var icon string
 	if exitCode == 0 {
-		display = styles.successIcon.Render("✓")
+		icon = "✓"
 	} else {
-		display = styles.errorIcon.Render("✗")
+		icon = "✗"
 	}
 
-	display += fmt.Sprintf(" %d", exitCode)
+	display := fmt.Sprintf("%s %d", icon, exitCode)
 
 	// Calculate padding: icon (1) + space (1) + number length
 	visualWidth := 2 + len(fmt.Sprintf("%d", exitCode))
@@ -617,9 +618,10 @@ func (m Model) buildHistoryTableRows(startIdx, endIdx int, cols historyTableColu
 		row := buildHistoryTableRow(m.history[i], displayID, cols, styles)
 
 		if i == m.historyCursor {
-			row = styles.cursor.Render("▶ " + row)
+			// Set width to ensure the background extends to the terminal edge
+			row = styles.cursor.Width(m.width).Render("▶ " + row)
 		} else {
-			row = styles.normalRow.Render("  " + row)
+			row = styles.normalRow.Width(m.width).Render("  " + row)
 		}
 
 		rows = append(rows, row)
