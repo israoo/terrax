@@ -682,6 +682,227 @@ func TestGetRelativeStackPath(t *testing.T) {
 	}
 }
 
+func TestFilterHistoryByProject(t *testing.T) {
+	// Create temporary directory structure
+	tmpDir := t.TempDir()
+
+	// Create two separate projects
+	project1 := filepath.Join(tmpDir, "project1")
+	project2 := filepath.Join(tmpDir, "project2")
+
+	require.NoError(t, os.MkdirAll(filepath.Join(project1, "dev/vpc"), 0755))
+	require.NoError(t, os.MkdirAll(filepath.Join(project2, "prod/rds"), 0755))
+
+	// Create root.hcl in both projects
+	require.NoError(t, os.WriteFile(filepath.Join(project1, "root.hcl"), []byte("# project 1"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(project2, "root.hcl"), []byte("# project 2"), 0644))
+
+	// Create history entries from both projects
+	entries := []ExecutionLogEntry{
+		{
+			ID:           1,
+			Command:      "plan",
+			AbsolutePath: filepath.Join(project1, "dev/vpc"),
+			StackPath:    "dev/vpc",
+		},
+		{
+			ID:           2,
+			Command:      "apply",
+			AbsolutePath: filepath.Join(project1, "dev/vpc"),
+			StackPath:    "dev/vpc",
+		},
+		{
+			ID:           3,
+			Command:      "plan",
+			AbsolutePath: filepath.Join(project2, "prod/rds"),
+			StackPath:    "prod/rds",
+		},
+		{
+			ID:           4,
+			Command:      "apply",
+			AbsolutePath: filepath.Join(project2, "prod/rds"),
+			StackPath:    "prod/rds",
+		},
+	}
+
+	// Save current directory and change to project1
+	originalDir, err := os.Getwd()
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, os.Chdir(originalDir))
+	}()
+
+	require.NoError(t, os.Chdir(filepath.Join(project1, "dev/vpc")))
+
+	// Filter history - should only return project1 entries
+	filtered, err := FilterHistoryByProject(entries, "root.hcl")
+	require.NoError(t, err)
+
+	// Should have only 2 entries from project1
+	assert.Len(t, filtered, 2)
+	assert.Equal(t, 1, filtered[0].ID)
+	assert.Equal(t, 2, filtered[1].ID)
+
+	// Change to project2
+	require.NoError(t, os.Chdir(filepath.Join(project2, "prod/rds")))
+
+	// Filter again - should only return project2 entries
+	filtered, err = FilterHistoryByProject(entries, "root.hcl")
+	require.NoError(t, err)
+
+	// Should have only 2 entries from project2
+	assert.Len(t, filtered, 2)
+	assert.Equal(t, 3, filtered[0].ID)
+	assert.Equal(t, 4, filtered[1].ID)
+}
+
+func TestHasPrefix(t *testing.T) {
+	tests := []struct {
+		name     string
+		path     string
+		prefix   string
+		expected bool
+	}{
+		{
+			name:     "exact match",
+			path:     "/path/to/project",
+			prefix:   "/path/to/project",
+			expected: true,
+		},
+		{
+			name:     "path has prefix with subdirectory",
+			path:     "/path/to/project/subdir",
+			prefix:   "/path/to/project",
+			expected: true,
+		},
+		{
+			name:     "path does not have prefix - similar name",
+			path:     "/path/to/project2",
+			prefix:   "/path/to/project",
+			expected: false,
+		},
+		{
+			name:     "path does not have prefix - different path",
+			path:     "/other/path",
+			prefix:   "/path/to/project",
+			expected: false,
+		},
+		{
+			name:     "nested subdirectories",
+			path:     "/path/to/project/dev/us-east-1/vpc",
+			prefix:   "/path/to/project",
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := hasPrefix(tt.path, tt.prefix)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestGetLastExecutionForProject(t *testing.T) {
+	ctx := context.Background()
+
+	// Create temporary directory structure with two projects
+	tmpDir := t.TempDir()
+
+	project1 := filepath.Join(tmpDir, "project1")
+	project2 := filepath.Join(tmpDir, "project2")
+
+	require.NoError(t, os.MkdirAll(filepath.Join(project1, "dev"), 0755))
+	require.NoError(t, os.MkdirAll(filepath.Join(project2, "prod"), 0755))
+
+	// Create root.hcl in both projects
+	require.NoError(t, os.WriteFile(filepath.Join(project1, "root.hcl"), []byte("# project 1"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(project2, "root.hcl"), []byte("# project 2"), 0644))
+
+	// Setup temporary history file
+	tmpHistoryFile := filepath.Join(tmpDir, "test_history.log")
+	originalFunc := historyFilePathFunc
+	historyFilePathFunc = func() (string, error) {
+		return tmpHistoryFile, nil
+	}
+	defer func() {
+		historyFilePathFunc = originalFunc
+	}()
+
+	// Create history entries from both projects with different IDs
+	entries := []ExecutionLogEntry{
+		{
+			ID:           1,
+			Timestamp:    time.Now().Add(-4 * time.Hour),
+			Command:      "plan",
+			AbsolutePath: filepath.Join(project1, "dev"),
+			StackPath:    "dev",
+		},
+		{
+			ID:           2,
+			Timestamp:    time.Now().Add(-3 * time.Hour),
+			Command:      "apply",
+			AbsolutePath: filepath.Join(project2, "prod"),
+			StackPath:    "prod",
+		},
+		{
+			ID:           3,
+			Timestamp:    time.Now().Add(-2 * time.Hour),
+			Command:      "validate",
+			AbsolutePath: filepath.Join(project1, "dev"),
+			StackPath:    "dev",
+		},
+		{
+			ID:           4,
+			Timestamp:    time.Now().Add(-1 * time.Hour),
+			Command:      "destroy",
+			AbsolutePath: filepath.Join(project2, "prod"),
+			StackPath:    "prod",
+		},
+	}
+
+	// Write entries to history file
+	for _, entry := range entries {
+		err := AppendToHistory(ctx, entry)
+		require.NoError(t, err)
+	}
+
+	// Save current directory
+	originalDir, err := os.Getwd()
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, os.Chdir(originalDir))
+	}()
+
+	// Test from project1 - should get entry ID 3 (most recent for project1)
+	require.NoError(t, os.Chdir(filepath.Join(project1, "dev")))
+	lastEntry, err := GetLastExecutionForProject(ctx, "root.hcl")
+	require.NoError(t, err)
+	require.NotNil(t, lastEntry)
+	assert.Equal(t, 3, lastEntry.ID)
+	assert.Equal(t, "validate", lastEntry.Command)
+
+	// Test from project2 - should get entry ID 4 (most recent for project2)
+	require.NoError(t, os.Chdir(filepath.Join(project2, "prod")))
+	lastEntry, err = GetLastExecutionForProject(ctx, "root.hcl")
+	require.NoError(t, err)
+	require.NotNil(t, lastEntry)
+	assert.Equal(t, 4, lastEntry.ID)
+	assert.Equal(t, "destroy", lastEntry.Command)
+
+	// Test from directory without root.hcl - should return nil
+	outsideDir := filepath.Join(tmpDir, "outside")
+	require.NoError(t, os.MkdirAll(outsideDir, 0755))
+	require.NoError(t, os.Chdir(outsideDir))
+	lastEntry, err = GetLastExecutionForProject(ctx, "root.hcl")
+	require.NoError(t, err)
+	// When no project root is found, should return the global last entry (ID 4)
+	// or nil if strict filtering is enforced
+	// Current implementation returns all entries when no root found, so we get ID 4
+	require.NotNil(t, lastEntry)
+	assert.Equal(t, 4, lastEntry.ID)
+}
+
 // Helper function to split lines and filter empty ones
 func splitLines(s string) []string {
 	var lines []string

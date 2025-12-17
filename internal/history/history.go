@@ -135,6 +135,77 @@ func GetRelativeStackPath(absolutePath, rootConfigFile string) (string, error) {
 	return relPath, nil
 }
 
+// FilterHistoryByProject filters history entries to show only those belonging to the current project.
+// It determines the current project root and returns only entries whose AbsolutePath starts with it.
+// If the project root cannot be determined, it returns all entries (no filtering).
+func FilterHistoryByProject(entries []ExecutionLogEntry, rootConfigFile string) ([]ExecutionLogEntry, error) {
+	// Get current working directory
+	currentDir, err := os.Getwd()
+	if err != nil {
+		// If we can't get working directory, return all entries without filtering
+		return entries, nil
+	}
+
+	// Find project root from current directory
+	projectRoot, err := FindProjectRoot(currentDir, rootConfigFile)
+	if err != nil {
+		// If error finding root, return all entries without filtering
+		return entries, nil
+	}
+
+	// If project root not found (empty string), return all entries
+	if projectRoot == "" {
+		return entries, nil
+	}
+
+	// Filter entries that belong to this project
+	var filtered []ExecutionLogEntry
+	for _, entry := range entries {
+		// Skip entries without AbsolutePath (shouldn't happen with new entries)
+		if entry.AbsolutePath == "" {
+			continue
+		}
+
+		// Check if the entry's absolute path starts with the project root
+		if hasPrefix(entry.AbsolutePath, projectRoot) {
+			filtered = append(filtered, entry)
+		}
+	}
+
+	return filtered, nil
+}
+
+// hasPrefix checks if path starts with prefix, handling filepath separators correctly
+func hasPrefix(path, prefix string) bool {
+	// Resolve symlinks to get real paths (important on macOS where /var -> /private/var)
+	realPath, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		// If we can't resolve, use the original path
+		realPath = path
+	}
+
+	realPrefix, err := filepath.EvalSymlinks(prefix)
+	if err != nil {
+		// If we can't resolve, use the original prefix
+		realPrefix = prefix
+	}
+
+	// Clean both paths to normalize separators
+	cleanPath := filepath.Clean(realPath)
+	cleanPrefix := filepath.Clean(realPrefix)
+
+	// If they're equal, path has the prefix
+	if cleanPath == cleanPrefix {
+		return true
+	}
+
+	// Check if path starts with prefix followed by separator
+	// This ensures /path/to/project matches /path/to/project/subdir
+	// but not /path/to/project2
+	prefixWithSep := cleanPrefix + string(filepath.Separator)
+	return len(cleanPath) >= len(prefixWithSep) && cleanPath[:len(prefixWithSep)] == prefixWithSep
+}
+
 // AppendToHistory appends a single execution log entry to the history file in JSONL format.
 // Each entry is written as a single line of JSON followed by a newline character.
 //
@@ -445,4 +516,30 @@ func GetLastExecution(ctx context.Context) (*ExecutionLogEntry, error) {
 	}
 
 	return lastEntry, nil
+}
+
+// GetLastExecutionForProject reads the history file and returns the most recent execution entry
+// for the current project. It filters entries by the project root.
+// Returns nil if no matching history is found.
+func GetLastExecutionForProject(ctx context.Context, rootConfigFile string) (*ExecutionLogEntry, error) {
+	// Load all history entries
+	entries, err := LoadHistory(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load history: %w", err)
+	}
+
+	// Filter by current project
+	filteredEntries, err := FilterHistoryByProject(entries, rootConfigFile)
+	if err != nil {
+		// If filtering fails, fall back to unfiltered entries
+		filteredEntries = entries
+	}
+
+	// No entries for this project
+	if len(filteredEntries) == 0 {
+		return nil, nil
+	}
+
+	// Return the first entry (already sorted most recent first after reverse in LoadHistory)
+	return &filteredEntries[0], nil
 }

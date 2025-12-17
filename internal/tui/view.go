@@ -489,7 +489,7 @@ func buildHistoryTableHeader(cols historyTableColumns, style lipgloss.Style) str
 	return style.Render(
 		fmt.Sprintf(
 			"  %-*s  %-*s  %-*s  %-*s  %-*s  %s",
-			cols.id, "ID",
+			cols.id, "#",
 			cols.timestamp, "Timestamp",
 			cols.command, "Command",
 			cols.exitCode, "Exit Code",
@@ -500,14 +500,15 @@ func buildHistoryTableHeader(cols historyTableColumns, style lipgloss.Style) str
 }
 
 // buildHistoryTableRow builds a single data row for the history table
-func buildHistoryTableRow(entry history.ExecutionLogEntry, cols historyTableColumns, styles historyTableStyles) string {
+// displayID is the sequential ID to show (1, 2, 3...) instead of the actual entry ID
+func buildHistoryTableRow(entry history.ExecutionLogEntry, displayID int, cols historyTableColumns, styles historyTableStyles) string {
 	exitCodeStr := formatExitCode(entry.ExitCode, styles, cols.exitCode)
 	timestampStr := entry.Timestamp.Format("2006-01-02 15:04:05")
 	durationStr := fmt.Sprintf("%.2fs", entry.DurationS)
 
 	return fmt.Sprintf(
 		"%-*d  %-*s  %-*s  %s  %-*s  %s",
-		cols.id, entry.ID,
+		cols.id, displayID,
 		cols.timestamp, timestampStr,
 		cols.command, entry.Command,
 		exitCodeStr,
@@ -578,7 +579,9 @@ func (m Model) buildHistoryTableRows(startIdx, endIdx int, cols historyTableColu
 	rows := make([]string, 0, endIdx-startIdx)
 
 	for i := startIdx; i < endIdx; i++ {
-		row := buildHistoryTableRow(m.history[i], cols, styles)
+		// Display sequential ID starting from 1
+		displayID := i + 1
+		row := buildHistoryTableRow(m.history[i], displayID, cols, styles)
 
 		if i == m.historyCursor {
 			row = styles.cursor.Render("▶ " + row)

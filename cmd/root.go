@@ -328,16 +328,22 @@ func executeTerragruntCommand(command, absoluteStackPath string) error {
 	return execErr
 }
 
-// executeLastCommand retrieves and executes the most recent command from history.
+// executeLastCommand retrieves and executes the most recent command from history for the current project.
 func executeLastCommand(ctx context.Context) error {
-	// Get last execution from history
-	lastEntry, err := history.GetLastExecution(ctx)
+	// Get root config file from configuration
+	rootConfigFile := viper.GetString("root_config_file")
+	if rootConfigFile == "" {
+		rootConfigFile = config.DefaultRootConfigFile
+	}
+
+	// Get last execution for the current project
+	lastEntry, err := history.GetLastExecutionForProject(ctx, rootConfigFile)
 	if err != nil {
 		return fmt.Errorf("failed to get last execution: %w", err)
 	}
 
 	if lastEntry == nil {
-		fmt.Println("⚠️  No execution history found")
+		fmt.Println("⚠️  No execution history found for this project")
 		fmt.Println("Run terrax interactively first to build history")
 		return nil
 	}
@@ -364,6 +370,7 @@ func executeLastCommand(ctx context.Context) error {
 }
 
 // runHistoryViewer loads and displays the execution history in an interactive TUI.
+// It filters the history to show only entries from the current project.
 func runHistoryViewer(ctx context.Context) error {
 	// Load history from file
 	historyEntries, err := history.LoadHistory(ctx)
@@ -371,8 +378,22 @@ func runHistoryViewer(ctx context.Context) error {
 		return fmt.Errorf("failed to load history: %w", err)
 	}
 
-	// Create history model
-	model := tui.NewHistoryModel(historyEntries)
+	// Get root config file from configuration
+	rootConfigFile := viper.GetString("root_config_file")
+	if rootConfigFile == "" {
+		rootConfigFile = config.DefaultRootConfigFile
+	}
+
+	// Filter history to show only entries from current project
+	filteredEntries, err := history.FilterHistoryByProject(historyEntries, rootConfigFile)
+	if err != nil {
+		// Log warning but continue with unfiltered entries
+		fmt.Fprintf(os.Stderr, "Warning: Failed to filter history: %v\n", err)
+		filteredEntries = historyEntries
+	}
+
+	// Create history model with filtered entries
+	model := tui.NewHistoryModel(filteredEntries)
 
 	// Run TUI with stderr output (to keep stdout clean for data)
 	p := tea.NewProgram(
