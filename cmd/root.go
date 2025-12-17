@@ -64,6 +64,7 @@ func initConfig() {
 	viper.SetDefault("commands", config.DefaultCommands)
 	viper.SetDefault("max_navigation_columns", config.DefaultMaxNavigationColumns)
 	viper.SetDefault("history.max_entries", config.DefaultHistoryMaxEntries)
+	viper.SetDefault("root_config_file", config.DefaultRootConfigFile)
 
 	// Configure config file search paths
 	viper.SetConfigName(".terrax")
@@ -223,7 +224,7 @@ func displayResults(model tui.Model) {
 
 // executeTerragruntCommand runs the terragrunt command with the selected parameters.
 // It also logs the execution to the history file for audit and replay purposes.
-func executeTerragruntCommand(command, stackPath string) error {
+func executeTerragruntCommand(command, absoluteStackPath string) error {
 	ctx := context.Background()
 
 	// Get next ID for this execution
@@ -238,7 +239,7 @@ func executeTerragruntCommand(command, stackPath string) error {
 	startTime := time.Now()
 
 	// Build the terragrunt command: terragrunt run --all --working-dir {PATH} -- {command}
-	args := []string{"run", "--all", "--working-dir", stackPath, "--", command}
+	args := []string{"run", "--all", "--working-dir", absoluteStackPath, "--", command}
 
 	fmt.Printf("🚀 Executing: terragrunt %v\n\n", args)
 
@@ -274,23 +275,38 @@ func executeTerragruntCommand(command, stackPath string) error {
 	fmt.Println("  📊 Execution Summary")
 	fmt.Println("═══════════════════════════════════════")
 	fmt.Printf("Command:    %s\n", command)
-	fmt.Printf("Stack Path: %s\n", stackPath)
+	fmt.Printf("Stack Path: %s\n", absoluteStackPath)
 	fmt.Printf("Duration:   %.2fs\n", duration.Seconds())
 	fmt.Printf("Exit Code:  %d\n", exitCode)
 	fmt.Printf("Timestamp:  %s\n", startTime.Format("2006-01-02 15:04:05"))
 	fmt.Println("═══════════════════════════════════════")
 	fmt.Println()
 
+	// Get root config file from configuration
+	rootConfigFile := viper.GetString("root_config_file")
+	if rootConfigFile == "" {
+		rootConfigFile = config.DefaultRootConfigFile
+	}
+
+	// Calculate relative stack path
+	relativeStackPath, err := history.GetRelativeStackPath(absoluteStackPath, rootConfigFile)
+	if err != nil {
+		// Log warning but use absolute path as fallback
+		fmt.Fprintf(os.Stderr, "Warning: Failed to calculate relative stack path: %v\n", err)
+		relativeStackPath = absoluteStackPath
+	}
+
 	// Log execution to history
 	entry := history.ExecutionLogEntry{
-		ID:        nextID,
-		Timestamp: startTime,
-		User:      history.GetCurrentUser(),
-		StackPath: stackPath,
-		Command:   command,
-		ExitCode:  exitCode,
-		DurationS: duration.Seconds(),
-		Summary:   summary,
+		ID:           nextID,
+		Timestamp:    startTime,
+		User:         history.GetCurrentUser(),
+		StackPath:    relativeStackPath,
+		AbsolutePath: absoluteStackPath,
+		Command:      command,
+		ExitCode:     exitCode,
+		DurationS:    duration.Seconds(),
+		Summary:      summary,
 	}
 
 	if err := history.AppendToHistory(ctx, entry); err != nil {
@@ -336,8 +352,15 @@ func executeLastCommand(ctx context.Context) error {
 	fmt.Println("═══════════════════════════════════════")
 	fmt.Println()
 
-	// Execute the command
-	return executeTerragruntCommand(lastEntry.Command, lastEntry.StackPath)
+	// Execute the command using the absolute path
+	// (StackPath is relative for display, AbsolutePath is for execution)
+	absolutePath := lastEntry.AbsolutePath
+	if absolutePath == "" {
+		// Backward compatibility: old entries only have StackPath (which was absolute)
+		absolutePath = lastEntry.StackPath
+	}
+
+	return executeTerragruntCommand(lastEntry.Command, absolutePath)
 }
 
 // runHistoryViewer loads and displays the execution history in an interactive TUI.

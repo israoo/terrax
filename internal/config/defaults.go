@@ -14,6 +14,10 @@ const (
 
 	// MinHistoryMaxEntries is the minimum allowed value for history max entries.
 	MinHistoryMaxEntries = 10
+
+	// DefaultRootConfigFile is the default name of the root configuration file
+	// used to determine the project root directory.
+	DefaultRootConfigFile = "root.hcl"
 )
 
 // DefaultCommands is the default list of Terragrunt commands shown in the TUI.

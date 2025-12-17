@@ -1,17 +1,23 @@
 # TerraX configuration file
 # Save this file as .terrax.yaml in your project root or home directory
 
+# Name of the root configuration file used to determine the project root directory
+# This file is searched upward from the stack path to calculate relative paths in history
+# Default: "root.hcl"
+# Examples: "root.hcl", "terragrunt.hcl"
+root_config_file: "root.hcl"
+
 # List of Terragrunt commands to display in the TUI
 # Default: ["plan", "apply", "validate", "fmt", "init", "output", "refresh", "destroy"]
 commands:
-  - plan        # Show execution plan
-  - apply       # Apply infrastructure changes
-  - validate    # Validate configuration files
-  - fmt         # Format configuration files
-  - init        # Initialize working directory
-  - output      # Show output values
-  - refresh     # Refresh state
-  - destroy     # Destroy managed infrastructure
+  - plan # Show execution plan
+  - apply # Apply infrastructure changes
+  - validate # Validate configuration files
+  - fmt # Format configuration files
+  - init # Initialize working directory
+  - output # Show output values
+  - refresh # Refresh state
+  - destroy # Destroy managed infrastructure
 
 # Maximum number of navigation columns visible simultaneously
 # Default: 3

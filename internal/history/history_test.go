@@ -576,6 +576,112 @@ another bad line
 	})
 }
 
+func TestFindProjectRoot(t *testing.T) {
+	// Create temporary directory structure
+	tmpDir := t.TempDir()
+
+	// Create project structure:
+	// tmpDir/
+	//   root.hcl
+	//   dev/
+	//     us-east-1/
+	//       vpc/
+	projectRoot := tmpDir
+	devDir := filepath.Join(tmpDir, "dev")
+	regionDir := filepath.Join(devDir, "us-east-1")
+	stackDir := filepath.Join(regionDir, "vpc")
+
+	require.NoError(t, os.MkdirAll(stackDir, 0755))
+
+	// Create root.hcl at project root
+	rootHclPath := filepath.Join(projectRoot, "root.hcl")
+	require.NoError(t, os.WriteFile(rootHclPath, []byte("# root config"), 0644))
+
+	tests := []struct {
+		name           string
+		startPath      string
+		rootConfigFile string
+		expectedRoot   string
+	}{
+		{
+			name:           "find root from deep nested path",
+			startPath:      stackDir,
+			rootConfigFile: "root.hcl",
+			expectedRoot:   projectRoot,
+		},
+		{
+			name:           "find root from project root",
+			startPath:      projectRoot,
+			rootConfigFile: "root.hcl",
+			expectedRoot:   projectRoot,
+		},
+		{
+			name:           "root file not found - return empty string",
+			startPath:      stackDir,
+			rootConfigFile: "nonexistent.hcl",
+			expectedRoot:   "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root, err := FindProjectRoot(tt.startPath, tt.rootConfigFile)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expectedRoot, root)
+		})
+	}
+}
+
+func TestGetRelativeStackPath(t *testing.T) {
+	// Create temporary directory structure
+	tmpDir := t.TempDir()
+
+	projectRoot := tmpDir
+	devDir := filepath.Join(tmpDir, "dev")
+	regionDir := filepath.Join(devDir, "us-east-1")
+	stackDir := filepath.Join(regionDir, "vpc")
+
+	require.NoError(t, os.MkdirAll(stackDir, 0755))
+
+	// Create root.hcl at project root
+	rootHclPath := filepath.Join(projectRoot, "root.hcl")
+	require.NoError(t, os.WriteFile(rootHclPath, []byte("# root config"), 0644))
+
+	tests := []struct {
+		name            string
+		absolutePath    string
+		rootConfigFile  string
+		expectedRelPath string
+	}{
+		{
+			name:            "calculate relative path from deep nested stack",
+			absolutePath:    stackDir,
+			rootConfigFile:  "root.hcl",
+			expectedRelPath: filepath.Join("dev", "us-east-1", "vpc"),
+		},
+		{
+			name:            "project root returns dot",
+			absolutePath:    projectRoot,
+			rootConfigFile:  "root.hcl",
+			expectedRelPath: ".",
+		},
+		{
+			name:            "root file not found - return absolute path",
+			absolutePath:    stackDir,
+			rootConfigFile:  "nonexistent.hcl",
+			expectedRelPath: stackDir,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			relPath, err := GetRelativeStackPath(tt.absolutePath, tt.rootConfigFile)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expectedRelPath, relPath)
+		})
+	}
+}
+
 // Helper function to split lines and filter empty ones
 func splitLines(s string) []string {
 	var lines []string

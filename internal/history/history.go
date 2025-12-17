@@ -16,14 +16,15 @@ import (
 // ExecutionLogEntry represents a single command execution record in the history log.
 // Each entry is persisted as a single line in JSONL format for easy appending and parsing.
 type ExecutionLogEntry struct {
-	ID        int       `json:"id"`         // Unique incremental identifier
-	Timestamp time.Time `json:"timestamp"`  // Execution start time
-	User      string    `json:"user"`       // OS user who executed the command (for audit)
-	StackPath string    `json:"stack_path"` // Terragrunt stack directory path (for replay)
-	Command   string    `json:"command"`    // Terragrunt command executed (plan, apply, etc.)
-	ExitCode  int       `json:"exit_code"`  // Process exit code (0 = success)
-	DurationS float64   `json:"duration_s"` // Execution duration in seconds
-	Summary   string    `json:"summary"`    // Brief result summary (e.g., "3 added, 0 changed")
+	ID           int       `json:"id"`            // Unique incremental identifier
+	Timestamp    time.Time `json:"timestamp"`     // Execution start time
+	User         string    `json:"user"`          // OS user who executed the command (for audit)
+	StackPath    string    `json:"stack_path"`    // Relative stack path from project root (for display)
+	AbsolutePath string    `json:"absolute_path"` // Absolute path to stack directory (for execution)
+	Command      string    `json:"command"`       // Terragrunt command executed (plan, apply, etc.)
+	ExitCode     int       `json:"exit_code"`     // Process exit code (0 = success)
+	DurationS    float64   `json:"duration_s"`    // Execution duration in seconds
+	Summary      string    `json:"summary"`       // Brief result summary (e.g., "3 added, 0 changed")
 }
 
 const (
@@ -59,6 +60,79 @@ func getHistoryFilePathImpl() (string, error) {
 	}
 
 	return filepath.Join(configDir, HistoryFileName), nil
+}
+
+// FindProjectRoot searches for the project root by looking for the root config file.
+// It starts from the given path and walks up the directory tree until it finds
+// the specified root config file or reaches the filesystem root.
+// Returns the directory containing the root config file, or empty string if not found.
+func FindProjectRoot(startPath, rootConfigFile string) (string, error) {
+	absPath, err := filepath.Abs(startPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to get absolute path: %w", err)
+	}
+
+	currentDir := absPath
+	// If startPath is a file, start from its directory
+	if info, err := os.Stat(currentDir); err == nil && !info.IsDir() {
+		currentDir = filepath.Dir(currentDir)
+	}
+
+	// Walk up the directory tree
+	for {
+		rootConfigPath := filepath.Join(currentDir, rootConfigFile)
+		if _, err := os.Stat(rootConfigPath); err == nil {
+			// Found the root config file
+			return currentDir, nil
+		}
+
+		// Move to parent directory
+		parentDir := filepath.Dir(currentDir)
+
+		// Check if we've reached the root of the filesystem
+		if parentDir == currentDir {
+			// We've reached the filesystem root without finding the config file
+			// Return empty string to indicate not found
+			return "", nil
+		}
+
+		currentDir = parentDir
+	}
+}
+
+// GetRelativeStackPath calculates the relative path from the project root to the stack path.
+// If the root config file is not found, it returns the absolute path as fallback.
+func GetRelativeStackPath(absolutePath, rootConfigFile string) (string, error) {
+	absPath, err := filepath.Abs(absolutePath)
+	if err != nil {
+		return absolutePath, err
+	}
+
+	projectRoot, err := FindProjectRoot(absPath, rootConfigFile)
+	if err != nil {
+		return absolutePath, err
+	}
+
+	// If project root is empty, the root config file was not found
+	// Return absolute path as fallback
+	if projectRoot == "" {
+		return absolutePath, nil
+	}
+
+	// Calculate relative path from project root
+	relPath, err := filepath.Rel(projectRoot, absPath)
+	if err != nil {
+		// If we can't calculate relative path, return absolute as fallback
+		return absolutePath, err
+	}
+
+	// If the relative path starts with "..", it means the stack is outside the project
+	// In that case, return the absolute path
+	if len(relPath) >= 2 && relPath[0:2] == ".." {
+		return absolutePath, nil
+	}
+
+	return relPath, nil
 }
 
 // AppendToHistory appends a single execution log entry to the history file in JSONL format.
@@ -253,6 +327,12 @@ func LoadHistory(ctx context.Context) ([]ExecutionLogEntry, error) {
 		if err := json.Unmarshal([]byte(line), &entry); err != nil {
 			// Skip invalid lines but continue reading
 			continue
+		}
+
+		// Handle backward compatibility: if AbsolutePath is empty, use StackPath
+		// (old entries stored absolute path in StackPath field)
+		if entry.AbsolutePath == "" && entry.StackPath != "" {
+			entry.AbsolutePath = entry.StackPath
 		}
 
 		entries = append(entries, entry)
