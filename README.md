@@ -55,6 +55,14 @@ Filter items in any column with `/` key. Navigate through filtered results in re
 
 Configure available commands and UI behavior via `.terrax.yaml` in your project or home directory. Customize command list and maximum visible columns.
 
+### ✔︎ Execution history tracking
+
+Complete audit trail of all command executions with persistent history. View, search, and re-execute previous commands with a single keypress.
+
+### ✔︎ Quick command re-execution
+
+Re-run the last executed command instantly with `--last` flag, or browse full history interactively with `--history` to select and re-execute any previous command.
+
 ### ✔︎ Keyboard-first design
 
 Full keyboard navigation with arrow keys (`↑↓←→`), Enter for confirmation, and `q` to quit.
@@ -191,6 +199,16 @@ commands:
 # Maximum number of navigation columns visible simultaneously
 # Increase for deeper hierarchies or larger terminals
 max_navigation_columns: 3
+
+# History configuration
+history:
+  # Maximum number of history entries to retain
+  max_entries: 1000
+
+# Project root detection
+# This file is used to identify the root of your project
+# for proper history filtering and relative path calculation
+root_config_file: "root.hcl"
 ```
 
 ### Configuration options
@@ -199,6 +217,8 @@ max_navigation_columns: 3
 |--------|------|---------|-------------|
 | `max_navigation_columns` | integer | `3` | Maximum navigation columns visible in sliding window |
 | `commands` | list | 8 commands | Terragrunt commands shown in TUI (in order) |
+| `history.max_entries` | integer | `1000` | Maximum number of history entries to keep |
+| `root_config_file` | string | `root.hcl` | Config file name used to detect project root |
 
 **Notes:**
 
@@ -206,10 +226,33 @@ max_navigation_columns: 3
 - `max_navigation_columns` must be at least 1 (falls back to 3 if invalid)
 - Empty or missing `commands` key falls back to defaults
 - Configuration is loaded once at startup
+- History location follows XDG Base Directory spec:
+  - Linux/BSD: `~/.config/terrax/history.log`
+  - macOS: `~/Library/Application Support/terrax/history.log`
+  - Windows: `%LOCALAPPDATA%\terrax\history.log`
 
 ---
 
 ## 🚀 Quick start
+
+### Basic usage
+
+```bash
+# Interactive mode: Navigate and select stacks/commands
+terrax
+
+# View execution history for current project
+terrax --history
+
+# Re-execute the last command from history
+terrax --last       # or -l
+
+# Display version information
+terrax --version
+
+# Show help
+terrax --help
+```
 
 ### Try with examples
 
@@ -270,6 +313,52 @@ terrax
 - `Esc`: Clear filter and return to title view
 - `Enter`: Confirm selection and execute Terragrunt command
 - `q` or `Ctrl+C`: Quit without executing
+
+### History viewer
+
+View and manage your execution history:
+
+```bash
+terrax --history
+```
+
+**History table view:**
+
+```text
+═══════════════════════════════════════════════════════════════════════════════════════
+                                 📜 Execution History
+═══════════════════════════════════════════════════════════════════════════════════════
+  #   Timestamp            Command  Stack Path                  Exit Code    Duration
+───────────────────────────────────────────────────────────────────────────────────────
+▶ 1   2025-12-16 15:30:45  plan     dev/us-east-1/vpc            ✓ 0         12.34s
+  2   2025-12-16 14:22:10  apply    dev/us-east-1/database       ✓ 0         45.67s
+  3   2025-12-16 13:15:30  destroy  qa/us-west-2/compute         ✗ 1         8.90s
+
+Showing 1-3 of 12 entries | Use ↑/↓ to navigate | Press Enter to re-execute | Press 'q' or 'esc' to exit
+```
+
+**History keyboard controls:**
+
+- `↑↓`: Navigate through history entries
+- `Enter`: Re-execute selected command at its original path
+- `q` or `Esc`: Exit history viewer
+
+**History features:**
+
+- **Project-aware filtering**: Only shows commands from current project
+- **Smart path display**: Shows relative paths from project root, truncates with "..." for long paths
+- **Coded status**: ✓ for success, ✗ for failures
+- **Re-execution**: Press Enter to re-run any command at its original location
+
+### Quick re-execution
+
+Re-run the most recent command instantly:
+
+```bash
+terrax --last  # or -l
+```
+
+This executes the last command from your project's history without opening the TUI.
 
 ---
 
@@ -337,6 +426,32 @@ Executes: terragrunt run --all --working-dir /infrastructure/network -- plan
 (ignores subnets selection)
 ```
 
+#### 6. **Execution history system**
+
+TerraX maintains a complete audit trail of all command executions (`internal/history/history.go`):
+
+- **Persistent storage**: All executions logged in JSONL format
+- **Dual-path tracking**: Records both absolute paths (for execution) and relative paths (for display)
+- **Project filtering**: Automatically filters history by detecting project root via `root_config_file`
+- **Rich metadata**: Captures timestamp, user, command, paths, exit code, duration, and summary
+- **Automatic trimming**: Maintains configurable max entries (`history.max_entries`)
+
+**History data structure:**
+
+```json
+{
+  "id": 123,
+  "timestamp": "2025-12-16T15:30:45Z",
+  "user": "developer",
+  "stack_path": "dev/us-east-1/vpc",
+  "absolute_path": "/home/user/infra/dev/us-east-1/vpc",
+  "command": "plan",
+  "exit_code": 0,
+  "duration_s": 12.34,
+  "summary": "Command completed successfully"
+}
+```
+
 ### Example directory structure
 
 ```text
@@ -372,6 +487,11 @@ TerraX/
 ├── cmd/
 │   └── root.go           # CLI coordination (no business logic)
 ├── internal/
+│   ├── config/
+│   │   └── defaults.go   # Configuration defaults
+│   ├── history/
+│   │   ├── history.go    # Execution history tracking & persistence
+│   │   └── history_test.go
 │   ├── stack/
 │   │   ├── tree.go       # Filesystem scanning & tree building
 │   │   └── navigator.go  # Navigation business logic (zero UI deps)

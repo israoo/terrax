@@ -1,12 +1,15 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/israoo/terrax/internal/config"
+	"github.com/israoo/terrax/internal/history"
 	"github.com/israoo/terrax/internal/stack"
 	"github.com/israoo/terrax/internal/tui"
 	"github.com/spf13/cobra"
@@ -42,6 +45,12 @@ func init() {
 
 	// Configure professional CLI behavior
 	rootCmd.SilenceUsage = true
+
+	// Add --last flag for executing the most recent command
+	rootCmd.Flags().BoolP("last", "l", false, "Execute the last command from history")
+
+	// Add --history flag for viewing execution history interactively
+	rootCmd.Flags().Bool("history", false, "View execution history interactively")
 }
 
 // Execute runs the root command.
@@ -54,6 +63,8 @@ func initConfig() {
 	// Set default values
 	viper.SetDefault("commands", config.DefaultCommands)
 	viper.SetDefault("max_navigation_columns", config.DefaultMaxNavigationColumns)
+	viper.SetDefault("history.max_entries", config.DefaultHistoryMaxEntries)
+	viper.SetDefault("root_config_file", config.DefaultRootConfigFile)
 
 	// Configure config file search paths
 	viper.SetConfigName(".terrax")
@@ -75,8 +86,22 @@ func initConfig() {
 	}
 }
 
-// runTUI starts the TUI application.
+// runTUI starts the TUI application or executes the last command if --last flag is set.
 func runTUI(cmd *cobra.Command, args []string) error {
+	ctx := context.Background()
+
+	// Check if --last flag is set
+	lastFlag, _ := cmd.Flags().GetBool("last")
+	if lastFlag {
+		return executeLastCommand(ctx)
+	}
+
+	// Check if --history flag is set
+	historyFlag, _ := cmd.Flags().GetBool("history")
+	if historyFlag {
+		return runHistoryViewer(ctx)
+	}
+
 	// Get working directory
 	workDir, err := getWorkingDirectory()
 	if err != nil {
@@ -198,9 +223,23 @@ func displayResults(model tui.Model) {
 }
 
 // executeTerragruntCommand runs the terragrunt command with the selected parameters.
-func executeTerragruntCommand(command, stackPath string) error {
+// It also logs the execution to the history file for audit and replay purposes.
+func executeTerragruntCommand(command, absoluteStackPath string) error {
+	ctx := context.Background()
+
+	// Get next ID for this execution
+	nextID, err := history.GetNextID(ctx)
+	if err != nil {
+		// Log error but don't fail execution
+		fmt.Fprintf(os.Stderr, "Warning: Failed to get history ID: %v\n", err)
+		nextID = 0 // Use 0 as fallback
+	}
+
+	// Record execution start time
+	startTime := time.Now()
+
 	// Build the terragrunt command: terragrunt run --all --working-dir {PATH} -- {command}
-	args := []string{"run", "--all", "--working-dir", stackPath, "--", command}
+	args := []string{"run", "--all", "--working-dir", absoluteStackPath, "--", command}
 
 	fmt.Printf("🚀 Executing: terragrunt %v\n\n", args)
 
@@ -209,11 +248,189 @@ func executeTerragruntCommand(command, stackPath string) error {
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
 
-	if err := cmd.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "\n❌ Command execution failed: %v\n", err)
-		return err
+	// Execute command and capture exit code
+	execErr := cmd.Run()
+	exitCode := 0
+	summary := "Command completed successfully"
+
+	if execErr != nil {
+		fmt.Fprintf(os.Stderr, "\n❌ Command execution failed: %v\n", execErr)
+		// Extract exit code from error
+		if exitErr, ok := execErr.(*exec.ExitError); ok {
+			exitCode = exitErr.ExitCode()
+		} else {
+			exitCode = 1 // Generic error code
+		}
+		summary = fmt.Sprintf("Command failed: %v", execErr)
+	} else {
+		fmt.Println("\n✅ Command execution completed")
 	}
 
-	fmt.Println("\n✅ Command execution completed")
+	// Calculate duration
+	duration := time.Since(startTime)
+
+	// Display execution summary
+	fmt.Println()
+	fmt.Println("═══════════════════════════════════════")
+	fmt.Println("  📊 Execution Summary")
+	fmt.Println("═══════════════════════════════════════")
+	fmt.Printf("Command:    %s\n", command)
+	fmt.Printf("Stack Path: %s\n", absoluteStackPath)
+	fmt.Printf("Duration:   %.2fs\n", duration.Seconds())
+	fmt.Printf("Exit Code:  %d\n", exitCode)
+	fmt.Printf("Timestamp:  %s\n", startTime.Format("2006-01-02 15:04:05"))
+	fmt.Println("═══════════════════════════════════════")
+	fmt.Println()
+
+	// Get root config file from configuration
+	rootConfigFile := viper.GetString("root_config_file")
+	if rootConfigFile == "" {
+		rootConfigFile = config.DefaultRootConfigFile
+	}
+
+	// Calculate relative stack path
+	relativeStackPath, err := history.GetRelativeStackPath(absoluteStackPath, rootConfigFile)
+	if err != nil {
+		// Log warning but use absolute path as fallback
+		fmt.Fprintf(os.Stderr, "Warning: Failed to calculate relative stack path: %v\n", err)
+		relativeStackPath = absoluteStackPath
+	}
+
+	// Log execution to history
+	entry := history.ExecutionLogEntry{
+		ID:           nextID,
+		Timestamp:    startTime,
+		User:         history.GetCurrentUser(),
+		StackPath:    relativeStackPath,
+		AbsolutePath: absoluteStackPath,
+		Command:      command,
+		ExitCode:     exitCode,
+		DurationS:    duration.Seconds(),
+		Summary:      summary,
+	}
+
+	if err := history.AppendToHistory(ctx, entry); err != nil {
+		// Log error but don't fail the overall execution
+		fmt.Fprintf(os.Stderr, "Warning: Failed to append to history: %v\n", err)
+	}
+
+	// Trim history if configured
+	maxEntries := viper.GetInt("history.max_entries")
+	if maxEntries < config.MinHistoryMaxEntries {
+		maxEntries = config.DefaultHistoryMaxEntries
+	}
+
+	if err := history.TrimHistory(ctx, maxEntries); err != nil {
+		// Log error but don't fail the overall execution
+		fmt.Fprintf(os.Stderr, "Warning: Failed to trim history: %v\n", err)
+	}
+
+	return execErr
+}
+
+// executeLastCommand retrieves and executes the most recent command from history for the current project.
+func executeLastCommand(ctx context.Context) error {
+	// Get root config file from configuration
+	rootConfigFile := viper.GetString("root_config_file")
+	if rootConfigFile == "" {
+		rootConfigFile = config.DefaultRootConfigFile
+	}
+
+	// Get last execution for the current project
+	lastEntry, err := history.GetLastExecutionForProject(ctx, rootConfigFile)
+	if err != nil {
+		return fmt.Errorf("failed to get last execution: %w", err)
+	}
+
+	if lastEntry == nil {
+		fmt.Println("⚠️  No execution history found for this project")
+		fmt.Println("Run terrax interactively first to build history")
+		return nil
+	}
+
+	// Display what will be executed
+	fmt.Println("═══════════════════════════════════════")
+	fmt.Println("  🔄 Re-executing last command")
+	fmt.Println("═══════════════════════════════════════")
+	fmt.Printf("Command:    %s\n", lastEntry.Command)
+	fmt.Printf("Stack Path: %s\n", lastEntry.StackPath)
+	fmt.Printf("Previous:   %s (exit code: %d)\n", lastEntry.Timestamp.Format("2006-01-02 15:04:05"), lastEntry.ExitCode)
+	fmt.Println("═══════════════════════════════════════")
+	fmt.Println()
+
+	// Execute the command using the absolute path
+	// (StackPath is relative for display, AbsolutePath is for execution)
+	absolutePath := lastEntry.AbsolutePath
+	if absolutePath == "" {
+		// Backward compatibility: old entries only have StackPath (which was absolute)
+		absolutePath = lastEntry.StackPath
+	}
+
+	return executeTerragruntCommand(lastEntry.Command, absolutePath)
+}
+
+// runHistoryViewer loads and displays the execution history in an interactive TUI.
+// It filters the history to show only entries from the current project.
+// If the user selects an entry and presses Enter, it re-executes that command.
+func runHistoryViewer(ctx context.Context) error {
+	// Load history from file
+	historyEntries, err := history.LoadHistory(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to load history: %w", err)
+	}
+
+	// Get root config file from configuration
+	rootConfigFile := viper.GetString("root_config_file")
+	if rootConfigFile == "" {
+		rootConfigFile = config.DefaultRootConfigFile
+	}
+
+	// Filter history to show only entries from current project
+	filteredEntries, err := history.FilterHistoryByProject(historyEntries, rootConfigFile)
+	if err != nil {
+		// Log warning but continue with unfiltered entries
+		fmt.Fprintf(os.Stderr, "Warning: Failed to filter history: %v\n", err)
+		filteredEntries = historyEntries
+	}
+
+	// Create history model with filtered entries
+	initialModel := tui.NewHistoryModel(filteredEntries)
+
+	// Run TUI with stderr output (to keep stdout clean for data)
+	p := tea.NewProgram(
+		initialModel,
+		tea.WithAltScreen(),
+		tea.WithOutput(os.Stderr),
+	)
+
+	finalModel, err := p.Run()
+	if err != nil {
+		return fmt.Errorf("history viewer error: %w", err)
+	}
+
+	// Check if a history entry was selected for re-execution
+	model, ok := finalModel.(tui.Model)
+	if !ok {
+		return fmt.Errorf("unexpected model type")
+	}
+
+	if model.ShouldReExecuteFromHistory() {
+		entry := model.GetSelectedHistoryEntry()
+		if entry != nil {
+			fmt.Fprintf(os.Stderr, "\n🔄 Re-executing command from history...\n")
+			fmt.Fprintf(os.Stderr, "Command: %s\n", entry.Command)
+			fmt.Fprintf(os.Stderr, "Path: %s\n\n", entry.StackPath)
+
+			// Use AbsolutePath for execution
+			absolutePath := entry.AbsolutePath
+			if absolutePath == "" {
+				// Backward compatibility: old entries only have StackPath (which was absolute)
+				absolutePath = entry.StackPath
+			}
+
+			return executeTerragruntCommand(entry.Command, absolutePath)
+		}
+	}
+
 	return nil
 }

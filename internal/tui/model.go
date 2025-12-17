@@ -6,7 +6,18 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/israoo/terrax/internal/history"
 	"github.com/israoo/terrax/internal/stack"
+)
+
+// AppState represents the current state of the application.
+type AppState int
+
+const (
+	// StateNavigation is the default state for navigating stacks and commands.
+	StateNavigation AppState = iota
+	// StateHistory is the state for viewing execution history.
+	StateHistory
 )
 
 // ColumnType represents the type of column being focused.
@@ -22,6 +33,9 @@ const (
 // Model is the main TUI model following Bubble Tea architecture.
 // It maintains minimal state and delegates business logic to Navigator.
 type Model struct {
+	// Application State
+	state AppState
+
 	// Navigation
 	navigator *stack.Navigator
 	navState  *stack.NavigationState
@@ -29,6 +43,12 @@ type Model struct {
 	// Commands
 	commands        []string
 	selectedCommand int
+
+	// History
+	history              []history.ExecutionLogEntry
+	historyCursor        int
+	selectedHistoryEntry *history.ExecutionLogEntry // Entry selected for re-execution
+	reExecuteFromHistory bool                       // Flag to indicate re-execution from history
 
 	// UI State
 	focusedColumn    int  // 0 = commands, 1+ = navigation columns
@@ -57,6 +77,7 @@ func NewModel(stackRoot *stack.Node, maxDepth int, commands []string, maxNavigat
 	navState := stack.NewNavigationState(maxDepth)
 
 	m := Model{
+		state:                StateNavigation,
 		navigator:            navigator,
 		navState:             navState,
 		commands:             commands,
@@ -68,11 +89,28 @@ func NewModel(stackRoot *stack.Node, maxDepth int, commands []string, maxNavigat
 		maxNavigationColumns: maxNavigationColumns,
 		columnFilters:        make(map[int]textinput.Model),
 		activeFilterColumn:   -1,
+		history:              nil,
+		historyCursor:        0,
+		selectedHistoryEntry: nil,
+		reExecuteFromHistory: false,
 	}
 
 	// Initialize navigation state
 	navigator.PropagateSelection(navState)
 
+	return m
+}
+
+// NewHistoryModel creates a model initialized in history viewing mode.
+func NewHistoryModel(historyEntries []history.ExecutionLogEntry) Model {
+	m := Model{
+		state:                StateHistory,
+		history:              historyEntries,
+		historyCursor:        0,
+		ready:                false,
+		selectedHistoryEntry: nil,
+		reExecuteFromHistory: false,
+	}
 	return m
 }
 
@@ -83,6 +121,12 @@ func (m Model) Init() tea.Cmd {
 
 // Update handles messages and updates state (BubbleTea interface).
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// Delegate to appropriate handler based on state
+	if m.state == StateHistory {
+		return m.handleHistoryUpdate(msg)
+	}
+
+	// Default: StateNavigation
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		return m.handleKeyPress(msg)
@@ -119,6 +163,54 @@ func (m Model) calculateColumnWidth() int {
 		return MinColumnWidth
 	}
 	return colWidth
+}
+
+// handleHistoryUpdate handles updates when in StateHistory mode.
+func (m Model) handleHistoryUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+		m.ready = true
+		return m, nil
+
+	case tea.KeyMsg:
+		switch msg.String() {
+		case KeyQ, KeyEsc:
+			// Exit the history viewer
+			return m, tea.Quit
+
+		case KeyUp:
+			if len(m.history) > 0 {
+				m.historyCursor--
+				if m.historyCursor < 0 {
+					// Cyclic wrap to last item
+					m.historyCursor = len(m.history) - 1
+				}
+			}
+			return m, nil
+
+		case KeyDown:
+			if len(m.history) > 0 {
+				m.historyCursor++
+				if m.historyCursor >= len(m.history) {
+					// Cyclic wrap to first item
+					m.historyCursor = 0
+				}
+			}
+			return m, nil
+
+		case KeyEnter:
+			// Re-execute the selected history entry
+			if len(m.history) > 0 && m.historyCursor >= 0 && m.historyCursor < len(m.history) {
+				m.selectedHistoryEntry = &m.history[m.historyCursor]
+				m.reExecuteFromHistory = true
+			}
+			return m, tea.Quit
+		}
+	}
+
+	return m, nil
 }
 
 // handleKeyPress processes keyboard input.
@@ -272,11 +364,21 @@ func (m *Model) moveCommandSelection(isUp bool) {
 	}
 
 	if !hasFilter {
-		// No filter: simple navigation
-		if isUp && m.selectedCommand > 0 {
-			m.selectedCommand--
-		} else if !isUp && m.selectedCommand < len(m.commands)-1 {
-			m.selectedCommand++
+		// No filter: cyclic navigation
+		if isUp {
+			if m.selectedCommand > 0 {
+				m.selectedCommand--
+			} else {
+				// Wrap to bottom
+				m.selectedCommand = len(m.commands) - 1
+			}
+		} else {
+			if m.selectedCommand < len(m.commands)-1 {
+				m.selectedCommand++
+			} else {
+				// Wrap to top
+				m.selectedCommand = 0
+			}
 		}
 		return
 	}
@@ -289,14 +391,21 @@ func (m *Model) moveCommandSelection(isUp bool) {
 		return
 	}
 
-	// Move within filtered list
-	if isUp && filteredIndex > 0 {
-		filteredIndex--
-	} else if !isUp && filteredIndex < len(filteredCommands)-1 {
-		filteredIndex++
+	// Move within filtered list (cyclic)
+	if isUp {
+		if filteredIndex > 0 {
+			filteredIndex--
+		} else {
+			// Wrap to bottom
+			filteredIndex = len(filteredCommands) - 1
+		}
 	} else {
-		// At boundary, don't move
-		return
+		if filteredIndex < len(filteredCommands)-1 {
+			filteredIndex++
+		} else {
+			// Wrap to top
+			filteredIndex = 0
+		}
 	}
 
 	// Map back to original index
@@ -351,14 +460,21 @@ func (m *Model) moveNavigationSelection(isUp bool) {
 		return
 	}
 
-	// Move within filtered list
-	if isUp && filteredIndex > 0 {
-		filteredIndex--
-	} else if !isUp && filteredIndex < len(filteredItems)-1 {
-		filteredIndex++
+	// Move within filtered list (cyclic)
+	if isUp {
+		if filteredIndex > 0 {
+			filteredIndex--
+		} else {
+			// Wrap to bottom
+			filteredIndex = len(filteredItems) - 1
+		}
 	} else {
-		// At boundary, don't move
-		return
+		if filteredIndex < len(filteredItems)-1 {
+			filteredIndex++
+		} else {
+			// Wrap to top
+			filteredIndex = 0
+		}
 	}
 
 	// Map back to original index and update
@@ -643,4 +759,15 @@ func findFilteredIndex(originalItems []string, filteredItems []string, originalI
 		}
 	}
 	return -1
+}
+
+// ShouldReExecuteFromHistory returns true if a history entry was selected for re-execution.
+func (m Model) ShouldReExecuteFromHistory() bool {
+	return m.reExecuteFromHistory
+}
+
+// GetSelectedHistoryEntry returns the history entry selected for re-execution.
+// Returns nil if no entry was selected.
+func (m Model) GetSelectedHistoryEntry() *history.ExecutionLogEntry {
+	return m.selectedHistoryEntry
 }

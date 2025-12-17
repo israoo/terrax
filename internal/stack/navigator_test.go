@@ -345,6 +345,7 @@ func TestNavigator_MoveUp(t *testing.T) {
 		name          string
 		maxDepth      int
 		depth         int
+		columnSize    int
 		initialIndex  int
 		expectedMoved bool
 		expectedIndex int
@@ -353,22 +354,25 @@ func TestNavigator_MoveUp(t *testing.T) {
 			name:          "can move up from index 2",
 			maxDepth:      1,
 			depth:         0,
+			columnSize:    3,
 			initialIndex:  2,
 			expectedMoved: true,
 			expectedIndex: 1,
 		},
 		{
-			name:          "cannot move up from index 0",
+			name:          "cyclic move up from index 0 wraps to last",
 			maxDepth:      1,
 			depth:         0,
+			columnSize:    3,
 			initialIndex:  0,
-			expectedMoved: false,
-			expectedIndex: 0,
+			expectedMoved: true,
+			expectedIndex: 2,
 		},
 		{
 			name:          "invalid depth returns false",
 			maxDepth:      1,
 			depth:         5,
+			columnSize:    3,
 			initialIndex:  0,
 			expectedMoved: false,
 			expectedIndex: 0,
@@ -382,6 +386,7 @@ func TestNavigator_MoveUp(t *testing.T) {
 
 			if tt.depth >= 0 && tt.depth < tt.maxDepth {
 				state.SelectedIndices[tt.depth] = tt.initialIndex
+				state.Columns[tt.depth] = make([]string, tt.columnSize)
 			}
 
 			moved := nav.MoveUp(state, tt.depth)
@@ -415,13 +420,13 @@ func TestNavigator_MoveDown(t *testing.T) {
 			expectedIndex: 1,
 		},
 		{
-			name:          "cannot move down when at bottom",
+			name:          "cyclic move down from bottom wraps to top",
 			maxDepth:      1,
 			depth:         0,
 			columnSize:    3,
 			initialIndex:  2,
-			expectedMoved: false,
-			expectedIndex: 2,
+			expectedMoved: true,
+			expectedIndex: 0,
 		},
 		{
 			name:          "invalid depth returns false",
