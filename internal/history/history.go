@@ -292,11 +292,6 @@ func TrimHistory(ctx context.Context, maxEntries int) error {
 		}
 		return fmt.Errorf("failed to open history file: %w", err)
 	}
-	defer func() {
-		if closeErr := file.Close(); closeErr != nil && err == nil {
-			err = fmt.Errorf("failed to close history file: %w", closeErr)
-		}
-	}()
 
 	// Read all lines
 	var lines []string
@@ -306,7 +301,13 @@ func TrimHistory(ctx context.Context, maxEntries int) error {
 	}
 
 	if err := scanner.Err(); err != nil {
+		_ = file.Close()
 		return fmt.Errorf("failed to read history file: %w", err)
+	}
+
+	// Close the file BEFORE attempting rename (critical for Windows)
+	if err := file.Close(); err != nil {
+		return fmt.Errorf("failed to close history file: %w", err)
 	}
 
 	// Check if trimming is needed
@@ -353,7 +354,15 @@ func TrimHistory(ctx context.Context, maxEntries int) error {
 		return fmt.Errorf("failed to close temp file: %w", err)
 	}
 
-	// Atomically replace original file with trimmed version
+	// On Windows, os.Rename() cannot replace an existing file.
+	// We need to remove the target file first.
+	// This is safe because:
+	// 1. Original file is already closed
+	// 2. Temp file is fully written and synced
+	// 3. If remove fails, we keep the original file
+	_ = os.Remove(historyPath)
+
+	// Replace original file with trimmed version
 	if err := os.Rename(tempPath, historyPath); err != nil {
 		_ = os.Remove(tempPath)
 		return fmt.Errorf("failed to replace history file: %w", err)
