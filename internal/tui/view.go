@@ -527,12 +527,15 @@ func buildHistoryTableRow(entry history.ExecutionLogEntry, displayID int, cols h
 	durationStr := fmt.Sprintf("%.2fs", entry.DurationS)
 
 	// Truncate stack path if it exceeds the column width
+	// Show the end of the path (most relevant) instead of the beginning
 	stackPathDisplay := entry.StackPath
 	if len(stackPathDisplay) > cols.stackPath {
 		if cols.stackPath > 3 {
-			stackPathDisplay = stackPathDisplay[:cols.stackPath-3] + "..."
+			// Take the last (cols.stackPath - 3) characters and prepend "..."
+			stackPathDisplay = "..." + stackPathDisplay[len(stackPathDisplay)-(cols.stackPath-3):]
 		} else {
-			stackPathDisplay = stackPathDisplay[:cols.stackPath]
+			// If width is too small, just take the last characters
+			stackPathDisplay = stackPathDisplay[len(stackPathDisplay)-cols.stackPath:]
 		}
 	}
 
