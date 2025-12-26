@@ -31,3 +31,24 @@ history:
   # Default: 500
   # Minimum: 10
   max_entries: 500
+
+# Terragrunt logging configuration
+# These settings control how terragrunt outputs logs during execution
+
+# Log level for terragrunt output
+# Options: "trace", "debug", "info", "warn", "error", "stdout", "stderr"
+# Default: (terragrunt default)
+log_level: "info"
+
+# Log format for terragrunt output
+# Options: "pretty", "bare", "key-value", "json"
+# Default: "pretty"
+# Note: This setting is ignored if log_custom_format is set
+log_format: "pretty"
+
+# Custom log format template for terragrunt output
+# When set, this takes priority over log_format
+# Default: (not set)
+# Example: "%time %level %msg"
+# Uncomment to use a custom format:
+# log_custom_format: "%time %level %msg"

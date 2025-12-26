@@ -65,6 +65,7 @@ func initConfig() {
 	viper.SetDefault("max_navigation_columns", config.DefaultMaxNavigationColumns)
 	viper.SetDefault("history.max_entries", config.DefaultHistoryMaxEntries)
 	viper.SetDefault("root_config_file", config.DefaultRootConfigFile)
+	viper.SetDefault("log_format", config.DefaultLogFormat)
 
 	// Configure config file search paths
 	viper.SetConfigName(".terrax")
@@ -222,6 +223,39 @@ func displayResults(model tui.Model) {
 	fmt.Println()
 }
 
+// buildTerragruntArgs constructs the terragrunt command arguments with logging configuration.
+// It builds: terragrunt run --all --working-dir {PATH} [--log-level X] [--log-format Y | --log-custom-format Z] -- {command}
+// Note: --log-custom-format takes priority over --log-format if both are configured.
+func buildTerragruntArgs(absoluteStackPath, command string) []string {
+	// Start with base arguments
+	args := []string{"run", "--all", "--working-dir", absoluteStackPath}
+
+	// Add log level if configured
+	logLevel := viper.GetString("log_level")
+	if logLevel != "" {
+		args = append(args, "--log-level", logLevel)
+	}
+
+	// Add log format arguments
+	// --log-custom-format has priority over --log-format
+	logCustomFormat := viper.GetString("log_custom_format")
+	if logCustomFormat != "" {
+		// Use custom format (invalidates log_format)
+		args = append(args, "--log-custom-format", logCustomFormat)
+	} else {
+		// Use standard log format
+		logFormat := viper.GetString("log_format")
+		if logFormat != "" {
+			args = append(args, "--log-format", logFormat)
+		}
+	}
+
+	// Add separator and command
+	args = append(args, "--", command)
+
+	return args
+}
+
 // executeTerragruntCommand runs the terragrunt command with the selected parameters.
 // It also logs the execution to the history file for audit and replay purposes.
 func executeTerragruntCommand(command, absoluteStackPath string) error {
@@ -238,8 +272,8 @@ func executeTerragruntCommand(command, absoluteStackPath string) error {
 	// Record execution start time
 	startTime := time.Now()
 
-	// Build the terragrunt command: terragrunt run --all --working-dir {PATH} -- {command}
-	args := []string{"run", "--all", "--working-dir", absoluteStackPath, "--", command}
+	// Build the terragrunt command: terragrunt run --all --working-dir {PATH} [log flags] -- {command}
+	args := buildTerragruntArgs(absoluteStackPath, command)
 
 	fmt.Printf("🚀 Executing: terragrunt %v\n\n", args)
 

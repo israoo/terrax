@@ -157,3 +157,88 @@ commands:
 		})
 	}
 }
+
+// TestBuildTerragruntArgs tests the buildTerragruntArgs function with different configurations.
+func TestBuildTerragruntArgs(t *testing.T) {
+	tests := []struct {
+		name         string
+		stackPath    string
+		command      string
+		logLevel     string
+		logFormat    string
+		logCustomFmt string
+		expected     []string
+	}{
+		{
+			name:      "basic command without logging config",
+			stackPath: "/path/to/stack",
+			command:   "plan",
+			expected:  []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--", "plan"},
+		},
+		{
+			name:      "command with log level",
+			stackPath: "/path/to/stack",
+			command:   "apply",
+			logLevel:  "debug",
+			expected:  []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-level", "debug", "--log-format", "pretty", "--", "apply"},
+		},
+		{
+			name:      "command with custom log format",
+			stackPath: "/path/to/stack",
+			command:   "destroy",
+			logFormat: "json",
+			expected:  []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "json", "--", "destroy"},
+		},
+		{
+			name:      "command with all logging options",
+			stackPath: "/path/to/stack",
+			command:   "validate",
+			logLevel:  "info",
+			logFormat: "key-value",
+			expected:  []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-level", "info", "--log-format", "key-value", "--", "validate"},
+		},
+		{
+			name:         "custom format takes priority over standard format",
+			stackPath:    "/path/to/stack",
+			command:      "init",
+			logLevel:     "warn",
+			logFormat:    "json",
+			logCustomFmt: "%time %level %msg",
+			expected:     []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-level", "warn", "--log-custom-format", "%time %level %msg", "--", "init"},
+		},
+		{
+			name:         "only custom format without log level",
+			stackPath:    "/path/to/stack",
+			command:      "output",
+			logCustomFmt: "%time %level %msg",
+			expected:     []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-custom-format", "%time %level %msg", "--", "output"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Reset viper before each test
+			viper.Reset()
+
+			// Set configuration values
+			if tt.logLevel != "" {
+				viper.Set("log_level", tt.logLevel)
+			}
+			if tt.logFormat != "" {
+				viper.Set("log_format", tt.logFormat)
+			} else {
+				// Set default log format
+				viper.Set("log_format", "pretty")
+			}
+			if tt.logCustomFmt != "" {
+				viper.Set("log_custom_format", tt.logCustomFmt)
+			}
+
+			// Build arguments
+			args := buildTerragruntArgs(tt.stackPath, tt.command)
+
+			// Verify expected arguments
+			assert.Equal(t, tt.expected, args, "Arguments should match expected output")
+		})
+	}
+}

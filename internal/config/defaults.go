@@ -18,6 +18,9 @@ const (
 	// DefaultRootConfigFile is the default name of the root configuration file
 	// used to determine the project root directory.
 	DefaultRootConfigFile = "root.hcl"
+
+	// DefaultLogFormat is the default terragrunt log format.
+	DefaultLogFormat = "pretty"
 )
 
 // DefaultCommands is the default list of Terragrunt commands shown in the TUI.
