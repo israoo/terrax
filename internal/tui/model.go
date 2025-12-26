@@ -65,6 +65,9 @@ type Model struct {
 	columnFilters      map[int]textinput.Model // Filter inputs per column (0=commands, 1+=navigation)
 	activeFilterColumn int                     // Which column's filter is currently being edited (-1 = none)
 
+	// Scrolling (per-column vertical viewport)
+	scrollOffsets map[int]int // Scroll offset per column (0=commands, 1+=navigation)
+
 	// State flags
 	ready bool
 }
@@ -89,6 +92,7 @@ func NewModel(stackRoot *stack.Node, maxDepth int, commands []string, maxNavigat
 		maxNavigationColumns: maxNavigationColumns,
 		columnFilters:        make(map[int]textinput.Model),
 		activeFilterColumn:   -1,
+		scrollOffsets:        make(map[int]int),
 		history:              nil,
 		historyCursor:        0,
 		selectedHistoryEntry: nil,
@@ -350,11 +354,16 @@ func (m Model) handleHorizontalMove(isLeft bool) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// moveCommandSelection moves selection in commands column.
+// moveCommandSelection moves selection in commands column with page-based navigation.
 func (m *Model) moveCommandSelection(isUp bool) {
 	filteredCommands := m.getFilteredCommands()
 	if len(filteredCommands) == 0 {
 		return
+	}
+
+	// Initialize scrollOffsets map if it doesn't exist (for tests and edge cases)
+	if m.scrollOffsets == nil {
+		m.scrollOffsets = make(map[int]int)
 	}
 
 	// Check if filter is active
@@ -363,48 +372,103 @@ func (m *Model) moveCommandSelection(isUp bool) {
 		hasFilter = true
 	}
 
+	maxVisibleItems := m.getMaxVisibleItems()
+	totalPages := m.getTotalPages(len(filteredCommands))
+	currentPage := m.getCurrentPage(0) // columnID = 0 for commands
+
 	if !hasFilter {
-		// No filter: cyclic navigation
+		// No filter: page-based navigation with the original commands list
 		if isUp {
 			if m.selectedCommand > 0 {
-				m.selectedCommand--
+				// Check if we're at the first item of current page
+				pageStart := m.getPageStartIndex(currentPage)
+				if m.selectedCommand == pageStart && currentPage > 1 {
+					// Jump to last item of previous page
+					prevPage := currentPage - 1
+					prevPageStart := m.getPageStartIndex(prevPage)
+					prevPageEnd := min(prevPageStart+maxVisibleItems-1, len(m.commands)-1)
+					m.selectedCommand = prevPageEnd
+					m.scrollOffsets[0] = prevPageStart
+				} else {
+					m.selectedCommand--
+				}
 			} else {
-				// Wrap to bottom
+				// Wrap to bottom (last item of last page)
 				m.selectedCommand = len(m.commands) - 1
+				lastPage := m.getTotalPages(len(m.commands))
+				m.scrollOffsets[0] = m.getPageStartIndex(lastPage)
 			}
 		} else {
 			if m.selectedCommand < len(m.commands)-1 {
-				m.selectedCommand++
+				// Check if we're at the last item of current page
+				pageStart := m.getPageStartIndex(currentPage)
+				pageEnd := min(pageStart+maxVisibleItems-1, len(m.commands)-1)
+				if m.selectedCommand == pageEnd && currentPage < totalPages {
+					// Jump to first item of next page
+					nextPage := currentPage + 1
+					nextPageStart := m.getPageStartIndex(nextPage)
+					m.selectedCommand = nextPageStart
+					m.scrollOffsets[0] = nextPageStart
+				} else {
+					m.selectedCommand++
+				}
 			} else {
-				// Wrap to top
+				// Wrap to top (first item of first page)
 				m.selectedCommand = 0
+				m.scrollOffsets[0] = 0
 			}
 		}
 		return
 	}
 
-	// Filter is active: navigate within filtered list
+	// Filter is active: page-based navigation within filtered list
 	filteredIndex := findFilteredIndex(m.commands, filteredCommands, m.selectedCommand)
 	if filteredIndex < 0 {
 		// Current selection not in filtered list, select first filtered item
 		m.selectedCommand = findOriginalIndex(m.commands, filteredCommands, 0)
+		m.scrollOffsets[0] = 0
 		return
 	}
 
-	// Move within filtered list (cyclic)
+	// Move within filtered list with page-based navigation
 	if isUp {
 		if filteredIndex > 0 {
-			filteredIndex--
+			// Check if we're at the first item of current page
+			pageStart := m.getPageStartIndex(currentPage)
+			if filteredIndex == pageStart && currentPage > 1 {
+				// Jump to last item of previous page
+				prevPage := currentPage - 1
+				prevPageStart := m.getPageStartIndex(prevPage)
+				prevPageEnd := min(prevPageStart+maxVisibleItems-1, len(filteredCommands)-1)
+				filteredIndex = prevPageEnd
+				m.scrollOffsets[0] = prevPageStart
+			} else {
+				filteredIndex--
+			}
 		} else {
 			// Wrap to bottom
 			filteredIndex = len(filteredCommands) - 1
+			lastPage := m.getTotalPages(len(filteredCommands))
+			m.scrollOffsets[0] = m.getPageStartIndex(lastPage)
 		}
 	} else {
 		if filteredIndex < len(filteredCommands)-1 {
-			filteredIndex++
+			// Check if we're at the last item of current page
+			pageStart := m.getPageStartIndex(currentPage)
+			pageEnd := min(pageStart+maxVisibleItems-1, len(filteredCommands)-1)
+			if filteredIndex == pageEnd && currentPage < totalPages {
+				// Jump to first item of next page
+				nextPage := currentPage + 1
+				nextPageStart := m.getPageStartIndex(nextPage)
+				filteredIndex = nextPageStart
+				m.scrollOffsets[0] = nextPageStart
+			} else {
+				filteredIndex++
+			}
 		} else {
 			// Wrap to top
 			filteredIndex = 0
+			m.scrollOffsets[0] = 0
 		}
 	}
 
@@ -412,7 +476,7 @@ func (m *Model) moveCommandSelection(isUp bool) {
 	m.selectedCommand = findOriginalIndex(m.commands, filteredCommands, filteredIndex)
 }
 
-// moveNavigationSelection moves selection in navigation column.
+// moveNavigationSelection moves selection in navigation column with page-based navigation.
 func (m *Model) moveNavigationSelection(isUp bool) {
 	depth := m.getNavigationDepth()
 	if depth < 0 {
@@ -422,6 +486,11 @@ func (m *Model) moveNavigationSelection(isUp bool) {
 	filteredItems := m.getFilteredNavigationItems(depth)
 	if len(filteredItems) == 0 {
 		return
+	}
+
+	// Initialize scrollOffsets map if it doesn't exist (for tests and edge cases)
+	if m.scrollOffsets == nil {
+		m.scrollOffsets = make(map[int]int)
 	}
 
 	originalItems := m.navState.Columns[depth]
@@ -434,21 +503,60 @@ func (m *Model) moveNavigationSelection(isUp bool) {
 		hasFilter = true
 	}
 
+	maxVisibleItems := m.getMaxVisibleItems()
+	totalPages := m.getTotalPages(len(originalItems))
+	currentPage := m.getCurrentPage(columnID)
+
 	if !hasFilter {
-		// No filter: use original navigator logic
-		var moved bool
+		// No filter: page-based navigation with original items
 		if isUp {
-			moved = m.navigator.MoveUp(m.navState, depth)
+			if currentIndex > 0 {
+				// Check if we're at the first item of current page
+				pageStart := m.getPageStartIndex(currentPage)
+				if currentIndex == pageStart && currentPage > 1 {
+					// Jump to last item of previous page
+					prevPage := currentPage - 1
+					prevPageStart := m.getPageStartIndex(prevPage)
+					prevPageEnd := min(prevPageStart+maxVisibleItems-1, len(originalItems)-1)
+					m.navState.SelectedIndices[depth] = prevPageEnd
+					m.scrollOffsets[columnID] = prevPageStart
+				} else {
+					m.navState.SelectedIndices[depth]--
+				}
+				m.navigator.PropagateSelection(m.navState)
+			} else {
+				// Wrap to bottom (last item of last page)
+				m.navState.SelectedIndices[depth] = len(originalItems) - 1
+				lastPage := m.getTotalPages(len(originalItems))
+				m.scrollOffsets[columnID] = m.getPageStartIndex(lastPage)
+				m.navigator.PropagateSelection(m.navState)
+			}
 		} else {
-			moved = m.navigator.MoveDown(m.navState, depth)
-		}
-		if moved {
-			m.navigator.PropagateSelection(m.navState)
+			if currentIndex < len(originalItems)-1 {
+				// Check if we're at the last item of current page
+				pageStart := m.getPageStartIndex(currentPage)
+				pageEnd := min(pageStart+maxVisibleItems-1, len(originalItems)-1)
+				if currentIndex == pageEnd && currentPage < totalPages {
+					// Jump to first item of next page
+					nextPage := currentPage + 1
+					nextPageStart := m.getPageStartIndex(nextPage)
+					m.navState.SelectedIndices[depth] = nextPageStart
+					m.scrollOffsets[columnID] = nextPageStart
+				} else {
+					m.navState.SelectedIndices[depth]++
+				}
+				m.navigator.PropagateSelection(m.navState)
+			} else {
+				// Wrap to top (first item of first page)
+				m.navState.SelectedIndices[depth] = 0
+				m.scrollOffsets[columnID] = 0
+				m.navigator.PropagateSelection(m.navState)
+			}
 		}
 		return
 	}
 
-	// Filter is active: navigate within filtered list
+	// Filter is active: page-based navigation within filtered list
 	filteredIndex := findFilteredIndex(originalItems, filteredItems, currentIndex)
 	if filteredIndex < 0 {
 		// Current selection not in filtered list, select first filtered item
@@ -456,24 +564,53 @@ func (m *Model) moveNavigationSelection(isUp bool) {
 		if newOriginalIndex >= 0 {
 			m.navState.SelectedIndices[depth] = newOriginalIndex
 			m.navigator.PropagateSelection(m.navState)
+			m.scrollOffsets[columnID] = 0
 		}
 		return
 	}
 
-	// Move within filtered list (cyclic)
+	totalPagesFiltered := m.getTotalPages(len(filteredItems))
+	currentPageFiltered := m.getCurrentPage(columnID)
+
+	// Move within filtered list with page-based navigation
 	if isUp {
 		if filteredIndex > 0 {
-			filteredIndex--
+			// Check if we're at the first item of current page
+			pageStart := m.getPageStartIndex(currentPageFiltered)
+			if filteredIndex == pageStart && currentPageFiltered > 1 {
+				// Jump to last item of previous page
+				prevPage := currentPageFiltered - 1
+				prevPageStart := m.getPageStartIndex(prevPage)
+				prevPageEnd := min(prevPageStart+maxVisibleItems-1, len(filteredItems)-1)
+				filteredIndex = prevPageEnd
+				m.scrollOffsets[columnID] = prevPageStart
+			} else {
+				filteredIndex--
+			}
 		} else {
 			// Wrap to bottom
 			filteredIndex = len(filteredItems) - 1
+			lastPage := m.getTotalPages(len(filteredItems))
+			m.scrollOffsets[columnID] = m.getPageStartIndex(lastPage)
 		}
 	} else {
 		if filteredIndex < len(filteredItems)-1 {
-			filteredIndex++
+			// Check if we're at the last item of current page
+			pageStart := m.getPageStartIndex(currentPageFiltered)
+			pageEnd := min(pageStart+maxVisibleItems-1, len(filteredItems)-1)
+			if filteredIndex == pageEnd && currentPageFiltered < totalPagesFiltered {
+				// Jump to first item of next page
+				nextPage := currentPageFiltered + 1
+				nextPageStart := m.getPageStartIndex(nextPage)
+				filteredIndex = nextPageStart
+				m.scrollOffsets[columnID] = nextPageStart
+			} else {
+				filteredIndex++
+			}
 		} else {
 			// Wrap to top
 			filteredIndex = 0
+			m.scrollOffsets[columnID] = 0
 		}
 	}
 
@@ -587,6 +724,77 @@ func (m *Model) adjustSelectionAfterFilter() {
 // isCommandsColumnFocused returns true if the commands column is focused.
 func (m Model) isCommandsColumnFocused() bool {
 	return m.focusedColumn == 0
+}
+
+// getAvailableHeight calculates the available height for list items.
+// Subtracts header, footer, breadcrumb bar, column title, and padding.
+func (m Model) getAvailableHeight() int {
+	// Total reserved space:
+	// - HeaderHeight (1)
+	// - Breadcrumb bar (1)
+	// - Column title (1)
+	// - Empty line after title (1)
+	// - FooterHeight (1)
+	// - ColumnPadding (4) - includes borders and internal padding
+	reservedSpace := HeaderHeight + 1 + 1 + 1 + FooterHeight + ColumnPadding
+	availableHeight := m.height - reservedSpace
+
+	if availableHeight < 1 {
+		return 1 // Minimum height to avoid division by zero
+	}
+	return availableHeight
+}
+
+// getMaxVisibleItems returns the maximum number of items that can be displayed
+// in a column given the current terminal height.
+// Reserves 1 line for pagination indicators to ensure consistent column heights.
+func (m Model) getMaxVisibleItems() int {
+	availableHeight := m.getAvailableHeight()
+
+	// Reserve 1 line for pagination indicators to ensure all columns have same height.
+	// Even if a column doesn't need pagination, this reserved space keeps heights consistent.
+	reservedForPagination := 1
+	maxItems := availableHeight - reservedForPagination
+
+	if maxItems < 1 {
+		return 1
+	}
+
+	return maxItems
+}
+
+// getTotalPages calculates the total number of pages for a list.
+func (m Model) getTotalPages(totalItems int) int {
+	maxVisibleItems := m.getMaxVisibleItems()
+	if maxVisibleItems <= 0 {
+		return 1
+	}
+	if totalItems <= maxVisibleItems {
+		return 1
+	}
+	// Calculate pages (ceiling division)
+	pages := (totalItems + maxVisibleItems - 1) / maxVisibleItems
+	return pages
+}
+
+// getCurrentPage calculates the current page number (1-indexed) based on scroll offset.
+func (m Model) getCurrentPage(columnID int) int {
+	maxVisibleItems := m.getMaxVisibleItems()
+	if maxVisibleItems <= 0 {
+		return 1
+	}
+	scrollOffset := m.scrollOffsets[columnID]
+	currentPage := (scrollOffset / maxVisibleItems) + 1
+	return currentPage
+}
+
+// getPageStartIndex returns the start index for a given page number (1-indexed).
+func (m Model) getPageStartIndex(pageNumber int) int {
+	maxVisibleItems := m.getMaxVisibleItems()
+	if pageNumber <= 1 {
+		return 0
+	}
+	return (pageNumber - 1) * maxVisibleItems
 }
 
 // getNavigationDepth returns the current navigation depth (0-indexed).
