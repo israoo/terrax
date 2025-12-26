@@ -1,6 +1,18 @@
 name: CI
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - "**.go"
+      - "go.mod"
+      - "go.sum"
+      - ".github/workflows/**"
+      - ".github/actions/**"
+      - "cmd/**"
+      - "internal/**"
+      - "pkg/**"
   pull_request:
     branches:
       - main
@@ -83,33 +95,6 @@ jobs:
           GITHUB_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY }}
 
-  sonarcloud:
-    name: SonarCloud analysis
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-
-      - name: Setup Go environment
-        uses: ./.github/actions/setup-go
-
-      - name: SonarCloud Scan
-        uses: SonarSource/sonarqube-scan-action@v7.0.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        with:
-          args: >
-            -Dsonar.projectKey=israoo_terrax
-            -Dsonar.organization=israoo
-            -Dsonar.sources=.
-            -Dsonar.exclusions=**/*_test.go,**/vendor/**
-            -Dsonar.tests=.
-            -Dsonar.test.inclusions=**/*_test.go
-            -Dsonar.go.coverage.reportPaths=${{ env.COVERAGE_FILE }}
-
   trivy:
     name: Trivy SCA scan
     runs-on: ubuntu-24.04
@@ -144,10 +129,67 @@ jobs:
           path: ${{ env.TRIVY_SARIF_FILE }}
           retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
 
+  sonarcloud:
+    name: SonarCloud analysis
+    runs-on: ubuntu-24.04
+    needs: [lint, codeql, trivy, gitguardian]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go environment
+        uses: ./.github/actions/setup-go
+
+      - name: Run tests with coverage
+        run: |
+          go test ./... \
+          -coverprofile=${{ env.COVERAGE_FILE }} \
+          -covermode=atomic \
+          -race
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: coverage-report
+          path: ${{ env.COVERAGE_FILE }}
+          retention-days: ${{ env.COVERAGE_RETENTION_DAYS }}
+
+      - name: Display coverage
+        run: go tool cover -func=${{ env.COVERAGE_FILE }}
+
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarqube-scan-action@v7.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  codecov:
+    name: Codecov upload
+    runs-on: ubuntu-24.04
+    needs: sonarcloud
+    steps:
+      - name: Download coverage artifact
+        uses: actions/download-artifact@v6
+        with:
+          name: coverage-report
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./${{ env.COVERAGE_FILE }}
+          fail_ci_if_error: true
+          verbose: true
+          flags: unittests
+          name: terrax-coverage
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
   build_test:
     name: Build & Test (${{ matrix.os }}-${{ matrix.arch }})
-    needs: [lint, codeql, trivy, gitguardian, sonarcloud]
     runs-on: ${{ matrix.os }}
+    needs: sonarcloud
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
@@ -164,24 +206,5 @@ jobs:
           GOARCH: ${{ matrix.arch }}
         run: go build -v .
 
-      - name: Run tests with coverage
-        shell: bash
-        run: go test ./... -coverprofile=${{ env.COVERAGE_FILE }} -covermode=atomic -race
-
-      - name: Upload coverage artifact
-        uses: actions/upload-artifact@v6
-        with:
-          name: coverage-${{ matrix.os }}-${{ matrix.arch }}
-          path: ${{ env.COVERAGE_FILE }}
-          retention-days: ${{ env.COVERAGE_RETENTION_DAYS }}
-
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
-        with:
-          files: ./${{ env.COVERAGE_FILE }}
-          fail_ci_if_error: true
-          verbose: true
-          flags: unittests
-          name: terrax-coverage
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+      - name: Run tests
+        run: go test ./...
