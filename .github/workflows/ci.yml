@@ -1,18 +1,6 @@
 name: CI
 
 on:
-  push:
-    branches:
-      - "**"
-    paths:
-      - "**.go"
-      - "go.mod"
-      - "go.sum"
-      - ".github/workflows/**"
-      - ".github/actions/**"
-      - "cmd/**"
-      - "internal/**"
-      - "pkg/**"
   pull_request:
     branches:
       - main
