@@ -21,6 +21,13 @@ const (
 
 	// DefaultLogFormat is the default terragrunt log format.
 	DefaultLogFormat = "pretty"
+
+	// DefaultParallelism is the default number of modules to run in parallel.
+	// 0 means use terragrunt's default.
+	DefaultParallelism = 0
+
+	// DefaultNoColor controls whether to disable colored output.
+	DefaultNoColor = false
 )
 
 // DefaultCommands is the default list of Terragrunt commands shown in the TUI.

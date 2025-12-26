@@ -66,6 +66,8 @@ func initConfig() {
 	viper.SetDefault("history.max_entries", config.DefaultHistoryMaxEntries)
 	viper.SetDefault("root_config_file", config.DefaultRootConfigFile)
 	viper.SetDefault("log_format", config.DefaultLogFormat)
+	viper.SetDefault("terragrunt.parallelism", config.DefaultParallelism)
+	viper.SetDefault("terragrunt.no_color", config.DefaultNoColor)
 
 	// Configure config file search paths
 	viper.SetConfigName(".terrax")
@@ -224,7 +226,8 @@ func displayResults(model tui.Model) {
 }
 
 // buildTerragruntArgs constructs the terragrunt command arguments with logging configuration.
-// It builds: terragrunt run --all --working-dir {PATH} [--log-level X] [--log-format Y | --log-custom-format Z] -- {command}
+// It builds: terragrunt run --all --working-dir {PATH} [flags] -- {command}
+// Flags include: --log-level, --log-format, --log-custom-format, --parallelism, --no-color, and extra_flags.
 // Note: --log-custom-format takes priority over --log-format if both are configured.
 func buildTerragruntArgs(absoluteStackPath, command string) []string {
 	// Start with base arguments
@@ -248,6 +251,49 @@ func buildTerragruntArgs(absoluteStackPath, command string) []string {
 		if logFormat != "" {
 			args = append(args, "--log-format", logFormat)
 		}
+	}
+
+	// Add parallelism if configured (non-zero)
+	parallelism := viper.GetInt("terragrunt.parallelism")
+	if parallelism > 0 {
+		args = append(args, "--terragrunt-parallelism", fmt.Sprintf("%d", parallelism))
+	}
+
+	// Add no-color flag if configured
+	noColor := viper.GetBool("terragrunt.no_color")
+	if noColor {
+		args = append(args, "--terragrunt-no-color")
+	}
+
+	// Add non-interactive flag if configured
+	nonInteractive := viper.GetBool("terragrunt.non_interactive")
+	if nonInteractive {
+		args = append(args, "--terragrunt-non-interactive")
+	}
+
+	// Add ignore-dependency-errors flag if configured
+	ignoreDependencyErrors := viper.GetBool("terragrunt.ignore_dependency_errors")
+	if ignoreDependencyErrors {
+		args = append(args, "--terragrunt-ignore-dependency-errors")
+	}
+
+	// Add ignore-external-dependencies flag if configured
+	ignoreExternalDependencies := viper.GetBool("terragrunt.ignore_external_dependencies")
+	if ignoreExternalDependencies {
+		args = append(args, "--terragrunt-ignore-external-dependencies")
+	}
+
+	// Add include-external-dependencies flag if configured
+	includeExternalDependencies := viper.GetBool("terragrunt.include_external_dependencies")
+	if includeExternalDependencies {
+		args = append(args, "--terragrunt-include-external-dependencies")
+	}
+
+	// Add extra flags from configuration
+	// This allows users to add any custom flags not covered above
+	extraFlags := viper.GetStringSlice("terragrunt.extra_flags")
+	if len(extraFlags) > 0 {
+		args = append(args, extraFlags...)
 	}
 
 	// Add separator and command

@@ -32,9 +32,10 @@ history:
   # Minimum: 10
   max_entries: 500
 
-# Terragrunt logging configuration
-# These settings control how terragrunt outputs logs during execution
+# Terragrunt configuration
+# These settings control how terragrunt executes commands
 
+# Logging configuration
 # Log level for terragrunt output
 # Options: "trace", "debug", "info", "warn", "error", "stdout", "stderr"
 # Default: (terragrunt default)
@@ -52,3 +53,38 @@ log_format: "pretty"
 # Example: "%time %level %msg"
 # Uncomment to use a custom format:
 # log_custom_format: "%time %level %msg"
+
+# Terragrunt execution flags
+terragrunt:
+  # Number of modules to run in parallel
+  # Default: 0 (uses terragrunt's default parallelism)
+  # Set to a positive number to limit parallelism
+  # parallelism: 4
+
+  # Disable colored output
+  # Default: false
+  # no_color: true
+
+  # Run in non-interactive mode (no prompts)
+  # Default: false
+  # non_interactive: true
+
+  # Ignore dependency errors and continue execution
+  # Default: false
+  # ignore_dependency_errors: true
+
+  # Ignore external dependencies (dependencies outside the working directory)
+  # Default: false
+  # ignore_external_dependencies: true
+
+  # Include external dependencies in execution
+  # Default: false
+  # include_external_dependencies: true
+
+  # Additional custom flags to pass to terragrunt
+  # This is a list of flags that will be added to every command
+  # Useful for flags not explicitly supported above
+  # Example:
+  # extra_flags:
+  #   - "--terragrunt-download-dir=/tmp/terragrunt"
+  #   - "--terragrunt-source-update"
