@@ -19,7 +19,6 @@ var (
 
 	// Column styles
 	focusedBorder = lipgloss.RoundedBorder()
-	normalBorder  = lipgloss.NormalBorder()
 
 	// Header style
 	headerStyle = lipgloss.NewStyle().
@@ -65,6 +64,16 @@ var (
 				Background(lipgloss.Color("#2E2E2E")).
 				Padding(0, 2).
 				Margin(0, 0)
+
+	// Page indicator styles
+	pageIndicatorStyle = lipgloss.NewStyle().
+				Foreground(dimColor).
+				Padding(0, 1)
+
+	activePageIndicatorStyle = lipgloss.NewStyle().
+					Foreground(secondaryColor).
+					Bold(true).
+					Padding(0, 1)
 )
 
 // LayoutCalculator handles all layout dimension calculations.
@@ -84,8 +93,22 @@ func NewLayoutCalculator(width, height, columnWidth int) *LayoutCalculator {
 }
 
 // GetContentHeight returns the available height for column content.
+// This must match the calculation in Model.getAvailableHeight() to ensure consistency.
 func (lc *LayoutCalculator) GetContentHeight() int {
-	return lc.height - HeaderHeight - FooterHeight - ColumnPadding
+	// Total reserved space:
+	// - HeaderHeight (1)
+	// - Breadcrumb bar (1)
+	// - FooterHeight (1)
+	// Note: Column title (1) and empty line after title (1) are part of column content,
+	// not subtracted here since they're rendered inside the column.
+	reservedSpace := HeaderHeight + 1 + FooterHeight
+	contentHeight := lc.height - reservedSpace
+
+	if contentHeight < 1 {
+		return 1
+	}
+
+	return contentHeight
 }
 
 // GetColumnWidth returns the width for each column.
@@ -200,6 +223,75 @@ func min(a, b int) int {
 	return b
 }
 
+// truncateText truncates text to fit within maxWidth, adding "..." if truncated.
+// maxWidth: Maximum width in characters (including the "..." if added).
+// Returns the original text if it fits, or truncated text with "..." appended.
+func truncateText(text string, maxWidth int) string {
+	// If maxWidth is too small to be useful, just return empty or minimal text
+	if maxWidth <= 3 {
+		if maxWidth <= 0 {
+			return ""
+		}
+		return text[:min(len(text), maxWidth)]
+	}
+
+	// If text fits, return as-is
+	if len(text) <= maxWidth {
+		return text
+	}
+
+	// Truncate and add ellipsis
+	// Reserve 3 characters for "..."
+	truncateAt := maxWidth - 3
+	if truncateAt < 0 {
+		truncateAt = 0
+	}
+
+	return text[:truncateAt] + "..."
+}
+
+// getMaxItemTextWidth calculates the maximum width available for item text.
+// Takes into account cursor (2 chars: "► "), style padding, and column width.
+func (r *Renderer) getMaxItemTextWidth() int {
+	columnWidth := r.layout.GetColumnWidth()
+
+	// Account for:
+	// - Cursor and space: "► " = 2 chars
+	// - Item style padding: 0,1 = 2 chars total (left + right)
+	// - Column padding from columnStyle: focused=1,2 unfocused=2,3
+	// - Border for focused column: 2 chars
+	// Use the larger padding case (unfocused: 2,3 = 6 total)
+	reservedSpace := 2 + 2 + 6
+
+	maxWidth := columnWidth - reservedSpace
+
+	// Ensure minimum width
+	if maxWidth < 10 {
+		maxWidth = 10
+	}
+
+	return maxWidth
+}
+
+// renderPageIndicators renders pagination dots showing current page position.
+// Returns empty string if only one page exists.
+func renderPageIndicators(currentPage, totalPages int) string {
+	if totalPages <= 1 {
+		return ""
+	}
+
+	var dots string
+	for i := 1; i <= totalPages; i++ {
+		if i == currentPage {
+			dots += activePageIndicatorStyle.Render("•")
+		} else {
+			dots += pageIndicatorStyle.Render("•")
+		}
+	}
+
+	return dots
+}
+
 // renderCommandsColumn renders the commands column content.
 func (r *Renderer) renderCommandsColumn() string {
 	parts := []string{}
@@ -250,8 +342,26 @@ func (r *Renderer) buildCommandList() string {
 		selectedFilteredIndex = r.model.selectedCommand
 	}
 
+	// Apply scrolling window
+	maxVisibleItems := r.model.getMaxVisibleItems()
+	scrollOffset := r.model.scrollOffsets[0] // columnID = 0 for commands
+
+	// Calculate visible range
+	startIdx := scrollOffset
+	endIdx := scrollOffset + maxVisibleItems
+	if endIdx > len(commands) {
+		endIdx = len(commands)
+	}
+	if startIdx >= len(commands) {
+		startIdx = 0
+	}
+
+	// Render only visible items
+	maxTextWidth := r.getMaxItemTextWidth()
 	var content string
-	for i, cmd := range commands {
+	itemsRendered := 0
+
+	for i := startIdx; i < endIdx; i++ {
 		cursor := " "
 		style := itemStyle
 
@@ -260,8 +370,27 @@ func (r *Renderer) buildCommandList() string {
 			style = selectedItemStyle
 		}
 
-		content += fmt.Sprintf("%s %s\n", cursor, style.Render(cmd))
+		// Truncate text to fit within column width
+		displayText := truncateText(commands[i], maxTextWidth)
+		content += fmt.Sprintf("%s %s\n", cursor, style.Render(displayText))
+		itemsRendered++
 	}
+
+	// Add empty lines to fill remaining space up to maxVisibleItems
+	// This ensures all columns have the same height
+	for itemsRendered < maxVisibleItems {
+		content += "\n"
+		itemsRendered++
+	}
+
+	// Add page indicators (without extra newline before or after)
+	totalPages := r.model.getTotalPages(len(commands))
+	currentPage := r.model.getCurrentPage(0) // columnID = 0 for commands
+	pageIndicators := renderPageIndicators(currentPage, totalPages)
+	if pageIndicators != "" {
+		content += pageIndicators
+	}
+
 	return content
 }
 
@@ -319,8 +448,26 @@ func (r *Renderer) buildNavigationList(depth int) string {
 		selectedFilteredIndex = selectedIndex
 	}
 
+	// Apply scrolling window
+	maxVisibleItems := r.model.getMaxVisibleItems()
+	scrollOffset := r.model.scrollOffsets[columnID]
+
+	// Calculate visible range
+	startIdx := scrollOffset
+	endIdx := scrollOffset + maxVisibleItems
+	if endIdx > len(items) {
+		endIdx = len(items)
+	}
+	if startIdx >= len(items) {
+		startIdx = 0
+	}
+
+	// Render only visible items
+	maxTextWidth := r.getMaxItemTextWidth()
 	var content string
-	for i, item := range items {
+	itemsRendered := 0
+
+	for i := startIdx; i < endIdx; i++ {
 		cursor := " "
 		style := itemStyle
 
@@ -329,16 +476,50 @@ func (r *Renderer) buildNavigationList(depth int) string {
 			style = selectedItemStyle
 		}
 
-		content += fmt.Sprintf("%s %s\n", cursor, style.Render(item))
+		// Truncate text to fit within column width
+		displayText := truncateText(items[i], maxTextWidth)
+		content += fmt.Sprintf("%s %s\n", cursor, style.Render(displayText))
+		itemsRendered++
 	}
+
+	// Add empty lines to fill remaining space up to maxVisibleItems
+	// This ensures all columns have the same height
+	for itemsRendered < maxVisibleItems {
+		content += "\n"
+		itemsRendered++
+	}
+
+	// Add page indicators (without extra newline before or after)
+	totalPages := r.model.getTotalPages(len(items))
+	currentPage := r.model.getCurrentPage(columnID)
+	pageIndicators := renderPageIndicators(currentPage, totalPages)
+	if pageIndicators != "" {
+		content += pageIndicators
+	}
+
 	return content
 }
 
 // styleColumn applies styling to a column based on focus state.
 func (r *Renderer) styleColumn(content string, isFocused bool) string {
+	columnWidth := r.layout.GetColumnWidth()
+
+	// Adjust width for focused columns to account for border width.
+	// Lipgloss adds borders outside the content width, so we need to subtract
+	// the border width (2 chars total: 1 left + 1 right) to maintain consistent
+	// total rendered width across all columns.
+	if isFocused {
+		columnWidth -= 2 // Subtract border width
+	}
+
+	// Don't apply Height() here - let content determine its own height naturally.
+	// All columns will have the same content height because:
+	// 1. All have title (1 line) + empty line (1 line)
+	// 2. All show same number of items (controlled by getMaxVisibleItems)
+	// 3. All reserve space for pagination indicators (1 line)
+	// This ensures consistent column heights without forcing artificial padding.
 	return columnStyle(isFocused).
-		Width(r.layout.GetColumnWidth()).
-		Height(r.layout.GetContentHeight()).
+		Width(columnWidth).
 		Render(content)
 }
 
@@ -369,19 +550,20 @@ func (r *Renderer) getLevelTitle(depth int) string {
 
 // columnStyle returns the appropriate style for a column based on focus.
 func columnStyle(focused bool) lipgloss.Style {
-	style := lipgloss.NewStyle().
-		Padding(1, 2).
-		Margin(0, 1)
-
 	if focused {
-		return style.
+		// Focused column: border with normal padding
+		return lipgloss.NewStyle().
+			Padding(1, 2).
+			Margin(0, 1).
 			Border(focusedBorder).
 			BorderForeground(primaryColor)
 	}
 
-	return style.
-		Border(normalBorder).
-		BorderForeground(dimColor)
+	// Unfocused column: extra padding to compensate for missing border
+	// Border takes 1 char on each side, so add 1 to padding (vertical and horizontal)
+	return lipgloss.NewStyle().
+		Padding(2, 3). // +1 on each side to match border width
+		Margin(0, 1)
 }
 
 // historyTableStyles holds all the lipgloss styles for the history table

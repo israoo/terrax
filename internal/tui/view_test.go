@@ -60,12 +60,12 @@ func TestLayoutCalculator_GetContentHeight(t *testing.T) {
 		{
 			name:           "standard height",
 			height:         30,
-			expectedHeight: 30 - HeaderHeight - FooterHeight - ColumnPadding,
+			expectedHeight: 30 - HeaderHeight - 1 - FooterHeight, // Header + Breadcrumb + Footer
 		},
 		{
 			name:           "minimal height",
 			height:         10,
-			expectedHeight: 10 - HeaderHeight - FooterHeight - ColumnPadding,
+			expectedHeight: 10 - HeaderHeight - 1 - FooterHeight, // Header + Breadcrumb + Footer
 		},
 	}
 
@@ -273,7 +273,9 @@ func TestRenderer_RenderFooter(t *testing.T) {
 // TestRenderer_RenderCommandsColumn tests commands column rendering.
 func TestRenderer_RenderCommandsColumn(t *testing.T) {
 	m := Model{
-		commands: []string{"plan", "apply", "destroy"},
+		commands:      []string{"plan", "apply", "destroy"},
+		height:        30, // Ensure sufficient height for all items
+		scrollOffsets: make(map[int]int),
 	}
 
 	layout := NewLayoutCalculator(120, 30, 25)
@@ -314,6 +316,8 @@ func TestRenderer_BuildCommandList(t *testing.T) {
 			m := Model{
 				commands:        tt.commands,
 				selectedCommand: tt.selectedCommand,
+				height:          30, // Ensure sufficient height for all items
+				scrollOffsets:   make(map[int]int),
 			}
 
 			layout := NewLayoutCalculator(120, 30, 25)
@@ -348,8 +352,10 @@ func TestRenderer_RenderNavigationColumn(t *testing.T) {
 	nav.PropagateSelection(navState)
 
 	m := Model{
-		navigator: nav,
-		navState:  navState,
+		navigator:     nav,
+		navState:      navState,
+		height:        30, // Ensure sufficient height for all items
+		scrollOffsets: make(map[int]int),
 	}
 
 	layout := NewLayoutCalculator(120, 30, 25)
@@ -401,8 +407,10 @@ func TestRenderer_BuildNavigationList(t *testing.T) {
 			navState.SelectedIndices[0] = tt.selectedIndex
 
 			m := Model{
-				navigator: nav,
-				navState:  navState,
+				navigator:     nav,
+				navState:      navState,
+				height:        30, // Ensure sufficient height for all items
+				scrollOffsets: make(map[int]int),
 			}
 
 			layout := NewLayoutCalculator(120, 30, 25)
