@@ -101,7 +101,7 @@ func (lc *LayoutCalculator) GetContentHeight() int {
 	// - FooterHeight (1)
 	// Note: Column title (1) and empty line after title (1) are part of column content,
 	// not subtracted here since they're rendered inside the column.
-	reservedSpace := HeaderHeight + 1 + FooterHeight
+	reservedSpace := HeaderHeight + BreadcrumbLineCount + FooterHeight
 	contentHeight := lc.height - reservedSpace
 
 	if contentHeight < 1 {
@@ -228,7 +228,7 @@ func min(a, b int) int {
 // Returns the original text if it fits, or truncated text with "..." appended.
 func truncateText(text string, maxWidth int) string {
 	// If maxWidth is too small to be useful, just return empty or minimal text
-	if maxWidth <= 3 {
+	if maxWidth <= EllipsisWidth {
 		if maxWidth <= 0 {
 			return ""
 		}
@@ -241,8 +241,8 @@ func truncateText(text string, maxWidth int) string {
 	}
 
 	// Truncate and add ellipsis
-	// Reserve 3 characters for "..."
-	truncateAt := maxWidth - 3
+	// Reserve space for ellipsis
+	truncateAt := maxWidth - EllipsisWidth
 	if truncateAt < 0 {
 		truncateAt = 0
 	}
@@ -261,16 +261,86 @@ func (r *Renderer) getMaxItemTextWidth() int {
 	// - Column padding from columnStyle: focused=1,2 unfocused=2,3
 	// - Border for focused column: 2 chars
 	// Use the larger padding case (unfocused: 2,3 = 6 total)
-	reservedSpace := 2 + 2 + 6
+	reservedSpace := CursorWidth + ItemStylePadding + ColumnStylePadding
 
 	maxWidth := columnWidth - reservedSpace
 
 	// Ensure minimum width
-	if maxWidth < 10 {
-		maxWidth = 10
+	if maxWidth < MinItemTextWidth {
+		maxWidth = MinItemTextWidth
 	}
 
 	return maxWidth
+}
+
+// calculatePaginatedRange calculates the start and end indices for paginated items.
+// scrollOffset: The current scroll position.
+// maxVisibleItems: Maximum number of items to show.
+// totalItems: Total number of items in the list.
+// Returns startIdx and endIdx for the visible range.
+func calculatePaginatedRange(scrollOffset, maxVisibleItems, totalItems int) (startIdx, endIdx int) {
+	startIdx = scrollOffset
+	endIdx = scrollOffset + maxVisibleItems
+
+	if endIdx > totalItems {
+		endIdx = totalItems
+	}
+	if startIdx >= totalItems {
+		startIdx = 0
+	}
+
+	return startIdx, endIdx
+}
+
+// renderItemList renders a list of items with pagination.
+// items: The filtered items to render.
+// startIdx, endIdx: The range of items to display.
+// selectedFilteredIndex: The index of the selected item in the filtered list.
+// maxVisibleItems: Maximum number of items to show per page.
+// maxTextWidth: Maximum width for truncating item text.
+// totalPages, currentPage: Pagination information.
+// Returns the rendered content string.
+func renderItemList(
+	items []string,
+	startIdx, endIdx int,
+	selectedFilteredIndex int,
+	maxVisibleItems int,
+	maxTextWidth int,
+	totalPages, currentPage int,
+) string {
+	var content string
+	itemsRendered := 0
+
+	// Render visible items
+	for i := startIdx; i < endIdx; i++ {
+		cursor := " "
+		style := itemStyle
+
+		if i == selectedFilteredIndex {
+			cursor = "►"
+			style = selectedItemStyle
+		}
+
+		// Truncate text to fit within column width
+		displayText := truncateText(items[i], maxTextWidth)
+		content += fmt.Sprintf("%s %s\n", cursor, style.Render(displayText))
+		itemsRendered++
+	}
+
+	// Add empty lines to fill remaining space up to maxVisibleItems
+	// This ensures all columns have the same height
+	for itemsRendered < maxVisibleItems {
+		content += "\n"
+		itemsRendered++
+	}
+
+	// Add page indicators (without extra newline before or after)
+	pageIndicators := renderPageIndicators(currentPage, totalPages)
+	if pageIndicators != "" {
+		content += pageIndicators
+	}
+
+	return content
 }
 
 // renderPageIndicators renders pagination dots showing current page position.
@@ -347,51 +417,21 @@ func (r *Renderer) buildCommandList() string {
 	scrollOffset := r.model.scrollOffsets[0] // columnID = 0 for commands
 
 	// Calculate visible range
-	startIdx := scrollOffset
-	endIdx := scrollOffset + maxVisibleItems
-	if endIdx > len(commands) {
-		endIdx = len(commands)
-	}
-	if startIdx >= len(commands) {
-		startIdx = 0
-	}
+	startIdx, endIdx := calculatePaginatedRange(scrollOffset, maxVisibleItems, len(commands))
 
-	// Render only visible items
+	// Render items with pagination
 	maxTextWidth := r.getMaxItemTextWidth()
-	var content string
-	itemsRendered := 0
-
-	for i := startIdx; i < endIdx; i++ {
-		cursor := " "
-		style := itemStyle
-
-		if i == selectedFilteredIndex {
-			cursor = "►"
-			style = selectedItemStyle
-		}
-
-		// Truncate text to fit within column width
-		displayText := truncateText(commands[i], maxTextWidth)
-		content += fmt.Sprintf("%s %s\n", cursor, style.Render(displayText))
-		itemsRendered++
-	}
-
-	// Add empty lines to fill remaining space up to maxVisibleItems
-	// This ensures all columns have the same height
-	for itemsRendered < maxVisibleItems {
-		content += "\n"
-		itemsRendered++
-	}
-
-	// Add page indicators (without extra newline before or after)
 	totalPages := r.model.getTotalPages(len(commands))
 	currentPage := r.model.getCurrentPage(0) // columnID = 0 for commands
-	pageIndicators := renderPageIndicators(currentPage, totalPages)
-	if pageIndicators != "" {
-		content += pageIndicators
-	}
 
-	return content
+	return renderItemList(
+		commands,
+		startIdx, endIdx,
+		selectedFilteredIndex,
+		maxVisibleItems,
+		maxTextWidth,
+		totalPages, currentPage,
+	)
 }
 
 // renderNavigationColumn renders a navigation column at the given depth.
@@ -453,51 +493,21 @@ func (r *Renderer) buildNavigationList(depth int) string {
 	scrollOffset := r.model.scrollOffsets[columnID]
 
 	// Calculate visible range
-	startIdx := scrollOffset
-	endIdx := scrollOffset + maxVisibleItems
-	if endIdx > len(items) {
-		endIdx = len(items)
-	}
-	if startIdx >= len(items) {
-		startIdx = 0
-	}
+	startIdx, endIdx := calculatePaginatedRange(scrollOffset, maxVisibleItems, len(items))
 
-	// Render only visible items
+	// Render items with pagination
 	maxTextWidth := r.getMaxItemTextWidth()
-	var content string
-	itemsRendered := 0
-
-	for i := startIdx; i < endIdx; i++ {
-		cursor := " "
-		style := itemStyle
-
-		if i == selectedFilteredIndex {
-			cursor = "►"
-			style = selectedItemStyle
-		}
-
-		// Truncate text to fit within column width
-		displayText := truncateText(items[i], maxTextWidth)
-		content += fmt.Sprintf("%s %s\n", cursor, style.Render(displayText))
-		itemsRendered++
-	}
-
-	// Add empty lines to fill remaining space up to maxVisibleItems
-	// This ensures all columns have the same height
-	for itemsRendered < maxVisibleItems {
-		content += "\n"
-		itemsRendered++
-	}
-
-	// Add page indicators (without extra newline before or after)
 	totalPages := r.model.getTotalPages(len(items))
 	currentPage := r.model.getCurrentPage(columnID)
-	pageIndicators := renderPageIndicators(currentPage, totalPages)
-	if pageIndicators != "" {
-		content += pageIndicators
-	}
 
-	return content
+	return renderItemList(
+		items,
+		startIdx, endIdx,
+		selectedFilteredIndex,
+		maxVisibleItems,
+		maxTextWidth,
+		totalPages, currentPage,
+	)
 }
 
 // styleColumn applies styling to a column based on focus state.
@@ -509,7 +519,7 @@ func (r *Renderer) styleColumn(content string, isFocused bool) string {
 	// the border width (2 chars total: 1 left + 1 right) to maintain consistent
 	// total rendered width across all columns.
 	if isFocused {
-		columnWidth -= 2 // Subtract border width
+		columnWidth -= ColumnBorderWidth // Subtract border width
 	}
 
 	// Don't apply Height() here - let content determine its own height naturally.

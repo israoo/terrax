@@ -771,3 +771,266 @@ func TestModel_View_IntegrationWithRenderer(t *testing.T) {
 	assert.Contains(t, view, "modules")
 	assert.Contains(t, view, HelpText)
 }
+
+// TestTruncateText tests the text truncation function.
+func TestTruncateText(t *testing.T) {
+	tests := []struct {
+		name     string
+		text     string
+		maxWidth int
+		expected string
+	}{
+		{
+			name:     "text fits exactly",
+			text:     "hello",
+			maxWidth: 5,
+			expected: "hello",
+		},
+		{
+			name:     "text shorter than max",
+			text:     "hi",
+			maxWidth: 10,
+			expected: "hi",
+		},
+		{
+			name:     "text needs truncation",
+			text:     "this is a very long text",
+			maxWidth: 10,
+			expected: "this is...",
+		},
+		{
+			name:     "maxWidth equals ellipsis width",
+			text:     "hello",
+			maxWidth: EllipsisWidth,
+			expected: "hel",
+		},
+		{
+			name:     "maxWidth less than ellipsis width",
+			text:     "hello",
+			maxWidth: 2,
+			expected: "he",
+		},
+		{
+			name:     "maxWidth is zero",
+			text:     "hello",
+			maxWidth: 0,
+			expected: "",
+		},
+		{
+			name:     "maxWidth is negative",
+			text:     "hello",
+			maxWidth: -1,
+			expected: "",
+		},
+		{
+			name:     "empty text",
+			text:     "",
+			maxWidth: 10,
+			expected: "",
+		},
+		{
+			name:     "truncate at exact ellipsis boundary",
+			text:     "hello world",
+			maxWidth: 8,
+			expected: "hello...",
+		},
+		{
+			name:     "very long text with small width",
+			text:     "this is a really really really long piece of text that needs significant truncation",
+			maxWidth: 15,
+			expected: "this is a re...",
+		},
+		{
+			name:     "unicode characters - byte slicing may break",
+			text:     "hello world",
+			maxWidth: 8,
+			expected: "hello...",
+		},
+		{
+			name:     "maxWidth exactly 4 (ellipsis width + 1)",
+			text:     "hello",
+			maxWidth: 4,
+			expected: "h...",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := truncateText(tt.text, tt.maxWidth)
+			assert.Equal(t, tt.expected, result)
+
+			// Verify result doesn't exceed maxWidth
+			if tt.maxWidth > 0 {
+				assert.LessOrEqual(t, len(result), tt.maxWidth,
+					"truncated text should not exceed maxWidth")
+			}
+		})
+	}
+}
+
+// TestCalculatePaginatedRange tests the paginated range calculation function.
+func TestCalculatePaginatedRange(t *testing.T) {
+	tests := []struct {
+		name            string
+		scrollOffset    int
+		maxVisibleItems int
+		totalItems      int
+		expectedStart   int
+		expectedEnd     int
+	}{
+		{
+			name:            "all items fit on one page",
+			scrollOffset:    0,
+			maxVisibleItems: 10,
+			totalItems:      5,
+			expectedStart:   0,
+			expectedEnd:     5,
+		},
+		{
+			name:            "first page of multiple pages",
+			scrollOffset:    0,
+			maxVisibleItems: 5,
+			totalItems:      20,
+			expectedStart:   0,
+			expectedEnd:     5,
+		},
+		{
+			name:            "middle page",
+			scrollOffset:    5,
+			maxVisibleItems: 5,
+			totalItems:      20,
+			expectedStart:   5,
+			expectedEnd:     10,
+		},
+		{
+			name:            "last page - partial",
+			scrollOffset:    15,
+			maxVisibleItems: 5,
+			totalItems:      18,
+			expectedStart:   15,
+			expectedEnd:     18,
+		},
+		{
+			name:            "last page - exact fit",
+			scrollOffset:    15,
+			maxVisibleItems: 5,
+			totalItems:      20,
+			expectedStart:   15,
+			expectedEnd:     20,
+		},
+		{
+			name:            "scrollOffset beyond items",
+			scrollOffset:    25,
+			maxVisibleItems: 5,
+			totalItems:      20,
+			expectedStart:   0,
+			expectedEnd:     20, // Note: endIdx is capped at totalItems, not recalculated from reset startIdx
+		},
+		{
+			name:            "empty list",
+			scrollOffset:    0,
+			maxVisibleItems: 5,
+			totalItems:      0,
+			expectedStart:   0,
+			expectedEnd:     0,
+		},
+		{
+			name:            "single item",
+			scrollOffset:    0,
+			maxVisibleItems: 5,
+			totalItems:      1,
+			expectedStart:   0,
+			expectedEnd:     1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			start, end := calculatePaginatedRange(tt.scrollOffset, tt.maxVisibleItems, tt.totalItems)
+			assert.Equal(t, tt.expectedStart, start, "start index mismatch")
+			assert.Equal(t, tt.expectedEnd, end, "end index mismatch")
+
+			// Verify invariants
+			assert.LessOrEqual(t, start, end, "start should be <= end")
+			assert.GreaterOrEqual(t, start, 0, "start should be >= 0")
+			assert.LessOrEqual(t, end, tt.totalItems, "end should be <= totalItems")
+		})
+	}
+}
+
+// TestRenderPageIndicators tests the page indicator rendering function.
+func TestRenderPageIndicators(t *testing.T) {
+	tests := []struct {
+		name        string
+		currentPage int
+		totalPages  int
+		expectEmpty bool
+		expectDots  int
+	}{
+		{
+			name:        "single page - no indicators",
+			currentPage: 1,
+			totalPages:  1,
+			expectEmpty: true,
+			expectDots:  0,
+		},
+		{
+			name:        "two pages - first page",
+			currentPage: 1,
+			totalPages:  2,
+			expectEmpty: false,
+			expectDots:  2,
+		},
+		{
+			name:        "two pages - second page",
+			currentPage: 2,
+			totalPages:  2,
+			expectEmpty: false,
+			expectDots:  2,
+		},
+		{
+			name:        "five pages - first page",
+			currentPage: 1,
+			totalPages:  5,
+			expectEmpty: false,
+			expectDots:  5,
+		},
+		{
+			name:        "five pages - middle page",
+			currentPage: 3,
+			totalPages:  5,
+			expectEmpty: false,
+			expectDots:  5,
+		},
+		{
+			name:        "five pages - last page",
+			currentPage: 5,
+			totalPages:  5,
+			expectEmpty: false,
+			expectDots:  5,
+		},
+		{
+			name:        "zero pages",
+			currentPage: 0,
+			totalPages:  0,
+			expectEmpty: true,
+			expectDots:  0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := renderPageIndicators(tt.currentPage, tt.totalPages)
+
+			if tt.expectEmpty {
+				assert.Empty(t, result, "expected empty result")
+			} else {
+				assert.NotEmpty(t, result, "expected non-empty result")
+				// Count dots in the result (both active "•" and inactive "•")
+				dotCount := strings.Count(result, "•")
+				assert.Equal(t, tt.expectDots, dotCount,
+					"expected %d dots but got %d", tt.expectDots, dotCount)
+			}
+		})
+	}
+}

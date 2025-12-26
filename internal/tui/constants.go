@@ -17,6 +17,14 @@ const (
 
 	// Navigation
 	FirstItemIndex = 0 // Index of the first item in a list
+
+	// Item rendering
+	CursorWidth         = 2  // Width of cursor and space: "► "
+	ItemStylePadding    = 2  // Item style padding (left + right)
+	ColumnStylePadding  = 6  // Column padding (unfocused: 2,3 = 6 total)
+	EllipsisWidth       = 3  // Width of truncation ellipsis "..."
+	MinItemTextWidth    = 10 // Minimum width for item text
+	BreadcrumbLineCount = 1  // Number of lines for breadcrumb bar
 )
 
 // Column types
