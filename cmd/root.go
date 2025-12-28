@@ -1,3 +1,8 @@
+// Package cmd implements the CLI commands for TerraX using Cobra.
+//
+// It serves as the entry point for command-line interactions, handling argument
+// parsing, flag validation, and command execution. It orchestrates the TUI
+// lifecycle and initializes the necessary services for the application.
 package cmd
 
 import (

@@ -20,17 +20,17 @@ This document defines standards for writing, maintaining, and managing comments 
 
 ### Punctuation Rule
 
-**All comments must end with periods.**
+**Comments that are complete sentences must end with periods. Brief phrases do not require periods.**
 
 ```go
-// WRONG
-// This function builds a tree
+// CORRECT: Complete sentence
+// This function builds a hierarchical tree structure.
 
-// CORRECT
-// This function builds a tree.
+// CORRECT: Brief phrase
+// Resolve absolute path
 ```
 
-**Rationale**: Consistency and professionalism. Comments are sentences and should be punctuated as such.
+**Rationale**: Strikes a balance between professionalism and developer ergonomics. Complete thoughts should look like sentences; quick notes can be more casual.
 
 ### Multi-line Comments
 
@@ -641,7 +641,7 @@ When reviewing comments:
 
 - [ ] All exported declarations have documentation comments.
 - [ ] Package has package-level documentation.
-- [ ] Comments end with periods.
+- [ ] Complete sentences end with periods (brief phrases exempt).
 - [ ] Comments explain WHY, not just WHAT.
 - [ ] Complex logic has explanatory comments.
 - [ ] Edge cases are documented.

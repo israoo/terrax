@@ -1,3 +1,8 @@
+// Package history provides execution history tracking and persistence.
+//
+// It manages the storage and retrieval of command execution logs, allowing users
+// to review past actions and re-execute commands. The package implements a
+// persistent JSON-based storage using the XDG Base Directory specification.
 package history
 
 import (

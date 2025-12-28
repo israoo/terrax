@@ -1,3 +1,8 @@
+// Package executor handles the execution of external Terragrunt commands.
+//
+// It provides a high-level interface for building and running Terragrunt CLI
+// commands, managing input/output streams, and integrating with the history
+// tracking system.
 package executor
 
 import (

@@ -1,3 +1,9 @@
+// Package tui provides the terminal user interface for TerraX.
+//
+// It implements the Bubble Tea architecture (Model-Update-View) to render the
+// hierarchical navigation, command execution history, and interactive filtering.
+// This package handles all user input and rendering logic, delegating business
+// logic to the stack package.
 package tui
 
 import (

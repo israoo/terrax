@@ -1,3 +1,8 @@
+// Package config defines default configuration values and constants for TerraX.
+//
+// It centralizes all hardcoded defaults used across the application, including
+// UI settings, history limits, and Terragrunt flags. This ensures consistency
+// and provides a single source of truth for fallback values.
 package config
 
 // Default configuration values for TerraX.

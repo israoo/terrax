@@ -1,3 +1,8 @@
+// Package stack provides tree building and navigation for Terragrunt stacks.
+//
+// This package implements the core business logic for TerraX, including filesystem
+// scanning, tree construction, and hierarchical navigation operations. It is
+// designed to be UI-agnostic and testable without any framework dependencies.
 package stack
 
 // Node represents a directory node in the stack tree
