@@ -12,15 +12,13 @@ This document defines standards for writing, maintaining, and managing comments 
 
 1. **Comments explain WHY, not WHAT**: Code shows what happens; comments explain why.
 2. **Comments are mandatory, not optional**: Well-commented code is a requirement.
-3. **Comments must end with periods**: All comments end with proper punctuation.
+3. **Comments should end with periods**: Comments that are complete sentences must end with periods. Brief phrases do not require periods.
 4. **Preserve existing comments**: Never delete comments without strong reason.
 5. **Update, don't remove**: Outdated comments should be fixed, not deleted.
 
 ## Comment Style (MANDATORY)
 
 ### Punctuation Rule
-
-**Comments that are complete sentences must end with periods. Brief phrases do not require periods.**
 
 ```go
 // CORRECT: Complete sentence
@@ -199,23 +197,105 @@ const fsTimeout = 10 * time.Second
 
 #### 1. Obvious Code
 
-Don't state what code clearly expresses:
+**Don't state what code clearly expresses. This is the most common violation.**
 
+Comments should explain WHY, not WHAT. If the code is self-explanatory, the comment is redundant noise.
+
+**Common patterns of obvious comments to avoid:**
+
+**Function call comments** - Don't describe obvious function calls:
 ```go
-// WRONG: Obvious comment
-// Increment counter.
-counter++
+// WRONG: Comment just repeats function name
+// Get working directory
+workDir, err := getWorkingDirectory()
 
-// WRONG: Repeating function name
-// BuildTree builds a tree.
-func BuildTree() {}
+// Initialize history service
+historyService, err := getHistoryService()
 
-// WRONG: Stating the obvious
-// Loop through children.
-for _, child := range children {
-    // ...
+// Build stack tree
+stackRoot, maxDepth, err := buildStackTree(workDir)
+
+// Display results
+displayResults(model)
+
+// CORRECT: No comment needed - function names are clear
+workDir, err := getWorkingDirectory()
+historyService, err := getHistoryService()
+stackRoot, maxDepth, err := buildStackTree(workDir)
+displayResults(model)
+```
+
+**Assignment comments** - Don't describe simple assignments:
+```go
+// WRONG: Comment restates the assignment
+// Set default values
+viper.SetDefault("commands", config.DefaultCommands)
+
+// Get root config file from configuration
+rootConfigFile := viper.GetString("root_config_file")
+
+// Resolve absolute path
+absPath, err := filepath.Abs(rootDir)
+
+// CORRECT: No comment needed - code is self-documenting
+viper.SetDefault("commands", config.DefaultCommands)
+rootConfigFile := viper.GetString("root_config_file")
+absPath, err := filepath.Abs(rootDir)
+```
+
+**Control flow comments** - Don't describe obvious conditionals or loops:
+```go
+// WRONG: Comment just describes the if statement
+// Check if --history flag is set
+historyFlag, _ := cmd.Flags().GetBool("history")
+if historyFlag {
+    return runHistoryViewer(ctx, historyService)
+}
+
+// Skip non-directories and hidden directories.
+if !entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
+    continue
+}
+
+// CORRECT: No comment needed - condition is clear
+historyFlag, _ := cmd.Flags().GetBool("history")
+if historyFlag {
+    return runHistoryViewer(ctx, historyService)
+}
+
+if !entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
+    continue
 }
 ```
+
+**Generic section headers** - Don't use vague comments that add no information:
+```go
+// WRONG: Too generic to be useful
+// Configure professional CLI behavior
+rootCmd.SilenceUsage = true
+
+// Set default values
+viper.SetDefault("commands", config.DefaultCommands)
+viper.SetDefault("max_navigation_columns", config.DefaultMaxNavigationColumns)
+
+// CORRECT: Either no comment, or specific WHY comment if there's a reason
+// Suppress usage text on command errors to avoid noisy error output.
+rootCmd.SilenceUsage = true
+
+viper.SetDefault("commands", config.DefaultCommands)
+viper.SetDefault("max_navigation_columns", config.DefaultMaxNavigationColumns)
+```
+
+**When obvious comments ARE acceptable:**
+
+Comments are acceptable even if somewhat obvious when they:
+1. Explain a non-obvious WHY (e.g., "// Backward compatibility with v1.x")
+2. Document edge cases or gotchas (e.g., "// Returns nil if depth exceeds tree depth")
+3. Provide important context (e.g., "// This must run before initialization")
+4. Explain complex algorithms or business logic
+5. Serve as organizational section headers in long files (sparingly)
+
+**General rule:** If deleting the comment wouldn't make the code harder to understand, delete it.
 
 #### 2. Bad Names Instead of Good Naming
 
@@ -661,23 +741,9 @@ View generated documentation:
 go install golang.org/x/tools/cmd/godoc@latest
 
 # Run local documentation server
-godoc -http=:6060
+go doc -http
 
 # View at http://localhost:6060/pkg/github.com/israoo/terrax/
-```
-
-### golangci-lint
-
-Enable comment-related linters:
-
-```yaml
-# .golangci.yml
-linters:
-  enable:
-    - godot          # Check comments end with period
-    - godox          # Detect TODOs, FIXMEs
-    - gofmt          # Check formatting
-    - golint         # Check godoc comments
 ```
 
 ## Related Documentation
