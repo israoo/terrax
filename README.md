@@ -516,81 +516,15 @@ TerraX/
 
 We welcome contributions! TerraX follows strict architectural principles and comprehensive testing standards.
 
-### Development setup
+We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details on:
 
-```bash
-# Clone repository
-git clone https://github.com/israoo/terrax.git
-cd terrax
+- Setting up your development environment
+- Running tests (`make test`)
+- Code standards and architectural patterns
+- Submitting Pull Requests
 
-# Initialize (install dependencies + verify setup)
-make init
+For a deep dive into the architecture, see [CLAUDE.md](CLAUDE.md) and the [docs/](docs/) directory.
 
-# Run tests
-make test
-
-# Run with coverage report
-make test-coverage
-```
-
-### Tech stack
-
-| Component | Technology | Version |
-|-----------|------------|---------|
-| **Language** | [Go](https://go.dev/) | 1.25.5 |
-| **TUI Framework** | [Bubble Tea](https://github.com/charmbracelet/bubbletea) | 1.3.10 |
-| **UI Components** | [Bubbles](https://github.com/charmbracelet/bubbles) | 0.21.0 |
-| **Styling** | [Lipgloss](https://github.com/charmbracelet/lipgloss) | 1.1.0 |
-| **CLI Framework** | [Cobra](https://github.com/spf13/cobra) | 1.10.2 |
-| **Configuration** | [Viper](https://github.com/spf13/viper) | 1.21.0 |
-| **Testing** | [Testify](https://github.com/stretchr/testify) | 1.11.1 |
-| **Filesystem Mocking** | [Afero](https://github.com/spf13/afero) | 1.15.0 |
-
-### Testing strategy
-
-TerraX employs a multi-layered testing approach:
-
-1. **Unit Tests** (`internal/stack/`):
-   - Pure business logic, zero I/O dependencies
-   - `afero.MemMapFs` for filesystem isolation
-   - Table-driven test patterns
-
-2. **TUI Tests** (`internal/tui/`):
-   - Bubble Tea Model-Update-View validation
-   - State transition testing
-   - Layout calculation verification
-
-3. **Integration Tests** (`cmd/`):
-   - CLI coordination and output formatting
-   - Error handling paths
-
-### Code quality standards
-
-- **Separation of Concerns**: Business logic isolated from UI
-- **Interface-Driven Design**: Navigator operates on pure data structures
-- **Table-Driven Tests**: Comprehensive scenario coverage
-- **Defensive Programming**: Nil checks, error wrapping, bounds validation
-- **Comment Style**: All comments end with periods
-- **Import Organization**: stdlib → third-party → internal
-
-### Contributing workflow
-
-1. **Fork** the repository
-2. **Create** a feature branch (`git checkout -b feature/amazing-feature`)
-3. **Write** tests for new functionality
-4. **Ensure** tests pass (`make test`)
-5. **Format** code (`make fmt`)
-6. **Commit** changes (`git commit -m 'Add amazing feature'`)
-7. **Push** to branch (`git push origin feature/amazing-feature`)
-8. **Open** a Pull Request
-
-### Architecture documentation
-
-For deep architectural guidance, see:
-
-- **[CLAUDE.md](CLAUDE.md)**: Comprehensive architectural patterns and testing strategies
-- **[.github/copilot-instructions.md](.github/copilot-instructions.md)**: Quick orientation for AI agents
-- **[.claude/agents/](claude/agents/)**: Agent-specific governance and patterns
 
 ---
 
