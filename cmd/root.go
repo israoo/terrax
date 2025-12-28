@@ -273,7 +273,16 @@ func executeLastCommand(ctx context.Context, historyService *history.Service) er
 		absolutePath = lastEntry.StackPath
 	}
 
-	return executor.Run(ctx, historyService, lastEntry.Command, absolutePath)
+	err = executor.Run(ctx, historyService, lastEntry.Command, absolutePath)
+	if err != nil {
+		return err
+	}
+
+	if lastEntry.Command == "plan" {
+		return runPlanReview(ctx, absolutePath)
+	}
+
+	return nil
 }
 
 // runHistoryViewer loads and displays the execution history in an interactive TUI.
@@ -352,7 +361,16 @@ func runHistoryViewer(ctx context.Context, historyService *history.Service) erro
 				absolutePath = entry.StackPath
 			}
 
-			return executor.Run(ctx, historyService, entry.Command, absolutePath)
+			err := executor.Run(ctx, historyService, entry.Command, absolutePath)
+			if err != nil {
+				return err
+			}
+
+			if entry.Command == "plan" {
+				return runPlanReview(ctx, absolutePath)
+			}
+
+			return nil
 		}
 	}
 
