@@ -88,20 +88,42 @@ func initConfig() {
 	}
 }
 
+// getHistoryService creates and returns a new history service instance.
+func getHistoryService() (*history.Service, error) {
+	// Get root config file from configuration
+	rootConfigFile := viper.GetString("root_config_file")
+	if rootConfigFile == "" {
+		rootConfigFile = config.DefaultRootConfigFile
+	}
+
+	repo, err := history.NewFileRepository("")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create history repository: %w", err)
+	}
+
+	return history.NewService(repo, rootConfigFile), nil
+}
+
 // runTUI starts the TUI application or executes the last command if --last flag is set.
 func runTUI(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 
+	// Initialize history service
+	historyService, err := getHistoryService()
+	if err != nil {
+		return err
+	}
+
 	// Check if --last flag is set
 	lastFlag, _ := cmd.Flags().GetBool("last")
 	if lastFlag {
-		return executeLastCommand(ctx)
+		return executeLastCommand(ctx, historyService)
 	}
 
 	// Check if --history flag is set
 	historyFlag, _ := cmd.Flags().GetBool("history")
 	if historyFlag {
-		return runHistoryViewer(ctx)
+		return runHistoryViewer(ctx, historyService)
 	}
 
 	// Get working directory
@@ -141,7 +163,7 @@ func runTUI(cmd *cobra.Command, args []string) error {
 
 	// Execute command if confirmed
 	if model.IsConfirmed() {
-		return executor.Run(model.GetSelectedCommand(), model.GetSelectedStackPath())
+		return executor.Run(ctx, historyService, model.GetSelectedCommand(), model.GetSelectedStackPath())
 	}
 
 	return nil
@@ -225,15 +247,9 @@ func displayResults(model tui.Model) {
 }
 
 // executeLastCommand retrieves and executes the most recent command from history for the current project.
-func executeLastCommand(ctx context.Context) error {
-	// Get root config file from configuration
-	rootConfigFile := viper.GetString("root_config_file")
-	if rootConfigFile == "" {
-		rootConfigFile = config.DefaultRootConfigFile
-	}
-
+func executeLastCommand(ctx context.Context, historyService *history.Service) error {
 	// Get last execution for the current project
-	lastEntry, err := history.GetLastExecutionForProject(ctx, rootConfigFile)
+	lastEntry, err := historyService.GetLastExecutionForProject(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get last execution: %w", err)
 	}
@@ -262,31 +278,58 @@ func executeLastCommand(ctx context.Context) error {
 		absolutePath = lastEntry.StackPath
 	}
 
-	return executor.Run(lastEntry.Command, absolutePath)
+	return executor.Run(ctx, historyService, lastEntry.Command, absolutePath)
 }
 
 // runHistoryViewer loads and displays the execution history in an interactive TUI.
 // It filters the history to show only entries from the current project.
 // If the user selects an entry and presses Enter, it re-executes that command.
-func runHistoryViewer(ctx context.Context) error {
-	// Load history from file
-	historyEntries, err := history.LoadHistory(ctx)
+func runHistoryViewer(ctx context.Context, historyService *history.Service) error {
+	// Load history from service
+	// Note: historyService.repo.LoadAll is not exposed via Service explicitly as "LoadAll".
+	// We need to use FilterByCurrentProject which internally calls LoadAll + Filter.
+	// But FilterByCurrentProject takes entries as input in service.go: "FilterByCurrentProject(entries []ExecutionLogEntry)"
+	// Wait, let's look at service.go in Step 195.
+	// FilterByCurrentProject(entries []ExecutionLogEntry) -> requires entries.
+	// GetLastExecutionForProject calls repo.LoadAll then filters.
+
+	// We need a method on Service to LoadAll or LoadProjectHistory.
+	// Service has: Append, GetLastExecutionForProject, TrimHistory, GetNextID, FilterByCurrentProject(entries), GetRelativeStackPath.
+	// It relies on repo for LoadAll but doesn't expose it.
+
+	// Let's create a temporary solution: Access repo directly or add LoadAll to Service.
+	// Adding LoadAll to Service is cleaner.
+	// For now, I'll assume I can access repo since it's in internal package, but Service struct fields might be private (repo is private).
+	// Ah, I cannot access private field `repo` from `cmd` package.
+
+	// I should add `LoadAll` or better `GetProjectHistory` to Service.
+	// Or use `GetLastExecutionForProject`... no that's only last.
+
+	// I will add `LoadAll` to Service in the next step. For now in this file I will comment or use a placeholder,
+	// BUT wait, I need this to compile.
+
+	// I'll update Service first? No, I'm writing `root.go` now.
+	// Use `history.LoadHistory` (facade) for now? No, that defeats DI.
+
+	// I'll add `LoadAll(ctx)` to Service.
+	// Let's modify Service.go in next step.
+	// Here I will assume `historyService.LoadAll(ctx)` exists.
+	// Actually, `history.LoadHistory(ctx)` is the facade.
+	// If I strictly want DI, I need `historyService.LoadAll(ctx)`.
+
+	// I will use `historyService.LoadAll(ctx)` and make sure to add it.
+
+	entries, err := historyService.LoadAll(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to load history: %w", err)
 	}
 
-	// Get root config file from configuration
-	rootConfigFile := viper.GetString("root_config_file")
-	if rootConfigFile == "" {
-		rootConfigFile = config.DefaultRootConfigFile
-	}
-
 	// Filter history to show only entries from current project
-	filteredEntries, err := history.FilterHistoryByProject(historyEntries, rootConfigFile)
+	filteredEntries, err := historyService.FilterByCurrentProject(entries)
 	if err != nil {
 		// Log warning but continue with unfiltered entries
 		fmt.Fprintf(os.Stderr, "Warning: Failed to filter history: %v\n", err)
-		filteredEntries = historyEntries
+		filteredEntries = entries
 	}
 
 	// Create history model with filtered entries
@@ -324,7 +367,7 @@ func runHistoryViewer(ctx context.Context) error {
 				absolutePath = entry.StackPath
 			}
 
-			return executor.Run(entry.Command, absolutePath)
+			return executor.Run(ctx, historyService, entry.Command, absolutePath)
 		}
 	}
 

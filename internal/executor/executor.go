@@ -12,13 +12,18 @@ import (
 	"github.com/spf13/viper"
 )
 
-// Run executes the terragrunt command with the selected parameters.
-// It also logs the execution to the history file for audit and replay purposes.
-func Run(command, absoluteStackPath string) error {
-	ctx := context.Background()
+// HistoryLogger defines the interface for logging execution history.
+type HistoryLogger interface {
+	GetNextID(ctx context.Context) (int, error)
+	Append(ctx context.Context, entry history.ExecutionLogEntry) error
+	TrimHistory(ctx context.Context, maxEntries int) error
+}
 
+// Run executes the terragrunt command with the selected parameters.
+// It also logs the execution to the history file using the provided logger.
+func Run(ctx context.Context, historyLogger HistoryLogger, command, absoluteStackPath string) error {
 	// Get next ID for this execution
-	nextID, err := history.GetNextID(ctx)
+	nextID, err := historyLogger.GetNextID(ctx)
 	if err != nil {
 		// Log error but don't fail execution
 		fmt.Fprintf(os.Stderr, "Warning: Failed to get history ID: %v\n", err)
@@ -33,7 +38,7 @@ func Run(command, absoluteStackPath string) error {
 
 	fmt.Printf("🚀 Executing: terragrunt %v\n\n", args)
 
-	cmd := exec.Command("terragrunt", args...)
+	cmd := exec.CommandContext(ctx, "terragrunt", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
@@ -63,7 +68,7 @@ func Run(command, absoluteStackPath string) error {
 	displayExecutionSummary(command, absoluteStackPath, duration, exitCode, startTime)
 
 	// Log execution to history
-	logExecutionToHistory(ctx, nextID, startTime, command, absoluteStackPath, exitCode, duration, summary)
+	logExecutionToHistory(ctx, historyLogger, nextID, startTime, command, absoluteStackPath, exitCode, duration, summary)
 
 	return execErr
 }
@@ -154,7 +159,7 @@ func displayExecutionSummary(command, path string, duration time.Duration, exitC
 }
 
 // logExecutionToHistory handles the details of recording the execution to the history file.
-func logExecutionToHistory(ctx context.Context, id int, timestamp time.Time, command, absoluteStackPath string, exitCode int, duration time.Duration, summary string) {
+func logExecutionToHistory(ctx context.Context, logger HistoryLogger, id int, timestamp time.Time, command, absoluteStackPath string, exitCode int, duration time.Duration, summary string) {
 	// Get root config file from configuration
 	rootConfigFile := viper.GetString("root_config_file")
 	if rootConfigFile == "" {
@@ -182,7 +187,7 @@ func logExecutionToHistory(ctx context.Context, id int, timestamp time.Time, com
 		Summary:      summary,
 	}
 
-	if err := history.AppendToHistory(ctx, entry); err != nil {
+	if err := logger.Append(ctx, entry); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: Failed to append to history: %v\n", err)
 	}
 
@@ -192,7 +197,7 @@ func logExecutionToHistory(ctx context.Context, id int, timestamp time.Time, com
 		maxEntries = config.DefaultHistoryMaxEntries
 	}
 
-	if err := history.TrimHistory(ctx, maxEntries); err != nil {
+	if err := logger.TrimHistory(ctx, maxEntries); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: Failed to trim history: %v\n", err)
 	}
 }

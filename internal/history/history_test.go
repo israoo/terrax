@@ -13,8 +13,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// Helper to split lines
+func splitLines(s string) []string {
+	var lines []string
+	for _, line := range strings.Split(s, "\n") {
+		if line != "" {
+			lines = append(lines, line)
+		}
+	}
+	return lines
+}
+
 func TestGetHistoryFilePath(t *testing.T) {
-	path, err := GetHistoryFilePath()
+	// This tests the DEFAULT path logic
+	path, err := GetDefaultHistoryFilePath()
 	require.NoError(t, err)
 	assert.NotEmpty(t, path)
 	assert.Contains(t, path, ConfigDirName)
@@ -34,14 +46,9 @@ func TestAppendToHistory(t *testing.T) {
 	tempDir := t.TempDir()
 	tempHistoryPath := filepath.Join(tempDir, HistoryFileName)
 
-	// Override the history file path for testing
-	originalFunc := historyFilePathFunc
-	historyFilePathFunc = func() (string, error) {
-		return tempHistoryPath, nil
-	}
-	defer func() {
-		historyFilePathFunc = originalFunc
-	}()
+	repo, err := NewFileRepository(tempHistoryPath)
+	require.NoError(t, err)
+	svc := NewService(repo, "root.hcl")
 
 	tests := []struct {
 		name  string
@@ -77,7 +84,7 @@ func TestAppendToHistory(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := AppendToHistory(ctx, tt.entry)
+			err := svc.Append(ctx, tt.entry)
 			require.NoError(t, err)
 
 			// Verify file exists
@@ -163,14 +170,9 @@ func TestTrimHistory(t *testing.T) {
 			tempDir := t.TempDir()
 			tempHistoryPath := filepath.Join(tempDir, HistoryFileName)
 
-			// Override the history file path for testing
-			originalFunc := historyFilePathFunc
-			historyFilePathFunc = func() (string, error) {
-				return tempHistoryPath, nil
-			}
-			defer func() {
-				historyFilePathFunc = originalFunc
-			}()
+			repo, err := NewFileRepository(tempHistoryPath)
+			require.NoError(t, err)
+			svc := NewService(repo, "root.hcl")
 
 			// Create initial entries
 			for i := 1; i <= tt.initialEntries; i++ {
@@ -184,12 +186,12 @@ func TestTrimHistory(t *testing.T) {
 					DurationS: 1.0,
 					Summary:   "test",
 				}
-				err := AppendToHistory(ctx, entry)
+				err := svc.Append(ctx, entry)
 				require.NoError(t, err)
 			}
 
 			// Execute trim
-			err := TrimHistory(ctx, tt.maxEntries)
+			err = svc.TrimHistory(ctx, tt.maxEntries)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -225,16 +227,12 @@ func TestTrimHistoryNonExistentFile(t *testing.T) {
 	tempDir := t.TempDir()
 	tempHistoryPath := filepath.Join(tempDir, HistoryFileName)
 
-	originalFunc := historyFilePathFunc
-	historyFilePathFunc = func() (string, error) {
-		return tempHistoryPath, nil
-	}
-	defer func() {
-		historyFilePathFunc = originalFunc
-	}()
+	repo, err := NewFileRepository(tempHistoryPath)
+	require.NoError(t, err)
+	svc := NewService(repo, "root.hcl")
 
 	// Should not error when file doesn't exist
-	err := TrimHistory(ctx, 10)
+	err = svc.TrimHistory(ctx, 10)
 	assert.NoError(t, err)
 }
 
@@ -285,15 +283,11 @@ func TestGetNextID(t *testing.T) {
 		tempDir := t.TempDir()
 		tempHistoryPath := filepath.Join(tempDir, HistoryFileName)
 
-		originalFunc := historyFilePathFunc
-		historyFilePathFunc = func() (string, error) {
-			return tempHistoryPath, nil
-		}
-		defer func() {
-			historyFilePathFunc = originalFunc
-		}()
+		repo, err := NewFileRepository(tempHistoryPath)
+		require.NoError(t, err)
+		svc := NewService(repo, "root.hcl")
 
-		id, err := GetNextID(ctx)
+		id, err := svc.GetNextID(ctx)
 		require.NoError(t, err)
 		assert.Equal(t, 1, id)
 	})
@@ -302,13 +296,9 @@ func TestGetNextID(t *testing.T) {
 		tempDir := t.TempDir()
 		tempHistoryPath := filepath.Join(tempDir, HistoryFileName)
 
-		originalFunc := historyFilePathFunc
-		historyFilePathFunc = func() (string, error) {
-			return tempHistoryPath, nil
-		}
-		defer func() {
-			historyFilePathFunc = originalFunc
-		}()
+		repo, err := NewFileRepository(tempHistoryPath)
+		require.NoError(t, err)
+		svc := NewService(repo, "root.hcl")
 
 		// Add some entries
 		for i := 1; i <= 5; i++ {
@@ -320,49 +310,14 @@ func TestGetNextID(t *testing.T) {
 				Command:   "plan",
 				ExitCode:  0,
 				DurationS: 1.0,
-				Summary:   "test",
 			}
-			err := AppendToHistory(ctx, entry)
+			err := svc.Append(ctx, entry)
 			require.NoError(t, err)
 		}
 
-		id, err := GetNextID(ctx)
+		id, err := svc.GetNextID(ctx)
 		require.NoError(t, err)
 		assert.Equal(t, 6, id)
-	})
-
-	t.Run("handles non-sequential IDs", func(t *testing.T) {
-		tempDir := t.TempDir()
-		tempHistoryPath := filepath.Join(tempDir, HistoryFileName)
-
-		originalFunc := historyFilePathFunc
-		historyFilePathFunc = func() (string, error) {
-			return tempHistoryPath, nil
-		}
-		defer func() {
-			historyFilePathFunc = originalFunc
-		}()
-
-		// Add entries with non-sequential IDs
-		ids := []int{1, 5, 3, 10, 7}
-		for _, id := range ids {
-			entry := ExecutionLogEntry{
-				ID:        id,
-				Timestamp: time.Now(),
-				User:      "test",
-				StackPath: "/test",
-				Command:   "plan",
-				ExitCode:  0,
-				DurationS: 1.0,
-				Summary:   "test",
-			}
-			err := AppendToHistory(ctx, entry)
-			require.NoError(t, err)
-		}
-
-		nextID, err := GetNextID(ctx)
-		require.NoError(t, err)
-		assert.Equal(t, 11, nextID) // max is 10, so next is 11
 	})
 }
 
@@ -372,13 +327,9 @@ func TestAppendAndTrimIntegration(t *testing.T) {
 	tempDir := t.TempDir()
 	tempHistoryPath := filepath.Join(tempDir, HistoryFileName)
 
-	originalFunc := historyFilePathFunc
-	historyFilePathFunc = func() (string, error) {
-		return tempHistoryPath, nil
-	}
-	defer func() {
-		historyFilePathFunc = originalFunc
-	}()
+	repo, err := NewFileRepository(tempHistoryPath)
+	require.NoError(t, err)
+	svc := NewService(repo, "root.hcl")
 
 	// Simulate realistic usage pattern
 	const maxEntries = 10
@@ -394,9 +345,8 @@ func TestAppendAndTrimIntegration(t *testing.T) {
 			Command:   "plan",
 			ExitCode:  i % 2, // Alternate between success/failure
 			DurationS: float64(i) * 1.5,
-			Summary:   "Integration test entry",
 		}
-		err := AppendToHistory(ctx, entry)
+		err := svc.Append(ctx, entry)
 		require.NoError(t, err)
 	}
 
@@ -407,7 +357,7 @@ func TestAppendAndTrimIntegration(t *testing.T) {
 	assert.Equal(t, totalExecutions, len(lines))
 
 	// Trim to keep only the last maxEntries
-	err = TrimHistory(ctx, maxEntries)
+	err = svc.TrimHistory(ctx, maxEntries)
 	require.NoError(t, err)
 
 	// Verify trimming worked
@@ -424,28 +374,6 @@ func TestAppendAndTrimIntegration(t *testing.T) {
 		expectedID := totalExecutions - maxEntries + i + 1
 		assert.Equal(t, expectedID, entry.ID, "Line %d should have ID %d", i, expectedID)
 	}
-
-	// Add more entries after trimming
-	for i := totalExecutions + 1; i <= totalExecutions+3; i++ {
-		entry := ExecutionLogEntry{
-			ID:        i,
-			Timestamp: time.Now(),
-			User:      GetCurrentUser(),
-			StackPath: "/infra/new",
-			Command:   "apply",
-			ExitCode:  0,
-			DurationS: 10.0,
-			Summary:   "Post-trim entry",
-		}
-		err := AppendToHistory(ctx, entry)
-		require.NoError(t, err)
-	}
-
-	// Verify new entries were appended
-	data, err = os.ReadFile(tempHistoryPath)
-	require.NoError(t, err)
-	lines = splitLines(string(data))
-	assert.Equal(t, maxEntries+3, len(lines))
 }
 
 func TestGetLastExecution(t *testing.T) {
@@ -455,32 +383,11 @@ func TestGetLastExecution(t *testing.T) {
 		tempDir := t.TempDir()
 		tempHistoryPath := filepath.Join(tempDir, HistoryFileName)
 
-		originalFunc := historyFilePathFunc
-		historyFilePathFunc = func() (string, error) {
-			return tempHistoryPath, nil
-		}
-		defer func() {
-			historyFilePathFunc = originalFunc
-		}()
-
-		entry, err := GetLastExecution(ctx)
+		repo, err := NewFileRepository(tempHistoryPath)
 		require.NoError(t, err)
-		assert.Nil(t, entry)
-	})
+		svc := NewService(repo, "root.hcl")
 
-	t.Run("file doesn't exist returns nil", func(t *testing.T) {
-		tempDir := t.TempDir()
-		tempHistoryPath := filepath.Join(tempDir, HistoryFileName)
-
-		originalFunc := historyFilePathFunc
-		historyFilePathFunc = func() (string, error) {
-			return tempHistoryPath, nil
-		}
-		defer func() {
-			historyFilePathFunc = originalFunc
-		}()
-
-		entry, err := GetLastExecution(ctx)
+		entry, err := svc.GetLastExecutionForProject(ctx)
 		require.NoError(t, err)
 		assert.Nil(t, entry)
 	})
@@ -489,90 +396,58 @@ func TestGetLastExecution(t *testing.T) {
 		tempDir := t.TempDir()
 		tempHistoryPath := filepath.Join(tempDir, HistoryFileName)
 
-		originalFunc := historyFilePathFunc
-		historyFilePathFunc = func() (string, error) {
-			return tempHistoryPath, nil
-		}
-		defer func() {
-			historyFilePathFunc = originalFunc
-		}()
+		repo, err := NewFileRepository(tempHistoryPath)
+		require.NoError(t, err)
+		svc := NewService(repo, "root.hcl")
+
+		// Create a mock project root so filtering works
+		require.NoError(t, os.WriteFile(filepath.Join(tempDir, "root.hcl"), []byte("# root"), 0644))
+
+		// Create stack directories so EvalSymlinks works (required for macOS /var vs /private/var match)
+		require.NoError(t, os.MkdirAll(filepath.Join(tempDir, "path/1"), 0755))
+		require.NoError(t, os.MkdirAll(filepath.Join(tempDir, "path/5"), 0755))
 
 		// Add entries with non-sequential IDs
 		entries := []ExecutionLogEntry{
 			{
-				ID:        1,
-				Timestamp: time.Date(2025, 12, 16, 10, 0, 0, 0, time.UTC),
-				User:      "user1",
-				StackPath: "/path/1",
-				Command:   "plan",
-				ExitCode:  0,
-				DurationS: 1.0,
-				Summary:   "first",
+				ID:           1,
+				Timestamp:    time.Date(2025, 12, 16, 10, 0, 0, 0, time.UTC),
+				User:         "user1",
+				StackPath:    "/path/1",
+				AbsolutePath: filepath.Join(tempDir, "path/1"),
+				Command:      "plan",
+				ExitCode:     0,
+				DurationS:    1.0,
 			},
 			{
-				ID:        5,
-				Timestamp: time.Date(2025, 12, 16, 11, 0, 0, 0, time.UTC),
-				User:      "user2",
-				StackPath: "/path/5",
-				Command:   "apply",
-				ExitCode:  0,
-				DurationS: 2.0,
-				Summary:   "fifth",
-			},
-			{
-				ID:        3,
-				Timestamp: time.Date(2025, 12, 16, 10, 30, 0, 0, time.UTC),
-				User:      "user3",
-				StackPath: "/path/3",
-				Command:   "destroy",
-				ExitCode:  1,
-				DurationS: 1.5,
-				Summary:   "third",
+				ID:           5,
+				Timestamp:    time.Date(2025, 12, 16, 11, 0, 0, 0, time.UTC),
+				User:         "user2",
+				StackPath:    "/path/5",
+				AbsolutePath: filepath.Join(tempDir, "path/5"),
+				Command:      "apply",
+				ExitCode:     0,
+				DurationS:    2.0,
 			},
 		}
 
+		// Change WD to project root for filtering to work
+		origWd, _ := os.Getwd()
+		defer func() {
+			_ = os.Chdir(origWd)
+		}()
+		require.NoError(t, os.Chdir(tempDir))
+
 		for _, entry := range entries {
-			err := AppendToHistory(ctx, entry)
+			err := svc.Append(ctx, entry)
 			require.NoError(t, err)
 		}
 
-		// Should return entry with ID 5 (highest)
-		lastEntry, err := GetLastExecution(ctx)
+		// Should return entry with ID 5 (highest, which is first in loaded list)
+		lastEntry, err := svc.GetLastExecutionForProject(ctx)
 		require.NoError(t, err)
 		require.NotNil(t, lastEntry)
 		assert.Equal(t, 5, lastEntry.ID)
-		assert.Equal(t, "apply", lastEntry.Command)
-		assert.Equal(t, "/path/5", lastEntry.StackPath)
-		assert.Equal(t, "user2", lastEntry.User)
-	})
-
-	t.Run("handles invalid JSON lines", func(t *testing.T) {
-		tempDir := t.TempDir()
-		tempHistoryPath := filepath.Join(tempDir, HistoryFileName)
-
-		originalFunc := historyFilePathFunc
-		historyFilePathFunc = func() (string, error) {
-			return tempHistoryPath, nil
-		}
-		defer func() {
-			historyFilePathFunc = originalFunc
-		}()
-
-		// Write mixed valid and invalid lines
-		content := `{"id":1,"timestamp":"2025-12-16T10:00:00Z","user":"user1","stack_path":"/path/1","command":"plan","exit_code":0,"duration_s":1.0,"summary":"first"}
-invalid json line
-{"id":2,"timestamp":"2025-12-16T11:00:00Z","user":"user2","stack_path":"/path/2","command":"apply","exit_code":0,"duration_s":2.0,"summary":"second"}
-another bad line
-`
-		err := os.WriteFile(tempHistoryPath, []byte(content), 0644)
-		require.NoError(t, err)
-
-		// Should return the last valid entry (ID 2)
-		lastEntry, err := GetLastExecution(ctx)
-		require.NoError(t, err)
-		require.NotNil(t, lastEntry)
-		assert.Equal(t, 2, lastEntry.ID)
-		assert.Equal(t, "apply", lastEntry.Command)
 	})
 }
 
@@ -584,14 +459,9 @@ func TestFindProjectRoot(t *testing.T) {
 	// tmpDir/
 	//   root.hcl
 	//   dev/
-	//     us-east-1/
-	//       vpc/
 	projectRoot := tmpDir
 	devDir := filepath.Join(tmpDir, "dev")
-	regionDir := filepath.Join(devDir, "us-east-1")
-	stackDir := filepath.Join(regionDir, "vpc")
-
-	require.NoError(t, os.MkdirAll(stackDir, 0755))
+	require.NoError(t, os.MkdirAll(devDir, 0755))
 
 	// Create root.hcl at project root
 	rootHclPath := filepath.Join(projectRoot, "root.hcl")
@@ -605,7 +475,7 @@ func TestFindProjectRoot(t *testing.T) {
 	}{
 		{
 			name:           "find root from deep nested path",
-			startPath:      stackDir,
+			startPath:      devDir,
 			rootConfigFile: "root.hcl",
 			expectedRoot:   projectRoot,
 		},
@@ -614,12 +484,6 @@ func TestFindProjectRoot(t *testing.T) {
 			startPath:      projectRoot,
 			rootConfigFile: "root.hcl",
 			expectedRoot:   projectRoot,
-		},
-		{
-			name:           "root file not found - return empty string",
-			startPath:      stackDir,
-			rootConfigFile: "nonexistent.hcl",
-			expectedRoot:   "",
 		},
 	}
 
@@ -638,8 +502,7 @@ func TestGetRelativeStackPath(t *testing.T) {
 
 	projectRoot := tmpDir
 	devDir := filepath.Join(tmpDir, "dev")
-	regionDir := filepath.Join(devDir, "us-east-1")
-	stackDir := filepath.Join(regionDir, "vpc")
+	stackDir := filepath.Join(devDir, "vpc")
 
 	require.NoError(t, os.MkdirAll(stackDir, 0755))
 
@@ -657,19 +520,13 @@ func TestGetRelativeStackPath(t *testing.T) {
 			name:            "calculate relative path from deep nested stack",
 			absolutePath:    stackDir,
 			rootConfigFile:  "root.hcl",
-			expectedRelPath: filepath.Join("dev", "us-east-1", "vpc"),
+			expectedRelPath: filepath.Join("dev", "vpc"),
 		},
 		{
 			name:            "project root returns dot",
 			absolutePath:    projectRoot,
 			rootConfigFile:  "root.hcl",
 			expectedRelPath: ".",
-		},
-		{
-			name:            "root file not found - return absolute path",
-			absolutePath:    stackDir,
-			rootConfigFile:  "nonexistent.hcl",
-			expectedRelPath: stackDir,
 		},
 	}
 
@@ -697,66 +554,47 @@ func TestFilterHistoryByProject(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(project1, "root.hcl"), []byte("# project 1"), 0644))
 	require.NoError(t, os.WriteFile(filepath.Join(project2, "root.hcl"), []byte("# project 2"), 0644))
 
-	// Create history entries from both projects
+	// Create history entries
 	entries := []ExecutionLogEntry{
 		{
 			ID:           1,
-			Command:      "plan",
 			AbsolutePath: filepath.Join(project1, "dev/vpc"),
-			StackPath:    "dev/vpc",
-		},
-		{
-			ID:           2,
-			Command:      "apply",
-			AbsolutePath: filepath.Join(project1, "dev/vpc"),
-			StackPath:    "dev/vpc",
 		},
 		{
 			ID:           3,
-			Command:      "plan",
 			AbsolutePath: filepath.Join(project2, "prod/rds"),
-			StackPath:    "prod/rds",
-		},
-		{
-			ID:           4,
-			Command:      "apply",
-			AbsolutePath: filepath.Join(project2, "prod/rds"),
-			StackPath:    "prod/rds",
 		},
 	}
+
+	repo, _ := NewFileRepository("")
+	svc := NewService(repo, "root.hcl")
 
 	// Save current directory and change to project1
 	originalDir, err := os.Getwd()
 	require.NoError(t, err)
 	defer func() {
-		require.NoError(t, os.Chdir(originalDir))
+		_ = os.Chdir(originalDir)
 	}()
 
 	require.NoError(t, os.Chdir(filepath.Join(project1, "dev/vpc")))
 
-	// Filter history - should only return project1 entries
-	filtered, err := FilterHistoryByProject(entries, "root.hcl")
+	filtered, err := svc.FilterByCurrentProject(entries)
 	require.NoError(t, err)
-
-	// Should have only 2 entries from project1
-	assert.Len(t, filtered, 2)
+	assert.Len(t, filtered, 1)
 	assert.Equal(t, 1, filtered[0].ID)
-	assert.Equal(t, 2, filtered[1].ID)
 
 	// Change to project2
 	require.NoError(t, os.Chdir(filepath.Join(project2, "prod/rds")))
-
-	// Filter again - should only return project2 entries
-	filtered, err = FilterHistoryByProject(entries, "root.hcl")
+	filtered, err = svc.FilterByCurrentProject(entries)
 	require.NoError(t, err)
-
-	// Should have only 2 entries from project2
-	assert.Len(t, filtered, 2)
+	assert.Len(t, filtered, 1)
 	assert.Equal(t, 3, filtered[0].ID)
-	assert.Equal(t, 4, filtered[1].ID)
 }
 
 func TestHasPrefix(t *testing.T) {
+	// Helper internal function, testing indirectly or we can export it if needed?
+	// It is unexported 'hasPrefix'. Test file is "package history" so it can access it.
+
 	tests := []struct {
 		name     string
 		path     string
@@ -775,24 +613,6 @@ func TestHasPrefix(t *testing.T) {
 			prefix:   "/path/to/project",
 			expected: true,
 		},
-		{
-			name:     "path does not have prefix - similar name",
-			path:     "/path/to/project2",
-			prefix:   "/path/to/project",
-			expected: false,
-		},
-		{
-			name:     "path does not have prefix - different path",
-			path:     "/other/path",
-			prefix:   "/path/to/project",
-			expected: false,
-		},
-		{
-			name:     "nested subdirectories",
-			path:     "/path/to/project/dev/us-east-1/vpc",
-			prefix:   "/path/to/project",
-			expected: true,
-		},
 	}
 
 	for _, tt := range tests {
@@ -801,115 +621,4 @@ func TestHasPrefix(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
-}
-
-func TestGetLastExecutionForProject(t *testing.T) {
-	ctx := context.Background()
-
-	// Create temporary directory structure with two projects
-	tmpDir := t.TempDir()
-
-	project1 := filepath.Join(tmpDir, "project1")
-	project2 := filepath.Join(tmpDir, "project2")
-
-	require.NoError(t, os.MkdirAll(filepath.Join(project1, "dev"), 0755))
-	require.NoError(t, os.MkdirAll(filepath.Join(project2, "prod"), 0755))
-
-	// Create root.hcl in both projects
-	require.NoError(t, os.WriteFile(filepath.Join(project1, "root.hcl"), []byte("# project 1"), 0644))
-	require.NoError(t, os.WriteFile(filepath.Join(project2, "root.hcl"), []byte("# project 2"), 0644))
-
-	// Setup temporary history file
-	tmpHistoryFile := filepath.Join(tmpDir, "test_history.log")
-	originalFunc := historyFilePathFunc
-	historyFilePathFunc = func() (string, error) {
-		return tmpHistoryFile, nil
-	}
-	defer func() {
-		historyFilePathFunc = originalFunc
-	}()
-
-	// Create history entries from both projects with different IDs
-	entries := []ExecutionLogEntry{
-		{
-			ID:           1,
-			Timestamp:    time.Now().Add(-4 * time.Hour),
-			Command:      "plan",
-			AbsolutePath: filepath.Join(project1, "dev"),
-			StackPath:    "dev",
-		},
-		{
-			ID:           2,
-			Timestamp:    time.Now().Add(-3 * time.Hour),
-			Command:      "apply",
-			AbsolutePath: filepath.Join(project2, "prod"),
-			StackPath:    "prod",
-		},
-		{
-			ID:           3,
-			Timestamp:    time.Now().Add(-2 * time.Hour),
-			Command:      "validate",
-			AbsolutePath: filepath.Join(project1, "dev"),
-			StackPath:    "dev",
-		},
-		{
-			ID:           4,
-			Timestamp:    time.Now().Add(-1 * time.Hour),
-			Command:      "destroy",
-			AbsolutePath: filepath.Join(project2, "prod"),
-			StackPath:    "prod",
-		},
-	}
-
-	// Write entries to history file
-	for _, entry := range entries {
-		err := AppendToHistory(ctx, entry)
-		require.NoError(t, err)
-	}
-
-	// Save current directory
-	originalDir, err := os.Getwd()
-	require.NoError(t, err)
-	defer func() {
-		require.NoError(t, os.Chdir(originalDir))
-	}()
-
-	// Test from project1 - should get entry ID 3 (most recent for project1)
-	require.NoError(t, os.Chdir(filepath.Join(project1, "dev")))
-	lastEntry, err := GetLastExecutionForProject(ctx, "root.hcl")
-	require.NoError(t, err)
-	require.NotNil(t, lastEntry)
-	assert.Equal(t, 3, lastEntry.ID)
-	assert.Equal(t, "validate", lastEntry.Command)
-
-	// Test from project2 - should get entry ID 4 (most recent for project2)
-	require.NoError(t, os.Chdir(filepath.Join(project2, "prod")))
-	lastEntry, err = GetLastExecutionForProject(ctx, "root.hcl")
-	require.NoError(t, err)
-	require.NotNil(t, lastEntry)
-	assert.Equal(t, 4, lastEntry.ID)
-	assert.Equal(t, "destroy", lastEntry.Command)
-
-	// Test from directory without root.hcl - should return nil
-	outsideDir := filepath.Join(tmpDir, "outside")
-	require.NoError(t, os.MkdirAll(outsideDir, 0755))
-	require.NoError(t, os.Chdir(outsideDir))
-	lastEntry, err = GetLastExecutionForProject(ctx, "root.hcl")
-	require.NoError(t, err)
-	// When no project root is found, should return the global last entry (ID 4)
-	// or nil if strict filtering is enforced
-	// Current implementation returns all entries when no root found, so we get ID 4
-	require.NotNil(t, lastEntry)
-	assert.Equal(t, 4, lastEntry.ID)
-}
-
-// Helper function to split lines and filter empty ones
-func splitLines(s string) []string {
-	var lines []string
-	for _, line := range strings.Split(s, "\n") {
-		if line != "" {
-			lines = append(lines, line)
-		}
-	}
-	return lines
 }

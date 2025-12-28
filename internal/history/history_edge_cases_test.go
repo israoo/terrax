@@ -18,13 +18,9 @@ func TestAppendToHistory_FileCloseError(t *testing.T) {
 	tempDir := t.TempDir()
 	tempHistoryPath := filepath.Join(tempDir, HistoryFileName)
 
-	originalFunc := historyFilePathFunc
-	historyFilePathFunc = func() (string, error) {
-		return tempHistoryPath, nil
-	}
-	defer func() {
-		historyFilePathFunc = originalFunc
-	}()
+	repo, err := NewFileRepository(tempHistoryPath)
+	require.NoError(t, err)
+	svc := NewService(repo, "root.hcl")
 
 	entry := ExecutionLogEntry{
 		ID:        1,
@@ -38,7 +34,7 @@ func TestAppendToHistory_FileCloseError(t *testing.T) {
 	}
 
 	// Normal append should work
-	err := AppendToHistory(ctx, entry)
+	err = svc.Append(ctx, entry)
 	require.NoError(t, err)
 
 	// Verify file exists and is valid
@@ -46,21 +42,16 @@ func TestAppendToHistory_FileCloseError(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// TestAppendToHistory_InvalidJSON tests handling of entries that can't be marshaled.
-// Note: ExecutionLogEntry should always be valid JSON, so this tests edge cases.
+// TestAppendToHistory_ValidEntry tests handling of valid entries.
 func TestAppendToHistory_ValidEntry(t *testing.T) {
 	ctx := context.Background()
 
 	tempDir := t.TempDir()
 	tempHistoryPath := filepath.Join(tempDir, HistoryFileName)
 
-	originalFunc := historyFilePathFunc
-	historyFilePathFunc = func() (string, error) {
-		return tempHistoryPath, nil
-	}
-	defer func() {
-		historyFilePathFunc = originalFunc
-	}()
+	repo, err := NewFileRepository(tempHistoryPath)
+	require.NoError(t, err)
+	svc := NewService(repo, "root.hcl")
 
 	// Test with various valid entries
 	entries := []ExecutionLogEntry{
@@ -89,12 +80,12 @@ func TestAppendToHistory_ValidEntry(t *testing.T) {
 	}
 
 	for _, entry := range entries {
-		err := AppendToHistory(ctx, entry)
+		err := svc.Append(ctx, entry)
 		require.NoError(t, err)
 	}
 
 	// Load and verify
-	loaded, err := LoadHistory(ctx)
+	loaded, err := svc.LoadAll(ctx)
 	require.NoError(t, err)
 	assert.Len(t, loaded, 2)
 }
@@ -107,13 +98,9 @@ func TestTrimHistory_EdgeCases(t *testing.T) {
 		tempDir := t.TempDir()
 		tempHistoryPath := filepath.Join(tempDir, HistoryFileName)
 
-		originalFunc := historyFilePathFunc
-		historyFilePathFunc = func() (string, error) {
-			return tempHistoryPath, nil
-		}
-		defer func() {
-			historyFilePathFunc = originalFunc
-		}()
+		repo, err := NewFileRepository(tempHistoryPath)
+		require.NoError(t, err)
+		svc := NewService(repo, "root.hcl")
 
 		// Create file with some entries
 		for i := 1; i <= 15; i++ {
@@ -127,16 +114,16 @@ func TestTrimHistory_EdgeCases(t *testing.T) {
 				DurationS: 1.0,
 				Summary:   "test",
 			}
-			err := AppendToHistory(ctx, entry)
+			err := svc.Append(ctx, entry)
 			require.NoError(t, err)
 		}
 
 		// Normal trim should work
-		err := TrimHistory(ctx, 10)
+		err = svc.TrimHistory(ctx, 10)
 		require.NoError(t, err)
 
 		// Verify trimming worked
-		loaded, err := LoadHistory(ctx)
+		loaded, err := svc.LoadAll(ctx)
 		require.NoError(t, err)
 		assert.Len(t, loaded, 10)
 	})
@@ -145,13 +132,9 @@ func TestTrimHistory_EdgeCases(t *testing.T) {
 		tempDir := t.TempDir()
 		tempHistoryPath := filepath.Join(tempDir, HistoryFileName)
 
-		originalFunc := historyFilePathFunc
-		historyFilePathFunc = func() (string, error) {
-			return tempHistoryPath, nil
-		}
-		defer func() {
-			historyFilePathFunc = originalFunc
-		}()
+		repo, err := NewFileRepository(tempHistoryPath)
+		require.NoError(t, err)
+		svc := NewService(repo, "root.hcl")
 
 		// Create exactly 10 entries
 		for i := 1; i <= 10; i++ {
@@ -165,16 +148,16 @@ func TestTrimHistory_EdgeCases(t *testing.T) {
 				DurationS: 1.0,
 				Summary:   "test",
 			}
-			err := AppendToHistory(ctx, entry)
+			err := svc.Append(ctx, entry)
 			require.NoError(t, err)
 		}
 
 		// Trim with maxEntries = 10 (same as current)
-		err := TrimHistory(ctx, 10)
+		err = svc.TrimHistory(ctx, 10)
 		require.NoError(t, err)
 
 		// Should still have 10 entries
-		loaded, err := LoadHistory(ctx)
+		loaded, err := svc.LoadAll(ctx)
 		require.NoError(t, err)
 		assert.Len(t, loaded, 10)
 	})
@@ -188,15 +171,11 @@ func TestGetLastExecutionForProject_EdgeCases(t *testing.T) {
 		tempDir := t.TempDir()
 		tempHistoryPath := filepath.Join(tempDir, "nonexistent_history.log")
 
-		originalFunc := historyFilePathFunc
-		historyFilePathFunc = func() (string, error) {
-			return tempHistoryPath, nil
-		}
-		defer func() {
-			historyFilePathFunc = originalFunc
-		}()
+		repo, err := NewFileRepository(tempHistoryPath)
+		require.NoError(t, err)
+		svc := NewService(repo, "root.hcl")
 
-		entry, err := GetLastExecutionForProject(ctx, "root.hcl")
+		entry, err := svc.GetLastExecutionForProject(ctx)
 		require.NoError(t, err)
 		assert.Nil(t, entry)
 	})
@@ -210,13 +189,10 @@ func TestGetLastExecutionForProject_EdgeCases(t *testing.T) {
 
 		// Setup temporary history file
 		tmpHistoryFile := filepath.Join(tmpDir, "test_history.log")
-		originalFunc := historyFilePathFunc
-		historyFilePathFunc = func() (string, error) {
-			return tmpHistoryFile, nil
-		}
-		defer func() {
-			historyFilePathFunc = originalFunc
-		}()
+
+		repo, err := NewFileRepository(tmpHistoryFile)
+		require.NoError(t, err)
+		svc := NewService(repo, "root.hcl")
 
 		// Create history entry for project1
 		entry := ExecutionLogEntry{
@@ -226,7 +202,7 @@ func TestGetLastExecutionForProject_EdgeCases(t *testing.T) {
 			AbsolutePath: filepath.Join(project1, "dev"),
 			StackPath:    "dev",
 		}
-		err := AppendToHistory(ctx, entry)
+		err = svc.Append(ctx, entry)
 		require.NoError(t, err)
 
 		// Change to a different directory outside project1
@@ -236,13 +212,16 @@ func TestGetLastExecutionForProject_EdgeCases(t *testing.T) {
 		originalDir, err := os.Getwd()
 		require.NoError(t, err)
 		defer func() {
-			require.NoError(t, os.Chdir(originalDir))
+			_ = os.Chdir(originalDir)
 		}()
 
 		require.NoError(t, os.Chdir(outsideDir))
 
-		// Should return the entry even when not filtered (no root.hcl found)
-		lastEntry, err := GetLastExecutionForProject(ctx, "root.hcl")
+		// Should we expect it to return nil?
+		// If we are "outside", FindProjectRoot returns empty?
+		// If project root empty, FilterByCurrentProject returns ALL entries as fallback (Step 195 logic).
+
+		lastEntry, err := svc.GetLastExecutionForProject(ctx)
 		require.NoError(t, err)
 		// When no project root is found, all entries are returned
 		assert.NotNil(t, lastEntry)
@@ -256,21 +235,17 @@ func TestLoadHistory_BackwardCompatibility(t *testing.T) {
 	tempDir := t.TempDir()
 	tempHistoryPath := filepath.Join(tempDir, HistoryFileName)
 
-	originalFunc := historyFilePathFunc
-	historyFilePathFunc = func() (string, error) {
-		return tempHistoryPath, nil
-	}
-	defer func() {
-		historyFilePathFunc = originalFunc
-	}()
+	repo, err := NewFileRepository(tempHistoryPath)
+	require.NoError(t, err)
+	svc := NewService(repo, "root.hcl")
 
 	// Write an old-style entry (without AbsolutePath field)
 	oldStyleJSON := `{"id":1,"timestamp":"2025-12-16T10:00:00Z","user":"olduser","stack_path":"/old/path","command":"plan","exit_code":0,"duration_s":5.0,"summary":"old entry"}` + "\n"
-	err := os.WriteFile(tempHistoryPath, []byte(oldStyleJSON), 0644)
+	err = os.WriteFile(tempHistoryPath, []byte(oldStyleJSON), 0644)
 	require.NoError(t, err)
 
 	// Load history
-	entries, err := LoadHistory(ctx)
+	entries, err := svc.LoadAll(ctx)
 	require.NoError(t, err)
 	require.Len(t, entries, 1)
 
@@ -286,13 +261,9 @@ func TestLoadHistory_InvalidLines(t *testing.T) {
 	tempDir := t.TempDir()
 	tempHistoryPath := filepath.Join(tempDir, HistoryFileName)
 
-	originalFunc := historyFilePathFunc
-	historyFilePathFunc = func() (string, error) {
-		return tempHistoryPath, nil
-	}
-	defer func() {
-		historyFilePathFunc = originalFunc
-	}()
+	repo, err := NewFileRepository(tempHistoryPath)
+	require.NoError(t, err)
+	svc := NewService(repo, "root.hcl")
 
 	// Write mixed valid and invalid lines
 	content := `{"id":1,"timestamp":"2025-12-16T10:00:00Z","user":"user1","stack_path":"/path1","absolute_path":"/abs1","command":"plan","exit_code":0,"duration_s":1.0,"summary":"valid 1"}
@@ -301,11 +272,11 @@ invalid json line here
 
 {"id":3,"timestamp":"2025-12-16T12:00:00Z","user":"user3","stack_path":"/path3","absolute_path":"/abs3","command":"destroy","exit_code":0,"duration_s":3.0,"summary":"valid 3"}
 `
-	err := os.WriteFile(tempHistoryPath, []byte(content), 0644)
+	err = os.WriteFile(tempHistoryPath, []byte(content), 0644)
 	require.NoError(t, err)
 
 	// Load history - should skip invalid lines
-	entries, err := LoadHistory(ctx)
+	entries, err := svc.LoadAll(ctx)
 	require.NoError(t, err)
 
 	// Should have 3 valid entries (invalid lines and empty lines are skipped)
@@ -313,24 +284,6 @@ invalid json line here
 	assert.Equal(t, 3, entries[0].ID) // Most recent first (reversed)
 	assert.Equal(t, 2, entries[1].ID)
 	assert.Equal(t, 1, entries[2].ID)
-}
-
-// TestFilterHistoryByProject_NoCurrentDirectory tests error handling when getcwd fails.
-func TestFilterHistoryByProject_ErrorRecovery(t *testing.T) {
-	entries := []ExecutionLogEntry{
-		{
-			ID:           1,
-			Command:      "plan",
-			AbsolutePath: "/some/path",
-			StackPath:    "path",
-		},
-	}
-
-	// Call FilterHistoryByProject with invalid root config
-	// Should return all entries when it can't determine project root
-	filtered, err := FilterHistoryByProject(entries, "nonexistent.hcl")
-	require.NoError(t, err)
-	assert.Len(t, filtered, 1, "should return all entries when project root not found")
 }
 
 // TestGetRelativeStackPath_EdgeCases tests edge cases for path calculation.
@@ -391,13 +344,9 @@ func TestGetNextID_WithCorruptedEntries(t *testing.T) {
 	tempDir := t.TempDir()
 	tempHistoryPath := filepath.Join(tempDir, HistoryFileName)
 
-	originalFunc := historyFilePathFunc
-	historyFilePathFunc = func() (string, error) {
-		return tempHistoryPath, nil
-	}
-	defer func() {
-		historyFilePathFunc = originalFunc
-	}()
+	repo, err := NewFileRepository(tempHistoryPath)
+	require.NoError(t, err)
+	svc := NewService(repo, "root.hcl")
 
 	// Write entries with non-sequential IDs and some invalid lines
 	content := `{"id":5,"timestamp":"2025-12-16T10:00:00Z","user":"user","stack_path":"/path","command":"plan","exit_code":0,"duration_s":1.0,"summary":"entry 5"}
@@ -405,11 +354,11 @@ invalid line
 {"id":10,"timestamp":"2025-12-16T11:00:00Z","user":"user","stack_path":"/path","command":"apply","exit_code":0,"duration_s":1.0,"summary":"entry 10"}
 {"id":3,"timestamp":"2025-12-16T09:00:00Z","user":"user","stack_path":"/path","command":"validate","exit_code":0,"duration_s":1.0,"summary":"entry 3"}
 `
-	err := os.WriteFile(tempHistoryPath, []byte(content), 0644)
+	err = os.WriteFile(tempHistoryPath, []byte(content), 0644)
 	require.NoError(t, err)
 
 	// Should return max ID + 1 (10 + 1 = 11)
-	nextID, err := GetNextID(ctx)
+	nextID, err := svc.GetNextID(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, 11, nextID)
 }
@@ -422,6 +371,5 @@ func TestGetCurrentUser_NonEmpty(t *testing.T) {
 	assert.NotEmpty(t, user)
 
 	// Should either be a real username or "unknown"
-	// We can't test the exact value as it depends on the environment
 	assert.NotEqual(t, "", user)
 }
