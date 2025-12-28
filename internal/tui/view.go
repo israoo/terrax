@@ -1,17 +1,23 @@
 package tui
 
 import (
+	"fmt"
+
 	"github.com/charmbracelet/lipgloss"
 )
 
-// View renders the complete UI (BubbleTea interface).
-func (m Model) View() string {
+// renderNavigationView renders the navigation UI.
+func (m Model) renderNavigationView() string {
 	if m.state == StateHistory {
 		return m.renderHistoryView()
 	}
 
 	if !m.ready || m.width == 0 {
 		return Initializing
+	}
+
+	if m.navigator == nil {
+		return "Error: Navigator is not initialized (state=" + lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Render(fmt.Sprintf("%d", m.state)) + ")"
 	}
 
 	if m.navigator.GetMaxDepth() == 0 || m.columnWidth == 0 {

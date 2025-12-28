@@ -13,6 +13,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/israoo/terrax/internal/history"
+	"github.com/israoo/terrax/internal/plan"
 	"github.com/israoo/terrax/internal/stack"
 )
 
@@ -24,6 +25,8 @@ const (
 	StateNavigation AppState = iota
 	// StateHistory is the state for viewing execution history.
 	StateHistory
+	// StatePlanReview is the state for analyzing plan results.
+	StatePlanReview
 )
 
 // ColumnType represents the type of column being focused.
@@ -55,6 +58,12 @@ type Model struct {
 	historyCursor        int
 	selectedHistoryEntry *history.ExecutionLogEntry // Entry selected for re-execution
 	reExecuteFromHistory bool                       // Flag to indicate re-execution from history
+
+	// Plan Review
+	planReport               *plan.PlanReport
+	planListCursor           int
+	planDetailScrollOffset   int
+	planReviewFocusedElement int // 0 = Master List, 1 = Detail View
 
 	// UI State
 	focusedColumn    int  // 0 = commands, 1+ = navigation columns
@@ -123,9 +132,47 @@ func NewHistoryModel(historyEntries []history.ExecutionLogEntry) Model {
 	return m
 }
 
+// NewPlanReviewModel creates a model initialized in plan review mode.
+func NewPlanReviewModel(report *plan.PlanReport) Model {
+	return Model{
+		state:                    StatePlanReview,
+		planReport:               report,
+		planListCursor:           0,
+		planDetailScrollOffset:   0,
+		planReviewFocusedElement: 0,
+		ready:                    false,
+	}
+}
+
 // Init initializes the model (BubbleTea interface).
 func (m Model) Init() tea.Cmd {
 	return nil
+}
+
+// Update handles messages and updates the model (BubbleTea interface).
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch m.state {
+	case StateNavigation:
+		return m.handleNavigationUpdate(msg)
+	case StateHistory:
+		return m.handleHistoryUpdate(msg)
+	case StatePlanReview:
+		return m.handlePlanReviewUpdate(msg)
+	}
+	return m, nil
+}
+
+// View renders the UI (BubbleTea interface).
+func (m Model) View() string {
+	switch m.state {
+	case StateNavigation:
+		return m.renderNavigationView()
+	case StateHistory:
+		return m.renderHistoryView()
+	case StatePlanReview:
+		return m.renderPlanReviewView()
+	}
+	return "Unknown state"
 }
 
 // calculateColumnWidth computes the static width for all columns.

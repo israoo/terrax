@@ -14,6 +14,7 @@ import (
 	"github.com/israoo/terrax/internal/config"
 	"github.com/israoo/terrax/internal/executor"
 	"github.com/israoo/terrax/internal/history"
+	"github.com/israoo/terrax/internal/plan"
 	"github.com/israoo/terrax/internal/stack"
 	"github.com/israoo/terrax/internal/tui"
 	"github.com/spf13/cobra"
@@ -148,7 +149,19 @@ func runTUI(cmd *cobra.Command, args []string) error {
 	displayResults(model)
 
 	if model.IsConfirmed() {
-		return executor.Run(ctx, historyService, model.GetSelectedCommand(), model.GetSelectedStackPath())
+		command := model.GetSelectedCommand()
+		stackPath := model.GetSelectedStackPath()
+
+		err := executor.Run(ctx, historyService, command, stackPath)
+		if err != nil {
+			return err
+		}
+
+		if command == "plan" {
+			return runPlanReview(ctx, stackPath)
+		}
+
+		return nil
 	}
 
 	return nil
@@ -344,4 +357,33 @@ func runHistoryViewer(ctx context.Context, historyService *history.Service) erro
 	}
 
 	return nil
+}
+
+// runPlanReview collects plan results and launches the review TUI.
+func runPlanReview(ctx context.Context, stackPath string) error {
+	fmt.Println("🔍 Collecting plan results...")
+
+	collector := plan.NewCollector(stackPath)
+	report, err := collector.Collect(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to collect plan results: %w", err)
+	}
+
+	if len(report.Stacks) == 0 {
+		fmt.Println("⚠️  No plan files found to review.")
+		return nil
+	}
+
+	fmt.Printf("✅ Found %d stack plans. Launching reviewer...\n", len(report.Stacks))
+
+	initialModel := tui.NewPlanReviewModel(report)
+
+	p := tea.NewProgram(
+		initialModel,
+		tea.WithAltScreen(),
+		tea.WithMouseCellMotion(),
+	)
+
+	_, err = p.Run()
+	return err
 }

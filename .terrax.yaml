@@ -69,6 +69,10 @@ terragrunt:
   # Default: false
   # non_interactive: true
 
+  # Include external dependencies in queue
+  # Default: false
+  # queue_include_external: true
+
   # Ignore dependency errors and continue execution
   # Default: false
   # ignore_dependency_errors: true

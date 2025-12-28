@@ -7,13 +7,8 @@ import (
 )
 
 // Update handles messages and updates state (BubbleTea interface).
-func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	// Delegate to appropriate handler based on state
-	if m.state == StateHistory {
-		return m.handleHistoryUpdate(msg)
-	}
-
-	// Default: StateNavigation
+// handleNavigationUpdate handles messages and updates state for navigation mode.
+func (m Model) handleNavigationUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		return m.handleKeyPress(msg)
@@ -27,7 +22,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m Model) handleWindowResize(msg tea.WindowSizeMsg) Model {
 	m.width = msg.Width
 	m.height = msg.Height
-	m.columnWidth = m.calculateColumnWidth()
+	if m.navigator != nil {
+		m.columnWidth = m.calculateColumnWidth()
+	}
 	m.ready = true
 	return m
 }

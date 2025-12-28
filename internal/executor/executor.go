@@ -105,6 +105,11 @@ func buildTerragruntArgs(absoluteStackPath, command string) []string {
 		args = append(args, "--terragrunt-non-interactive")
 	}
 
+	queueIncludeExternal := viper.GetBool("terragrunt.queue_include_external")
+	if queueIncludeExternal {
+		args = append(args, "--queue-include-external")
+	}
+
 	ignoreDependencyErrors := viper.GetBool("terragrunt.ignore_dependency_errors")
 	if ignoreDependencyErrors {
 		args = append(args, "--terragrunt-ignore-dependency-errors")
@@ -126,6 +131,11 @@ func buildTerragruntArgs(absoluteStackPath, command string) []string {
 	}
 
 	args = append(args, "--", command)
+
+	// If command is "plan", we want to output to a binary file for later analysis
+	if command == "plan" {
+		args = append(args, "-out=tfplan.binary")
+	}
 
 	return args
 }

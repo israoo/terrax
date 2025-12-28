@@ -9,3 +9,13 @@ commands:
   - destroy
 
 max_navigation_columns: 3
+
+history:
+  max_entries: 20
+
+log_level: "stdout"
+
+log_format: "pretty"
+
+terragrunt:
+  queue_include_external: true

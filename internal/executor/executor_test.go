@@ -29,7 +29,7 @@ func TestBuildTerragruntArgs(t *testing.T) {
 			name:      "basic command without logging config",
 			stackPath: "/path/to/stack",
 			command:   "plan",
-			expected:  []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--", "plan"},
+			expected:  []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--", "plan", "-out=tfplan.binary"},
 		},
 		{
 			name:      "command with log level",
@@ -97,15 +97,17 @@ func TestBuildTerragruntArgs(t *testing.T) {
 // TestBuildTerragruntArgs_DynamicFlags tests the buildTerragruntArgs function with dynamic terragrunt flags.
 func TestBuildTerragruntArgs_DynamicFlags(t *testing.T) {
 	tests := []struct {
-		name                        string
-		stackPath                   string
-		command                     string
-		parallelism                 int
-		noColor                     bool
-		nonInteractive              bool
-		ignoreDependencyErrors      bool
-		ignoreExternalDependencies  bool
+		name                       string
+		stackPath                  string
+		command                    string
+		parallelism                int
+		noColor                    bool
+		nonInteractive             bool
+		ignoreDependencyErrors     bool
+		ignoreExternalDependencies bool
+
 		includeExternalDependencies bool
+		queueIncludeExternal        bool
 		extraFlags                  []string
 		expected                    []string
 	}{
@@ -114,7 +116,7 @@ func TestBuildTerragruntArgs_DynamicFlags(t *testing.T) {
 			stackPath:   "/path/to/stack",
 			command:     "plan",
 			parallelism: 4,
-			expected:    []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--terragrunt-parallelism", "4", "--", "plan"},
+			expected:    []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--terragrunt-parallelism", "4", "--", "plan", "-out=tfplan.binary"},
 		},
 		{
 			name:      "no-color flag",
@@ -152,11 +154,18 @@ func TestBuildTerragruntArgs_DynamicFlags(t *testing.T) {
 			expected:                    []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--terragrunt-include-external-dependencies", "--", "output"},
 		},
 		{
+			name:                 "queue-include-external flag",
+			stackPath:            "/path/to/stack",
+			command:              "plan",
+			queueIncludeExternal: true,
+			expected:             []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--queue-include-external", "--", "plan", "-out=tfplan.binary"},
+		},
+		{
 			name:       "extra flags",
 			stackPath:  "/path/to/stack",
 			command:    "plan",
 			extraFlags: []string{"--terragrunt-download-dir=/tmp/tg", "--terragrunt-source-update"},
-			expected:   []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--terragrunt-download-dir=/tmp/tg", "--terragrunt-source-update", "--", "plan"},
+			expected:   []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--terragrunt-download-dir=/tmp/tg", "--terragrunt-source-update", "--", "plan", "-out=tfplan.binary"},
 		},
 		{
 			name:                        "multiple flags combined",
@@ -174,14 +183,14 @@ func TestBuildTerragruntArgs_DynamicFlags(t *testing.T) {
 			stackPath:   "/path/to/stack",
 			command:     "plan",
 			parallelism: 0,
-			expected:    []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--", "plan"},
+			expected:    []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--", "plan", "-out=tfplan.binary"},
 		},
 		{
 			name:      "false boolean flags not added",
 			stackPath: "/path/to/stack",
 			command:   "plan",
 			noColor:   false,
-			expected:  []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--", "plan"},
+			expected:  []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--", "plan", "-out=tfplan.binary"},
 		},
 	}
 
@@ -207,6 +216,9 @@ func TestBuildTerragruntArgs_DynamicFlags(t *testing.T) {
 			}
 			if tt.includeExternalDependencies {
 				viper.Set("terragrunt.include_external_dependencies", tt.includeExternalDependencies)
+			}
+			if tt.queueIncludeExternal {
+				viper.Set("terragrunt.queue_include_external", tt.queueIncludeExternal)
 			}
 			if len(tt.extraFlags) > 0 {
 				viper.Set("terragrunt.extra_flags", tt.extraFlags)
