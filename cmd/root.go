@@ -4,11 +4,10 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
-	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/israoo/terrax/internal/config"
+	"github.com/israoo/terrax/internal/executor"
 	"github.com/israoo/terrax/internal/history"
 	"github.com/israoo/terrax/internal/stack"
 	"github.com/israoo/terrax/internal/tui"
@@ -142,7 +141,7 @@ func runTUI(cmd *cobra.Command, args []string) error {
 
 	// Execute command if confirmed
 	if model.IsConfirmed() {
-		return executeTerragruntCommand(model.GetSelectedCommand(), model.GetSelectedStackPath())
+		return executor.Run(model.GetSelectedCommand(), model.GetSelectedStackPath())
 	}
 
 	return nil
@@ -225,189 +224,6 @@ func displayResults(model tui.Model) {
 	fmt.Println()
 }
 
-// buildTerragruntArgs constructs the terragrunt command arguments with logging configuration.
-// It builds: terragrunt run --all --working-dir {PATH} [flags] -- {command}
-// Flags include: --log-level, --log-format, --log-custom-format, --parallelism, --no-color, and extra_flags.
-// Note: --log-custom-format takes priority over --log-format if both are configured.
-func buildTerragruntArgs(absoluteStackPath, command string) []string {
-	// Start with base arguments
-	args := []string{"run", "--all", "--working-dir", absoluteStackPath}
-
-	// Add log level if configured
-	logLevel := viper.GetString("log_level")
-	if logLevel != "" {
-		args = append(args, "--log-level", logLevel)
-	}
-
-	// Add log format arguments
-	// --log-custom-format has priority over --log-format
-	logCustomFormat := viper.GetString("log_custom_format")
-	if logCustomFormat != "" {
-		// Use custom format (invalidates log_format)
-		args = append(args, "--log-custom-format", logCustomFormat)
-	} else {
-		// Use standard log format
-		logFormat := viper.GetString("log_format")
-		if logFormat != "" {
-			args = append(args, "--log-format", logFormat)
-		}
-	}
-
-	// Add parallelism if configured (non-zero)
-	parallelism := viper.GetInt("terragrunt.parallelism")
-	if parallelism > 0 {
-		args = append(args, "--terragrunt-parallelism", fmt.Sprintf("%d", parallelism))
-	}
-
-	// Add no-color flag if configured
-	noColor := viper.GetBool("terragrunt.no_color")
-	if noColor {
-		args = append(args, "--terragrunt-no-color")
-	}
-
-	// Add non-interactive flag if configured
-	nonInteractive := viper.GetBool("terragrunt.non_interactive")
-	if nonInteractive {
-		args = append(args, "--terragrunt-non-interactive")
-	}
-
-	// Add ignore-dependency-errors flag if configured
-	ignoreDependencyErrors := viper.GetBool("terragrunt.ignore_dependency_errors")
-	if ignoreDependencyErrors {
-		args = append(args, "--terragrunt-ignore-dependency-errors")
-	}
-
-	// Add ignore-external-dependencies flag if configured
-	ignoreExternalDependencies := viper.GetBool("terragrunt.ignore_external_dependencies")
-	if ignoreExternalDependencies {
-		args = append(args, "--terragrunt-ignore-external-dependencies")
-	}
-
-	// Add include-external-dependencies flag if configured
-	includeExternalDependencies := viper.GetBool("terragrunt.include_external_dependencies")
-	if includeExternalDependencies {
-		args = append(args, "--terragrunt-include-external-dependencies")
-	}
-
-	// Add extra flags from configuration
-	// This allows users to add any custom flags not covered above
-	extraFlags := viper.GetStringSlice("terragrunt.extra_flags")
-	if len(extraFlags) > 0 {
-		args = append(args, extraFlags...)
-	}
-
-	// Add separator and command
-	args = append(args, "--", command)
-
-	return args
-}
-
-// executeTerragruntCommand runs the terragrunt command with the selected parameters.
-// It also logs the execution to the history file for audit and replay purposes.
-func executeTerragruntCommand(command, absoluteStackPath string) error {
-	ctx := context.Background()
-
-	// Get next ID for this execution
-	nextID, err := history.GetNextID(ctx)
-	if err != nil {
-		// Log error but don't fail execution
-		fmt.Fprintf(os.Stderr, "Warning: Failed to get history ID: %v\n", err)
-		nextID = 0 // Use 0 as fallback
-	}
-
-	// Record execution start time
-	startTime := time.Now()
-
-	// Build the terragrunt command: terragrunt run --all --working-dir {PATH} [log flags] -- {command}
-	args := buildTerragruntArgs(absoluteStackPath, command)
-
-	fmt.Printf("🚀 Executing: terragrunt %v\n\n", args)
-
-	cmd := exec.Command("terragrunt", args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Stdin = os.Stdin
-
-	// Execute command and capture exit code
-	execErr := cmd.Run()
-	exitCode := 0
-	summary := "Command completed successfully"
-
-	if execErr != nil {
-		fmt.Fprintf(os.Stderr, "\n❌ Command execution failed: %v\n", execErr)
-		// Extract exit code from error
-		if exitErr, ok := execErr.(*exec.ExitError); ok {
-			exitCode = exitErr.ExitCode()
-		} else {
-			exitCode = 1 // Generic error code
-		}
-		summary = fmt.Sprintf("Command failed: %v", execErr)
-	} else {
-		fmt.Println("\n✅ Command execution completed")
-	}
-
-	// Calculate duration
-	duration := time.Since(startTime)
-
-	// Display execution summary
-	fmt.Println()
-	fmt.Println("═══════════════════════════════════════")
-	fmt.Println("  📊 Execution Summary")
-	fmt.Println("═══════════════════════════════════════")
-	fmt.Printf("Command:    %s\n", command)
-	fmt.Printf("Stack Path: %s\n", absoluteStackPath)
-	fmt.Printf("Duration:   %.2fs\n", duration.Seconds())
-	fmt.Printf("Exit Code:  %d\n", exitCode)
-	fmt.Printf("Timestamp:  %s\n", startTime.Format("2006-01-02 15:04:05"))
-	fmt.Println("═══════════════════════════════════════")
-	fmt.Println()
-
-	// Get root config file from configuration
-	rootConfigFile := viper.GetString("root_config_file")
-	if rootConfigFile == "" {
-		rootConfigFile = config.DefaultRootConfigFile
-	}
-
-	// Calculate relative stack path
-	relativeStackPath, err := history.GetRelativeStackPath(absoluteStackPath, rootConfigFile)
-	if err != nil {
-		// Log warning but use absolute path as fallback
-		fmt.Fprintf(os.Stderr, "Warning: Failed to calculate relative stack path: %v\n", err)
-		relativeStackPath = absoluteStackPath
-	}
-
-	// Log execution to history
-	entry := history.ExecutionLogEntry{
-		ID:           nextID,
-		Timestamp:    startTime,
-		User:         history.GetCurrentUser(),
-		StackPath:    relativeStackPath,
-		AbsolutePath: absoluteStackPath,
-		Command:      command,
-		ExitCode:     exitCode,
-		DurationS:    duration.Seconds(),
-		Summary:      summary,
-	}
-
-	if err := history.AppendToHistory(ctx, entry); err != nil {
-		// Log error but don't fail the overall execution
-		fmt.Fprintf(os.Stderr, "Warning: Failed to append to history: %v\n", err)
-	}
-
-	// Trim history if configured
-	maxEntries := viper.GetInt("history.max_entries")
-	if maxEntries < config.MinHistoryMaxEntries {
-		maxEntries = config.DefaultHistoryMaxEntries
-	}
-
-	if err := history.TrimHistory(ctx, maxEntries); err != nil {
-		// Log error but don't fail the overall execution
-		fmt.Fprintf(os.Stderr, "Warning: Failed to trim history: %v\n", err)
-	}
-
-	return execErr
-}
-
 // executeLastCommand retrieves and executes the most recent command from history for the current project.
 func executeLastCommand(ctx context.Context) error {
 	// Get root config file from configuration
@@ -446,7 +262,7 @@ func executeLastCommand(ctx context.Context) error {
 		absolutePath = lastEntry.StackPath
 	}
 
-	return executeTerragruntCommand(lastEntry.Command, absolutePath)
+	return executor.Run(lastEntry.Command, absolutePath)
 }
 
 // runHistoryViewer loads and displays the execution history in an interactive TUI.
@@ -508,7 +324,7 @@ func runHistoryViewer(ctx context.Context) error {
 				absolutePath = entry.StackPath
 			}
 
-			return executeTerragruntCommand(entry.Command, absolutePath)
+			return executor.Run(entry.Command, absolutePath)
 		}
 	}
 
