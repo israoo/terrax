@@ -1,4 +1,4 @@
-# ADR-0005: Execution History Management with Project-Aware Filtering
+# ADR-0006: Execution History Management
 
 **Status**: Accepted
 
@@ -10,462 +10,93 @@
 
 ## Context
 
-TerraX users need to track which Terragrunt commands they've executed across different stacks and projects. Key requirements:
+Users frequently need to re-run recently executed Terragrunt commands or review the outcome of previous actions. Without a persistent history, this context is lost when the application closes.
 
-1. **Audit trail**: Record what was executed, where, when, and with what result.
-2. **Quick re-execution**: Re-run the last command without navigating through the TUI.
-3. **Project isolation**: Filter history by current project to avoid cross-project confusion.
-4. **Persistence**: History survives application restarts.
-5. **Cross-platform**: Works on Linux, macOS, and Windows.
-6. **Performance**: History operations shouldn't slow down command execution.
-
-### Problem
-
-Without execution history:
-- Users must remember previous commands and manually re-type them.
-- No audit trail of what was executed when and where.
-- No quick way to repeat the last operation.
-- Difficult to debug issues without knowing execution history.
-
-### Requirements
-
-- Persist execution history across sessions.
-- Support filtering by project (based on `root.hcl` boundaries).
-- Enable quick re-execution of last command (`--last` flag).
-- Provide interactive history browser (`--history` flag).
-- Store both absolute and relative paths for portability.
-- Handle symlinked project directories correctly.
-- Automatic pruning to prevent unbounded growth.
-- Non-blocking: history failures shouldn't prevent command execution.
+We need a mechanism to persist execution logs (command, timestamp, status, duration) that is robust, easy to maintain, and supports filtering by project to avoid confusion when switching between different infrastructure repositories.
 
 ## Decision
 
-Implement comprehensive execution history management with:
-
-1. **Storage Format**: JSONL (JSON Lines) - one log entry per line.
-2. **Storage Location**: XDG-compliant config directory (`~/.config/terrax/history.log`).
-3. **Architecture**: Repository Pattern with Service Layer.
-4. **Project Detection**: Use `root.hcl` to determine project boundaries.
-5. **Dual Path Storage**: Store both relative (for display) and absolute (for execution) paths.
-6. **Access Patterns**: Interactive viewer and quick re-execution flag.
-
-### Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Executor Package                          │
-│  (Executes commands, logs to history after execution)       │
-└───────────────────────┬─────────────────────────────────────┘
-                        │
-                        │ HistoryLogger interface
-                        ↓
-┌─────────────────────────────────────────────────────────────┐
-│                   History Package                            │
-│                                                              │
-│  ┌──────────────┐         ┌──────────────┐                  │
-│  │   Service    │────────→│  Repository  │                  │
-│  │  (Business   │         │  (Storage)   │                  │
-│  │   Logic)     │         │              │                  │
-│  └──────────────┘         └──────────────┘                  │
-│         │                         │                          │
-│         │ Filter by project       │ JSONL file I/O          │
-│         │ Trim old entries        │ XDG directory           │
-│         │ Find last entry         │ Atomic writes           │
-│         ↓                         ↓                          │
-│  ExecutionLogEntry         history.log                      │
-└─────────────────────────────────────────────────────────────┘
-                        ↑
-                        │ Read history
-                        │
-        ┌───────────────┴────────────────┐
-        │                                │
-    ┌───────┐                     ┌──────────┐
-    │ --last│                     │ --history│
-    │  Flag │                     │   Flag   │
-    └───────┘                     └──────────┘
-    Quick re-exec                 Interactive viewer
-```
-
-### Data Model
-
-```go
-type ExecutionLogEntry struct {
-    Timestamp     time.Time // When executed
-    Command       string    // Terragrunt command (plan, apply, etc.)
-    StackPath     string    // Relative path from project root (for display)
-    AbsolutePath  string    // Absolute path (for execution)
-    ProjectRoot   string    // Absolute path to root.hcl directory
-    ExitCode      int       // Command exit code
-    Duration      float64   // Execution time in seconds
-    User          string    // OS username
-}
-```
-
-### Storage Format: JSONL
-
-Each line is a complete JSON object:
-
-```json
-{"timestamp":"2025-12-28T10:15:30Z","command":"plan","stackPath":"env/dev/vpc","absolutePath":"/home/user/infra/env/dev/vpc","projectRoot":"/home/user/infra","exitCode":0,"duration":12.34,"user":"alice"}
-{"timestamp":"2025-12-28T10:20:45Z","command":"apply","stackPath":"env/dev/vpc","absolutePath":"/home/user/infra/env/dev/vpc","projectRoot":"/home/user/infra","exitCode":0,"duration":45.67,"user":"alice"}
-```
-
-**Benefits of JSONL**:
-- **Append-only**: Fast writes, no need to read entire file to add entry.
-- **Streamable**: Can process line-by-line without loading entire file.
-- **Human-readable**: Easy to inspect with `tail`, `grep`, etc.
-- **Robust**: Corrupted line doesn't break entire file.
-
-### Repository Pattern
-
-```go
-// Repository interface for abstraction
-type Repository interface {
-    Append(entry ExecutionLogEntry) error
-    ReadAll() ([]ExecutionLogEntry, error)
-    Trim(maxEntries int) error
-}
-
-// FileRepository implements Repository
-type FileRepository struct {
-    filePath string
-}
-```
-
-**Benefits**:
-- **Abstraction**: Can swap storage backends (file → database) without changing business logic.
-- **Testability**: Easy to mock for unit tests.
-- **Single Responsibility**: Repository only handles I/O, Service handles business logic.
-
-### Service Layer
-
-```go
-type Service struct {
-    repo Repository
-}
-
-// Business logic methods
-func (s *Service) FilterByProject(projectRoot string) ([]ExecutionLogEntry, error)
-func (s *Service) GetLastForProject(projectRoot string) (*ExecutionLogEntry, error)
-func (s *Service) LogExecution(entry ExecutionLogEntry, maxEntries int) error
-```
-
-**Responsibilities**:
-- Filter entries by project.
-- Find last execution for current project.
-- Coordinate logging with automatic trimming.
-- Handle backward compatibility (entries without StackPath).
-
-### Project Detection
-
-Uses `FindProjectRoot()` to locate `root.hcl`:
-
-```go
-func FindProjectRoot(startPath string) (string, error) {
-    // Walk up directory tree looking for root.hcl
-    // Returns absolute path to directory containing root.hcl
-}
-```
-
-**Project Boundary Logic**:
-1. Start from current working directory (or target stack path).
-2. Walk up directory tree looking for `root.hcl`.
-3. If found: that directory is the project root.
-4. If not found: treat entire filesystem as single "project" (no filtering).
-
-**Benefits**:
-- **Automatic detection**: No manual configuration required.
-- **Multi-project support**: Users can work on multiple terragrunt projects.
-- **Correct filtering**: History only shows entries for current project.
-
-### Dual Path Storage
-
-Store **both** relative and absolute paths:
-
-```go
-StackPath    string  // "env/dev/vpc" (relative from project root)
-AbsolutePath string  // "/home/user/infra/env/dev/vpc" (absolute)
-ProjectRoot  string  // "/home/user/infra" (absolute)
-```
-
-**Why Both**:
-- **StackPath**: Human-readable display in history viewer.
-- **AbsolutePath**: Reliable execution (works even if cwd changes).
-- **ProjectRoot**: Enables filtering and relative path calculation.
-
-**Relative Path Calculation**:
-
-```go
-relPath, err := filepath.Rel(projectRoot, absolutePath)
-if err != nil {
-    // Fallback: use absolute path if relative calculation fails
-    relPath = absolutePath
-}
-```
-
-### Symlink Resolution
-
-Resolve symlinks before path comparisons:
-
-```go
-resolvedPath, err := filepath.EvalSymlinks(path)
-if err != nil {
-    // Fallback: use original path
-    resolvedPath = path
-}
-```
-
-**Why Important**:
-- Users might access same project via symlink.
-- Without resolution, symlinked paths treated as different projects.
-- Ensures consistent project detection and filtering.
-
-### Automatic Trimming
-
-Limit history size with automatic pruning:
-
-```go
-const DefaultMaxHistoryEntries = 500
-
-func (r *FileRepository) Trim(maxEntries int) error {
-    // Read all entries
-    // Keep last N entries
-    // Atomic write via temp file + rename
-}
-```
-
-**Strategy**:
-1. Read all entries from history file.
-2. Keep only last `maxEntries` entries (FIFO).
-3. Write to temporary file.
-4. Atomically rename temp file to history file.
-
-**Atomic Write**:
-
-```go
-tmpFile := historyPath + ".tmp"
-// Write to tmpFile
-os.Rename(tmpFile, historyPath)  // Atomic on Unix
-```
-
-**Windows Handling**:
-
-```go
-// Windows: rename fails if target exists
-os.Remove(historyPath)       // Delete old file
-os.Rename(tmpFile, historyPath)  // Rename temp file
-```
-
-### Access Patterns
-
-**Pattern 1: Quick Re-execution (`--last`)**
-
-```bash
-$ terrax --last
-# Retrieves last execution for current project
-# Immediately executes that command
-# No TUI, direct execution
-```
-
-**Use Case**: "Run the same command I just ran" workflow.
-
-**Implementation**:
-
-```go
-if lastFlag {
-    projectRoot, _ := history.FindProjectRoot(workingDir)
-    lastEntry, err := historyService.GetLastForProject(projectRoot)
-    if err != nil {
-        return err
-    }
-    // Execute lastEntry.Command at lastEntry.AbsolutePath
-}
-```
-
-**Pattern 2: Interactive History Viewer (`--history`)**
-
-```bash
-$ terrax --history
-# Launches TUI showing history table
-# User selects entry, presses Enter
-# Executes selected command
-```
-
-**Use Case**: "Browse and re-run a previous command" workflow.
-
-**Implementation**:
-
-```go
-if historyFlag {
-    projectRoot, _ := history.FindProjectRoot(workingDir)
-    entries, _ := historyService.FilterByProject(projectRoot)
-
-    // Launch history viewer TUI
-    historyModel := tui.NewHistoryModel(entries)
-    program := tea.NewProgram(historyModel)
-    finalModel, _ := program.Run()
-
-    if finalModel.ShouldReExecuteFromHistory() {
-        selected := finalModel.GetSelectedEntry()
-        // Execute selected.Command at selected.AbsolutePath
-    }
-}
-```
-
-### XDG Base Directory Compliance
-
-Use XDG specification for config storage:
-
-```go
-import "github.com/adrg/xdg"
-
-configDir := filepath.Join(xdg.ConfigHome, "terrax")
-historyPath := filepath.Join(configDir, "history.log")
-```
-
-**Platform Mappings**:
-- **Linux**: `~/.config/terrax/history.log`
-- **macOS**: `~/Library/Application Support/terrax/history.log`
-- **Windows**: `%APPDATA%/terrax/history.log`
-
-**Benefits**:
-- Follows platform conventions.
-- No hardcoded paths.
-- Integrates with platform backup/sync tools.
-
-### Non-Blocking Execution
-
-History failures never block command execution:
-
-```go
-func (e *Executor) Execute(ctx context.Context, cmd Command) error {
-    // Execute command
-    err := executeCommand(cmd)
-
-    // Log to history (failures logged but don't return error)
-    if logErr := e.logExecutionToHistory(cmd, exitCode); logErr != nil {
-        fmt.Fprintf(os.Stderr, "Warning: failed to log to history: %v\n", logErr)
-    }
-
-    return err  // Return original execution error, not history error
-}
-```
-
-**Graceful Degradation**:
-- History append fails → warning printed, execution succeeds.
-- History read fails → `--last` fails gracefully, normal execution works.
-- Project detection fails → falls back to no filtering (shows all entries).
+We will implement an **Execution History** system using **JSON Lines (JSONL)** for storage and the **Repository Pattern** for data access.
+
+The solution includes:
+1.  **Storage Format**: `JSONL` (one JSON object per line). This is chosen for its append-only nature, resistance to file corruption (a bad line doesn't break the whole file), and human readability.
+2.  **Location**: XDG-compliant configuration directory (e.g., `~/.config/terrax/history.log`).
+3.  **Project Isolation**: History entries will include the project root path. Queries will filter based on the current active project root to show only relevant history.
+4.  **Dual Path Storage**: We store both absolute paths (for reliable re-execution) and relative paths (for readable UI display).
 
 ## Consequences
 
 ### Positive
-
-- **Audit trail**: Complete record of all executions with timestamps, exit codes, durations.
-- **Quick re-execution**: `--last` enables rapid iteration workflow.
-- **Project awareness**: Filtering prevents confusion across projects.
-- **Cross-platform**: Works consistently on Linux, macOS, Windows.
-- **Human-readable**: JSONL format inspectable with standard tools.
-- **Testable**: Repository abstraction enables easy unit testing.
-- **Non-blocking**: History failures don't break execution.
-- **Automatic cleanup**: Trimming prevents unbounded growth.
-- **Symlink-safe**: Resolves symlinks for consistent project detection.
+*   **Reliability**: JSONL allows for safe, atomic appends without loading the full history into memory.
+*   **User Experience**: Users see only history relevant to their current project.
+*   **Reusability**: Storing absolute paths allows commands to be re-run reliably even if the current working directory changes.
+*   **Maintainability**: The Repository pattern decouples the storage mechanism from the business logic, allowing future backend swaps (e.g., to SQLite) without changing the UI code.
 
 ### Negative
-
-- **Single file lock contention**: Concurrent TerraX instances might conflict (rare in practice).
-- **No encryption**: History file stores paths and commands in plaintext (acceptable for local config).
-- **Manual cleanup**: Users must manually delete history if needed (mitigated by automatic trimming).
-- **Relative path dependency**: Assumes project structure stable (renaming project root breaks relative paths).
-
-### Neutral
-
-- **Separate history file**: Not integrated with shell history (intentional trade-off).
-- **XDG dependency**: Adds `github.com/adrg/xdg` package (small, well-maintained).
-- **JSONL format**: Queryable with jq but not as rich as SQL (acceptable trade-off).
-
+*   **Concurrency**: Simple file appending may have race conditions if multiple TerraX instances write exactly simultaneously, though in practice this is rare for a single-user CLI tool.
+*   **No detailed query language**: Unlike SQLite, complex analytical queries require full table scans.
 
 ## Alternatives Considered
 
-### Alternative 1: Sqlite Database
+### Option 1: SQLite Database
+
+**Description**: Use an embedded SQL database (SQLite) to store execution logs.
 
 **Pros**:
-- Rich querying capabilities (SQL).
-- ACID guarantees.
-- Efficient filtering and indexing.
+
+- Full SQL query support for complex analytics.
+- ACID compliance and reliable concurrent access.
 
 **Cons**:
-- Additional dependency (database driver).
-- Overkill for simple append/read operations.
-- Harder to inspect manually (requires SQL client).
-- Cross-platform complications (CGo for sqlite).
 
-**Decision**: JSONL is simpler and sufficient for current needs.
+- Adds a heavy dependency (CGo often required for performance).
+- Complicates cross-compilation for different platforms.
+- Overkill for a feature that primarily needs "append" and "read last".
 
-### Alternative 2: Shell History Integration
+**Why rejected**: JSONL is simpler, sufficient, and avoids the build complexity of CGo.
 
-Store history in shell's history file (`.bash_history`, `.zsh_history`).
+### Option 2: Shell History Integration
+
+**Description**: Store history in the user's standard shell history file (e.g., `.bash_history`, `.zsh_history`).
 
 **Pros**:
-- No separate history file.
-- Integrates with shell's history search.
+
+- No separate history file to manage.
+- Integrates natively with shell search (Ctrl+R).
 
 **Cons**:
-- Shell-specific format (different for bash/zsh/fish).
-- Can't store structured data (exit code, duration, project).
-- Pollutes shell history with terrax-specific entries.
-- No control over retention/filtering.
 
-**Decision**: Dedicated history file with structured data is superior.
+- Pollutes the user's shell history with internal metadata (exit codes, execution duration).
+- Highly dependent on the specific shell (Bash vs Zsh vs Fish).
+- Cannot easily store structured data for project-aware filtering.
 
-### Alternative 3: In-Memory Only (No Persistence)
+**Why rejected**: We need structured metadata (duration, project root, exit code) which plain shell history cannot reliably support.
 
-Keep history only for current session.
+### Option 3: Per-Project History Files
+
+**Description**: Store a `.terrax_history` file inside each project's root directory.
 
 **Pros**:
-- No file I/O overhead.
-- Simpler implementation.
+
+- Naturally isolated by project.
+- Easy to clear history for a specific project (just delete the file).
 
 **Cons**:
-- History lost on exit.
-- No `--last` across sessions.
-- No audit trail.
 
-**Decision**: Persistence is core requirement.
+- Clutters user repositories with uncommitted files.
+- High risk of users accidentally committing history files to version control.
+- Prevents a global "what did I do today across all projects" view.
 
-### Alternative 4: Per-Project History Files
+**Why rejected**: Centralized storage complies better with XDG standards and keeps user repositories clean.
 
-Store `history.log` in each project directory (`.terrax/history.log`).
+## Future Enhancements
 
-**Pros**:
-- Project-isolated by default.
-- Easy to delete project-specific history.
-
-**Cons**:
-- Pollutes project directories.
-- Risk of accidental commit to git.
-- No cross-project history view.
-- Requires project write permissions.
-
-**Decision**: Single user-level history file with project filtering is cleaner.
-
-### Alternative 5: Relative Paths Only
-
-Store only relative paths (no absolute paths).
-
-**Pros**:
-- Shorter entries.
-- Portable across different checkout locations.
-
-**Cons**:
-- Fails if cwd changes.
-- Can't execute from different directory.
-- Requires storing cwd separately.
-
-**Decision**: Dual paths (relative for display, absolute for execution) is most robust.
+**Potential Improvements**:
+1.  **Export/Import**: Allow users to export history to other formats (CSV) for analysis.
+2.  **Analytics**: Add a command to show stats like "average plan duration" or "success rate".
 
 ## References
 
 - **XDG Base Directory Specification**: https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
-- **JSONL Format**: https://jsonlines.org/
+- **JSON Lines Format**: https://jsonlines.org/
 - **Repository Pattern**: Martin Fowler's "Patterns of Enterprise Application Architecture"
-- **Related ADRs**: [ADR-0004: Separation of Concerns](0004-separation-of-concerns.md)
