@@ -385,6 +385,16 @@ func TestModel_GetSelectedCommand(t *testing.T) {
 			selectedCommand: 2,
 			expected:        "destroy",
 		},
+		{
+			name:            "negative index returns no item selected",
+			selectedCommand: -1,
+			expected:        NoItemSelected,
+		},
+		{
+			name:            "out of bounds index returns no item selected",
+			selectedCommand: 10,
+			expected:        NoItemSelected,
+		},
 	}
 
 	for _, tt := range tests {
@@ -395,6 +405,33 @@ func TestModel_GetSelectedCommand(t *testing.T) {
 
 			cmd := m.GetSelectedCommand()
 			assert.Equal(t, tt.expected, cmd)
+		})
+	}
+}
+
+// TestModel_IsConfirmed tests the IsConfirmed getter.
+func TestModel_IsConfirmed(t *testing.T) {
+	tests := []struct {
+		name      string
+		confirmed bool
+		expected  bool
+	}{
+		{
+			name:      "not confirmed",
+			confirmed: false,
+			expected:  false,
+		},
+		{
+			name:      "confirmed",
+			confirmed: true,
+			expected:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := Model{confirmed: tt.confirmed}
+			assert.Equal(t, tt.expected, m.IsConfirmed())
 		})
 	}
 }

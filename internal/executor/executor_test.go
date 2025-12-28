@@ -1,10 +1,17 @@
 package executor
 
 import (
+	"bytes"
+	"context"
+	"io"
+	"os"
 	"testing"
+	"time"
 
+	"github.com/israoo/terrax/internal/history"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestBuildTerragruntArgs tests the buildTerragruntArgs function with different configurations.
@@ -219,6 +226,129 @@ func TestBuildTerragruntArgs_DynamicFlags(t *testing.T) {
 
 			// Verify expected arguments
 			assert.Equal(t, tt.expected, args, "Arguments should match expected output")
+		})
+	}
+}
+
+// mockHistoryLogger implements HistoryLogger for testing.
+type mockHistoryLogger struct {
+	nextID       int
+	appendCalled bool
+	trimCalled   bool
+	appendErr    error
+	trimErr      error
+}
+
+func (m *mockHistoryLogger) GetNextID(ctx context.Context) (int, error) {
+	return m.nextID, nil
+}
+
+func (m *mockHistoryLogger) Append(ctx context.Context, entry history.ExecutionLogEntry) error {
+	m.appendCalled = true
+	return m.appendErr
+}
+
+func (m *mockHistoryLogger) TrimHistory(ctx context.Context, maxEntries int) error {
+	m.trimCalled = true
+	return m.trimErr
+}
+
+// TestDisplayExecutionSummary tests the displayExecutionSummary function.
+func TestDisplayExecutionSummary(t *testing.T) {
+	// Capture stdout
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	// Call function
+	timestamp := time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC)
+	displayExecutionSummary("plan", "/test/stack", 5*time.Second, 0, timestamp)
+
+	// Restore stdout
+	require.NoError(t, w.Close())
+	os.Stdout = oldStdout
+
+	// Read output
+	var buf bytes.Buffer
+	_, err := io.Copy(&buf, r)
+	require.NoError(t, err)
+	output := buf.String()
+
+	// Verify output contains expected fields
+	assert.Contains(t, output, "Execution Summary")
+	assert.Contains(t, output, "Command")
+	assert.Contains(t, output, "plan")
+	assert.Contains(t, output, "Stack Path")
+	assert.Contains(t, output, "/test/stack")
+	assert.Contains(t, output, "Duration")
+	assert.Contains(t, output, "Exit Code")
+	assert.Contains(t, output, "Timestamp")
+}
+
+// TestLogExecutionToHistory tests the logExecutionToHistory function.
+func TestLogExecutionToHistory(t *testing.T) {
+	ctx := context.Background()
+
+	tests := []struct {
+		name         string
+		setupViper   func()
+		logger       *mockHistoryLogger
+		expectAppend bool
+		expectTrim   bool
+	}{
+		{
+			name: "successful logging",
+			setupViper: func() {
+				viper.Reset()
+				viper.Set("history.max_entries", 100)
+			},
+			logger: &mockHistoryLogger{
+				nextID: 1,
+			},
+			expectAppend: true,
+			expectTrim:   true,
+		},
+		{
+			name: "with default max entries",
+			setupViper: func() {
+				viper.Reset()
+				// Don't set max_entries, should use default
+			},
+			logger: &mockHistoryLogger{
+				nextID: 5,
+			},
+			expectAppend: true,
+			expectTrim:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setupViper()
+
+			// Capture stderr (warnings go there)
+			oldStderr := os.Stderr
+			_, w, _ := os.Pipe()
+			os.Stderr = w
+
+			logExecutionToHistory(
+				ctx,
+				tt.logger,
+				1,
+				time.Now(),
+				"plan",
+				"/test/stack/path",
+				0,
+				5*time.Second,
+				"Test execution",
+			)
+
+			// Restore stderr
+			require.NoError(t, w.Close())
+			os.Stderr = oldStderr
+
+			assert.Equal(t, tt.expectAppend, tt.logger.appendCalled)
+			assert.Equal(t, tt.expectTrim, tt.logger.trimCalled)
 		})
 	}
 }

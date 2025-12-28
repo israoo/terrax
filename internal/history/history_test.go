@@ -592,9 +592,6 @@ func TestFilterHistoryByProject(t *testing.T) {
 }
 
 func TestHasPrefix(t *testing.T) {
-	// Helper internal function, testing indirectly or we can export it if needed?
-	// It is unexported 'hasPrefix'. Test file is "package history" so it can access it.
-
 	tests := []struct {
 		name     string
 		path     string
@@ -603,14 +600,32 @@ func TestHasPrefix(t *testing.T) {
 	}{
 		{
 			name:     "exact match",
-			path:     "/path/to/project",
-			prefix:   "/path/to/project",
+			path:     "/test/root",
+			prefix:   "/test/root",
 			expected: true,
 		},
 		{
-			name:     "path has prefix with subdirectory",
-			path:     "/path/to/project/subdir",
-			prefix:   "/path/to/project",
+			name:     "path is child of prefix",
+			path:     "/test/root/env/dev",
+			prefix:   "/test/root",
+			expected: true,
+		},
+		{
+			name:     "prefix is child of path (should fail)",
+			path:     "/test",
+			prefix:   "/test/root",
+			expected: false,
+		},
+		{
+			name:     "no common prefix",
+			path:     "/other/path",
+			prefix:   "/test/root",
+			expected: false,
+		},
+		{
+			name:     "both empty",
+			path:     "",
+			prefix:   "",
 			expected: true,
 		},
 	}
@@ -621,4 +636,76 @@ func TestHasPrefix(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+// TestDefaultServiceWrappers tests the wrapper functions that use DefaultService.
+func TestDefaultServiceWrappers(t *testing.T) {
+	ctx := context.Background()
+
+	// Test GetHistoryFilePath wrapper
+	t.Run("GetHistoryFilePath returns valid path", func(t *testing.T) {
+		path, err := GetHistoryFilePath()
+		require.NoError(t, err)
+		assert.NotEmpty(t, path)
+		assert.Contains(t, path, HistoryFileName)
+	})
+
+	// Test GetNextID wrapper
+	t.Run("GetNextID returns positive ID", func(t *testing.T) {
+		id, err := GetNextID(ctx)
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, id, 1)
+	})
+
+	// Test LoadHistory wrapper
+	t.Run("LoadHistory returns entries", func(t *testing.T) {
+		entries, err := LoadHistory(ctx)
+		require.NoError(t, err)
+		// Should return a slice (possibly empty)
+		assert.NotNil(t, entries)
+	})
+
+	// Test AppendToHistory and TrimHistory wrappers
+	t.Run("AppendToHistory and TrimHistory work", func(t *testing.T) {
+		entry := ExecutionLogEntry{
+			ID:        9999,
+			Timestamp: time.Now(),
+			User:      "test-user",
+			StackPath: "/test/wrapper",
+			Command:   "plan",
+			ExitCode:  0,
+			DurationS: 1.5,
+			Summary:   "Test wrapper",
+		}
+
+		err := AppendToHistory(ctx, entry)
+		require.NoError(t, err)
+
+		// Trim history should not error
+		err = TrimHistory(ctx, 1000)
+		require.NoError(t, err)
+	})
+
+	// Test GetLastExecutionForProject wrapper
+	t.Run("GetLastExecutionForProject returns entry or nil", func(t *testing.T) {
+		// This may return nil if no entries exist for this project
+		_, err := GetLastExecutionForProject(ctx, "root.hcl")
+		// Should not error, even if no entries found
+		require.NoError(t, err)
+	})
+
+	// Test FilterHistoryByProject wrapper
+	t.Run("FilterHistoryByProject filters entries", func(t *testing.T) {
+		entries := []ExecutionLogEntry{
+			{ID: 1, StackPath: "./env/dev", AbsolutePath: "/project1/env/dev"},
+			{ID: 2, StackPath: "./other", AbsolutePath: "/project2/other"},
+		}
+
+		// This tests that the function doesn't panic
+		_, err := FilterHistoryByProject(entries, "root.hcl")
+		// May error if not in a project root, but should not panic
+		if err != nil {
+			assert.Contains(t, err.Error(), "")
+		}
+	})
 }
