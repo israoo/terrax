@@ -27,7 +27,7 @@ func TestInitConfig_WithConfigFile(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, os.Chdir(tmpDir))
 	t.Cleanup(func() {
-		_ = os.Chdir(originalWd)
+		require.NoError(t, os.Chdir(originalWd))
 		viper.Reset()
 	})
 
@@ -45,7 +45,7 @@ func TestInitConfig_WithoutConfigFile(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, os.Chdir(tmpDir))
 	t.Cleanup(func() {
-		_ = os.Chdir(originalWd)
+		require.NoError(t, os.Chdir(originalWd))
 		viper.Reset()
 	})
 
@@ -68,7 +68,7 @@ func TestInitConfig_EmptyCommands(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, os.Chdir(tmpDir))
 	t.Cleanup(func() {
-		_ = os.Chdir(originalWd)
+		require.NoError(t, os.Chdir(originalWd))
 		viper.Reset()
 	})
 
@@ -130,7 +130,7 @@ commands:
 			require.NoError(t, err)
 			require.NoError(t, os.Chdir(tmpDir))
 			defer func() {
-				_ = os.Chdir(originalWd)
+				require.NoError(t, os.Chdir(originalWd))
 				viper.Reset()
 			}()
 

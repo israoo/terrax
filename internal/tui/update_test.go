@@ -305,7 +305,7 @@ func TestModel_HandleKeyPress(t *testing.T) {
 				assert.NotNil(t, cmd, "should return quit command")
 			} else {
 				assert.NotPanics(t, func() {
-					_, _ = tt.initialModel.handleKeyPress(msg)
+					tt.initialModel.handleKeyPress(msg)
 				})
 			}
 		})

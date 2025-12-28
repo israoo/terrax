@@ -418,9 +418,10 @@ func TestGetLastExecution(t *testing.T) {
 		}
 
 		// Change WD to project root for filtering to work
-		origWd, _ := os.Getwd()
+		origWd, err := os.Getwd()
+		require.NoError(t, err)
 		defer func() {
-			_ = os.Chdir(origWd)
+			require.NoError(t, os.Chdir(origWd))
 		}()
 		require.NoError(t, os.Chdir(tempDir))
 
@@ -559,7 +560,7 @@ func TestFilterHistoryByProject(t *testing.T) {
 	originalDir, err := os.Getwd()
 	require.NoError(t, err)
 	defer func() {
-		_ = os.Chdir(originalDir)
+		require.NoError(t, os.Chdir(originalDir))
 	}()
 
 	require.NoError(t, os.Chdir(filepath.Join(project1, "dev/vpc")))

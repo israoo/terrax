@@ -200,7 +200,7 @@ func TestGetLastExecutionForProject_EdgeCases(t *testing.T) {
 		originalDir, err := os.Getwd()
 		require.NoError(t, err)
 		defer func() {
-			_ = os.Chdir(originalDir)
+			require.NoError(t, os.Chdir(originalDir))
 		}()
 
 		require.NoError(t, os.Chdir(outsideDir))

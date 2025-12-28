@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -49,14 +50,14 @@ func NewFileRepository(filePath string) (*FileRepository, error) {
 }
 
 // Append adds an entry to the history file.
-func (r *FileRepository) Append(ctx context.Context, entry ExecutionLogEntry) error {
+func (r *FileRepository) Append(ctx context.Context, entry ExecutionLogEntry) (err error) {
 	// 0644 = rw-r--r-- (owner can read/write, others can read)
 	file, err := os.OpenFile(r.filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to open history file: %w", err)
 	}
 	defer func() {
-		_ = file.Close()
+		err = errors.Join(err, file.Close())
 	}()
 
 	jsonData, err := json.Marshal(entry)
@@ -72,7 +73,7 @@ func (r *FileRepository) Append(ctx context.Context, entry ExecutionLogEntry) er
 }
 
 // LoadAll returns all history entries sorted by most recent first.
-func (r *FileRepository) LoadAll(ctx context.Context) ([]ExecutionLogEntry, error) {
+func (r *FileRepository) LoadAll(ctx context.Context) (_ []ExecutionLogEntry, err error) {
 	if _, err := os.Stat(r.filePath); os.IsNotExist(err) {
 		return []ExecutionLogEntry{}, nil
 	}
@@ -82,7 +83,7 @@ func (r *FileRepository) LoadAll(ctx context.Context) ([]ExecutionLogEntry, erro
 		return nil, fmt.Errorf("failed to open history file: %w", err)
 	}
 	defer func() {
-		_ = file.Close()
+		err = errors.Join(err, file.Close())
 	}()
 
 	var entries []ExecutionLogEntry
@@ -137,7 +138,10 @@ func (r *FileRepository) Trim(ctx context.Context, maxEntries int) error {
 	for scanner.Scan() {
 		lines = append(lines, scanner.Text())
 	}
-	_ = file.Close()
+	// Explicit close after reading to ensure no lock issues during rename later (if relevant)
+	if err := file.Close(); err != nil {
+		return fmt.Errorf("failed to close read handle: %w", err)
+	}
 
 	if err := scanner.Err(); err != nil {
 		return fmt.Errorf("failed to read history file: %w", err)
@@ -155,31 +159,36 @@ func (r *FileRepository) Trim(ctx context.Context, maxEntries int) error {
 		return fmt.Errorf("failed to create temp file: %w", err)
 	}
 
+	// Use a cleanup function for the temp file in case of failure
+	cleanup := func() {
+		_ = tempFile.Close()    // Idempotent, best effort
+		_ = os.Remove(tempPath) // Best effort
+	}
+
 	writer := bufio.NewWriter(tempFile)
 	for _, line := range trimmedLines {
 		if _, err := writer.WriteString(line + "\n"); err != nil {
-			_ = tempFile.Close()
-			_ = os.Remove(tempPath)
+			cleanup()
 			return fmt.Errorf("failed to write to temp file: %w", err)
 		}
 	}
 
 	if err := writer.Flush(); err != nil {
-		_ = tempFile.Close()
-		_ = os.Remove(tempPath)
+		cleanup()
 		return fmt.Errorf("failed to flush temp file: %w", err)
 	}
 
 	if err := tempFile.Close(); err != nil {
-		_ = os.Remove(tempPath)
+		cleanup()
 		return fmt.Errorf("failed to close temp file: %w", err)
 	}
 
 	if err := os.Rename(tempPath, r.filePath); err != nil {
 		// Fallback for Windows or cross-device link errors: remove target first
-		_ = os.Remove(r.filePath)
-		if err := os.Rename(tempPath, r.filePath); err != nil {
-			return fmt.Errorf("failed to replace history file: %w", err)
+		_ = os.Remove(r.filePath) // Ignore error, rename error will be returned if this fails anyway
+		if renameErr := os.Rename(tempPath, r.filePath); renameErr != nil {
+			cleanup() // Remove the temp file since we failed to move it
+			return fmt.Errorf("failed to replace history file: %w", renameErr)
 		}
 	}
 
@@ -187,7 +196,7 @@ func (r *FileRepository) Trim(ctx context.Context, maxEntries int) error {
 }
 
 // GetNextID returns the next available ID.
-func (r *FileRepository) GetNextID(ctx context.Context) (int, error) {
+func (r *FileRepository) GetNextID(ctx context.Context) (_ int, err error) {
 	file, err := os.Open(r.filePath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -196,7 +205,7 @@ func (r *FileRepository) GetNextID(ctx context.Context) (int, error) {
 		return 0, fmt.Errorf("failed to open history file: %w", err)
 	}
 	defer func() {
-		_ = file.Close()
+		err = errors.Join(err, file.Close())
 	}()
 
 	var lastID int
