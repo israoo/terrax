@@ -157,15 +157,15 @@ func GetCurrentUser() string {
 
 // hasPrefix checks if path starts with prefix, handling filepath separators correctly.
 func hasPrefix(path, prefix string) bool {
-	realPath, _ := filepath.EvalSymlinks(path)
-	realPrefix, _ := filepath.EvalSymlinks(prefix)
-
-	// If EvalSymlinks fails, it returns empty string (if error ignored) or error.
-	// Helper above ignored error and returned default. Let's match that logic cleanly.
-	if realPath == "" {
+	// Resolve symlinks for accurate path comparison
+	realPath, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		// Fallback to original path if resolution fails (e.g. file doesn't exist yet)
 		realPath = path
 	}
-	if realPrefix == "" {
+
+	realPrefix, err := filepath.EvalSymlinks(prefix)
+	if err != nil {
 		realPrefix = prefix
 	}
 

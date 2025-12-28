@@ -14,7 +14,17 @@ var DefaultService *Service
 
 func init() {
 	// Initialize default service with default repository
-	repo, _ := NewFileRepository("")
+	repo, err := NewFileRepository("")
+	if err != nil {
+		// This primarily fails if home directory cannot be determined.
+		// In that unlikely case, we can't persist history properly.
+		// Since init() cannot return error, and this is a fallback global,
+		// we accept a potentially nil repo or broken state here, but ideally we'd log it.
+		// However, standard logger might interfere with TUI. Use nil safely?
+		// Better approach: NewFileRepository returns error only on critical failure.
+		// We'll panic here as the app likely won't work well without a home dir.
+		panic("failed to initialize default history repository: " + err.Error())
+	}
 	DefaultService = NewService(repo, "terragrunt.hcl")
 }
 

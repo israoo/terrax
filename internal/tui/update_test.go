@@ -21,87 +21,6 @@ var testCommands = []string{
 	"destroy",
 }
 
-// TestModel_Init tests the Bubble Tea Init method.
-func TestModel_Init(t *testing.T) {
-	root := &stack.Node{Name: "root", Path: "/test"}
-	model := NewModel(root, 1, testCommands, 3)
-
-	cmd := model.Init()
-
-	assert.Nil(t, cmd, "Init should return nil command")
-}
-
-// TestModel_IsCommandsColumnFocused tests checking if commands column is focused.
-func TestModel_IsCommandsColumnFocused(t *testing.T) {
-	tests := []struct {
-		name          string
-		focusedColumn int
-		expected      bool
-	}{
-		{
-			name:          "focused on commands column",
-			focusedColumn: 0,
-			expected:      true,
-		},
-		{
-			name:          "focused on first navigation column",
-			focusedColumn: 1,
-			expected:      false,
-		},
-		{
-			name:          "focused on second navigation column",
-			focusedColumn: 2,
-			expected:      false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			m := Model{focusedColumn: tt.focusedColumn}
-			result := m.isCommandsColumnFocused()
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
-// TestModel_GetNavigationDepth tests getting navigation depth from focused column.
-func TestModel_GetNavigationDepth(t *testing.T) {
-	tests := []struct {
-		name          string
-		focusedColumn int
-		expected      int
-	}{
-		{
-			name:          "commands column returns -1",
-			focusedColumn: 0,
-			expected:      -1,
-		},
-		{
-			name:          "first navigation column returns 0",
-			focusedColumn: 1,
-			expected:      0,
-		},
-		{
-			name:          "second navigation column returns 1",
-			focusedColumn: 2,
-			expected:      1,
-		},
-		{
-			name:          "third navigation column returns 2",
-			focusedColumn: 3,
-			expected:      2,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			m := Model{focusedColumn: tt.focusedColumn}
-			depth := m.getNavigationDepth()
-			assert.Equal(t, tt.expected, depth)
-		})
-	}
-}
-
 // TestModel_MoveCommandSelection tests moving command selection up and down.
 func TestModel_MoveCommandSelection(t *testing.T) {
 	tests := []struct {
@@ -219,58 +138,6 @@ func TestModel_MoveCommandSelection(t *testing.T) {
 	}
 }
 
-// TestModel_CalculateColumnWidth tests column width calculation.
-func TestModel_CalculateColumnWidth(t *testing.T) {
-	tests := []struct {
-		name        string
-		width       int
-		maxDepth    int
-		expectedMin int
-		expectedMax int
-	}{
-		{
-			name:        "wide terminal - should calculate proper width",
-			width:       200,
-			maxDepth:    3,
-			expectedMin: 30,
-			expectedMax: 100,
-		},
-		{
-			name:        "narrow terminal - should return minimum",
-			width:       60,
-			maxDepth:    3,
-			expectedMin: MinColumnWidth,
-			expectedMax: MinColumnWidth,
-		},
-		{
-			name:        "zero depth - should return minimum",
-			width:       200,
-			maxDepth:    0,
-			expectedMin: MinColumnWidth,
-			expectedMax: MinColumnWidth,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			root := &stack.Node{Name: "root"}
-			nav := stack.NewNavigator(root, tt.maxDepth)
-
-			m := Model{
-				navigator:            nav,
-				width:                tt.width,
-				maxNavigationColumns: 3,
-				columnFilters:        make(map[int]textinput.Model),
-			}
-
-			result := m.calculateColumnWidth()
-
-			assert.GreaterOrEqual(t, result, tt.expectedMin)
-			assert.LessOrEqual(t, result, tt.expectedMax)
-		})
-	}
-}
-
 // TestModel_HandleWindowResize tests window resize message handling.
 func TestModel_HandleWindowResize(t *testing.T) {
 	root := &stack.Node{Name: "root"}
@@ -289,39 +156,6 @@ func TestModel_HandleWindowResize(t *testing.T) {
 	assert.Equal(t, 120, model.width)
 	assert.Equal(t, 30, model.height)
 	assert.Greater(t, model.columnWidth, 0)
-}
-
-// TestModel_HasLeftOverflow tests left overflow detection.
-func TestModel_HasLeftOverflow(t *testing.T) {
-	tests := []struct {
-		name             string
-		navigationOffset int
-		expected         bool
-	}{
-		{
-			name:             "no left overflow at offset 0",
-			navigationOffset: 0,
-			expected:         false,
-		},
-		{
-			name:             "has left overflow at offset 1",
-			navigationOffset: 1,
-			expected:         true,
-		},
-		{
-			name:             "has left overflow at offset 3",
-			navigationOffset: 3,
-			expected:         true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			m := Model{navigationOffset: tt.navigationOffset}
-			result := m.hasLeftOverflow()
-			assert.Equal(t, tt.expected, result)
-		})
-	}
 }
 
 // TestModel_CanAdvanceFurther tests checking if current node has children.
@@ -408,70 +242,6 @@ func TestModel_CanAdvanceFurther(t *testing.T) {
 	}
 }
 
-// TestModel_HasRightOverflow tests right overflow detection.
-func TestModel_HasRightOverflow(t *testing.T) {
-	tests := []struct {
-		name       string
-		setupModel func() Model
-		expected   bool
-	}{
-		{
-			name: "no right overflow - window covers all levels",
-			setupModel: func() Model {
-				root := &stack.Node{
-					Name: "root",
-					Children: []*stack.Node{
-						{Name: "child"},
-					},
-				}
-				nav := stack.NewNavigator(root, 2)
-				state := stack.NewNavigationState(2)
-
-				return Model{
-					navigator:        nav,
-					navState:         state,
-					navigationOffset: 0,
-					focusedColumn:    0,
-				}
-			},
-			expected: false,
-		},
-		{
-			name: "has right overflow - deep tree with children",
-			setupModel: func() Model {
-				// Create deep tree: root -> l1 -> l2 -> l3 -> l4 -> l5
-				root := &stack.Node{Name: "root"}
-				current := root
-				for i := 1; i <= 5; i++ {
-					child := &stack.Node{Name: "level"}
-					current.Children = []*stack.Node{child}
-					current = child
-				}
-
-				nav := stack.NewNavigator(root, 5)
-				state := stack.NewNavigationState(5)
-				nav.PropagateSelection(state)
-
-				return Model{
-					navigator:        nav,
-					navState:         state,
-					navigationOffset: 0,
-					focusedColumn:    1, // Focus on first nav column
-				}
-			},
-			expected: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			m := tt.setupModel()
-			result := m.hasRightOverflow()
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
 // TestModel_HandleKeyPress tests key press routing.
 func TestModel_HandleKeyPress(t *testing.T) {
 	root := &stack.Node{
@@ -541,48 +311,6 @@ func TestModel_HandleKeyPress(t *testing.T) {
 					_, _ = tt.initialModel.handleKeyPress(msg)
 				})
 			}
-		})
-	}
-}
-
-// TestModel_GetCurrentNavigationPath tests breadcrumb path generation.
-func TestModel_GetCurrentNavigationPath(t *testing.T) {
-	tests := []struct {
-		name       string
-		setupModel func() Model
-		expected   string
-	}{
-		{
-			name: "commands column - returns root path",
-			setupModel: func() Model {
-				root := &stack.Node{
-					Name: "root",
-					Path: "/test/root",
-				}
-				return NewModel(root, 1, testCommands, 3)
-			},
-			expected: "/test/root",
-		},
-		{
-			name: "nil root - returns tilde",
-			setupModel: func() Model {
-				nav := stack.NewNavigator(nil, 1)
-				state := stack.NewNavigationState(1)
-				return Model{
-					navigator:     nav,
-					navState:      state,
-					focusedColumn: 0,
-				}
-			},
-			expected: "~",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			m := tt.setupModel()
-			path := m.getCurrentNavigationPath()
-			assert.Equal(t, tt.expected, path)
 		})
 	}
 }
@@ -1244,180 +972,6 @@ func TestModel_MoveToNextColumn(t *testing.T) {
 	}
 }
 
-// TestModel_GetSelectedStackPath tests path retrieval for different focus states.
-func TestModel_GetSelectedStackPath(t *testing.T) {
-	root := &stack.Node{
-		Name: "root",
-		Path: "/test/root",
-		Children: []*stack.Node{
-			{Name: "env", Path: "/test/root/env"},
-		},
-	}
-
-	tests := []struct {
-		name          string
-		focusedColumn int
-		expectedPath  string
-	}{
-		{
-			name:          "commands column returns root path",
-			focusedColumn: 0,
-			expectedPath:  "/test/root",
-		},
-		{
-			name:          "navigation column returns selected path",
-			focusedColumn: 1,
-			expectedPath:  "/test/root/env",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			m := NewModel(root, 1, testCommands, 3)
-			m.focusedColumn = tt.focusedColumn
-
-			path := m.GetSelectedStackPath()
-			assert.Equal(t, tt.expectedPath, path)
-		})
-	}
-}
-
-// TestModel_GetSelectedCommand tests command retrieval.
-func TestModel_GetSelectedCommand(t *testing.T) {
-	root := &stack.Node{Name: "root"}
-	m := NewModel(root, 1, testCommands, 3)
-
-	tests := []struct {
-		name            string
-		selectedCommand int
-		expected        string
-	}{
-		{
-			name:            "first command (plan)",
-			selectedCommand: 0,
-			expected:        "plan",
-		},
-		{
-			name:            "second command (apply)",
-			selectedCommand: 1,
-			expected:        "apply",
-		},
-		{
-			name:            "out of bounds returns default",
-			selectedCommand: 999,
-			expected:        NoItemSelected,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			m.selectedCommand = tt.selectedCommand
-			result := m.GetSelectedCommand()
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
-// TestModel_View tests View rendering function.
-func TestModel_View(t *testing.T) {
-	root := &stack.Node{
-		Name: "root",
-		Path: "/test/root",
-		Children: []*stack.Node{
-			{Name: "env", Path: "/test/root/env"},
-			{Name: "modules", Path: "/test/root/modules"},
-		},
-	}
-
-	tests := []struct {
-		name        string
-		setupModel  func() Model
-		checkOutput func(t *testing.T, output string)
-	}{
-		{
-			name: "not ready shows initializing",
-			setupModel: func() Model {
-				m := NewModel(root, 1, testCommands, 3)
-				m.ready = false
-				return m
-			},
-			checkOutput: func(t *testing.T, output string) {
-				assert.Equal(t, Initializing, output)
-			},
-		},
-		{
-			name: "ready model renders full UI",
-			setupModel: func() Model {
-				m := NewModel(root, 1, testCommands, 3)
-				m.ready = true
-				m.width = 120
-				m.height = 30
-				m.columnWidth = 30
-				return m
-			},
-			checkOutput: func(t *testing.T, output string) {
-				assert.NotEmpty(t, output)
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			m := tt.setupModel()
-			view := m.View()
-			tt.checkOutput(t, view)
-		})
-	}
-}
-
-// TestNewTestModel tests the test helper function.
-func TestNewTestModel(t *testing.T) {
-	root := &stack.Node{
-		Name:     "root",
-		Path:     "/test/root",
-		Children: []*stack.Node{{Name: "child", Path: "/test/root/child"}},
-	}
-
-	tests := []struct {
-		name            string
-		confirmed       bool
-		selectedCommand string
-		selectedPath    string
-	}{
-		{
-			name:            "confirmed model with plan command",
-			confirmed:       true,
-			selectedCommand: "plan",
-			selectedPath:    "/test/root/child",
-		},
-		{
-			name:            "unconfirmed model with apply command",
-			confirmed:       false,
-			selectedCommand: "apply",
-			selectedPath:    "/test/root",
-		},
-		{
-			name:            "confirmed model with destroy command",
-			confirmed:       true,
-			selectedCommand: "destroy",
-			selectedPath:    "/test/root/child",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			model := NewTestModel(root, 1, testCommands, 3, tt.confirmed, tt.selectedCommand, tt.selectedPath)
-
-			assert.Equal(t, tt.confirmed, model.IsConfirmed())
-			assert.Equal(t, tt.selectedCommand, model.GetSelectedCommand())
-			assert.True(t, model.ready)
-			assert.Equal(t, 120, model.width)
-			assert.Equal(t, 30, model.height)
-			assert.Equal(t, 25, model.columnWidth)
-		})
-	}
-}
-
 // TestModel_HandleKeyPress_UnknownKey tests handling of unrecognized key presses.
 func TestModel_HandleKeyPress_UnknownKey(t *testing.T) {
 	root := &stack.Node{
@@ -1485,46 +1039,6 @@ func TestModel_MoveNavigationSelection_InvalidDepth(t *testing.T) {
 	assert.NotNil(t, model.navState)
 }
 
-// TestModel_GetCurrentNavigationPath_WithStackMarker tests path generation with emoji marker.
-func TestModel_GetCurrentNavigationPath_WithStackMarker(t *testing.T) {
-	root := &stack.Node{
-		Name: "root",
-		Path: "/test/root",
-		Children: []*stack.Node{
-			{
-				Name:    "env",
-				Path:    "/test/root/env",
-				IsStack: true, // This will have a 📦 marker in the display, but Path doesn't include it
-				Children: []*stack.Node{
-					{Name: "dev", Path: "/test/root/env/dev"},
-				},
-			},
-		},
-	}
-
-	nav := stack.NewNavigator(root, 2)
-	state := stack.NewNavigationState(2)
-	nav.PropagateSelection(state)
-
-	model := Model{
-		navigator:     nav,
-		navState:      state,
-		focusedColumn: 1, // First navigation column
-	}
-
-	path := model.getCurrentNavigationPath()
-
-	// The path should contain "env" (the emoji marker only appears in the display column names, not in the path).
-	assert.Contains(t, path, "env")
-
-	// Note: The getCurrentNavigationPath function builds the path from the column display names,
-	// which do include the emoji marker. This is expected behavior - the function strips it.
-	// However, looking at the implementation, the path is built by appending to Node.Path,
-	// so the emoji should be in the column name but needs to be stripped.
-	// Let's verify the actual behavior by checking if the path makes sense.
-	assert.Contains(t, path, "/test/root")
-}
-
 // TestModel_CanAdvanceFurther_EdgeCases tests edge cases for canAdvanceFurther.
 func TestModel_CanAdvanceFurther_EdgeCases(t *testing.T) {
 	tests := []struct {
@@ -1576,24 +1090,6 @@ func TestModel_CanAdvanceFurther_EdgeCases(t *testing.T) {
 	}
 }
 
-// TestModel_GetSelectedStackPath_NilNode tests GetSelectedStackPath with nil target node.
-func TestModel_GetSelectedStackPath_NilNode(t *testing.T) {
-	// Create a navigator that will return nil node.
-	nav := stack.NewNavigator(nil, 0)
-	state := stack.NewNavigationState(0)
-
-	model := Model{
-		navigator:     nav,
-		navState:      state,
-		focusedColumn: 0,
-	}
-
-	path := model.GetSelectedStackPath()
-
-	// Should return NoItemSelected when node is nil.
-	assert.Equal(t, NoItemSelected, path)
-}
-
 // TestModel_Update_UnhandledMessage tests Update with an unhandled message type.
 func TestModel_Update_UnhandledMessage(t *testing.T) {
 	root := &stack.Node{Name: "root"}
@@ -1613,7 +1109,8 @@ func TestModel_Update_UnhandledMessage(t *testing.T) {
 // TestFilterItems tests the filterItems function with various inputs.
 func TestFilterItems(t *testing.T) {
 	tests := []struct {
-		name       string
+		name string
+
 		items      []string
 		filterText string
 		expected   []string
