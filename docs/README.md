@@ -1,6 +1,6 @@
 # TerraX Knowledge Base
 
-**Last Updated**: 2025-12-27
+**Last Updated**: 2025-12-28
 
 ## Overview
 
@@ -17,6 +17,11 @@ Documents significant architectural and technical decisions, including context, 
 - [ADR-0002: Navigator Pattern for Business Logic](adr/0002-navigator-pattern.md)
 - [ADR-0003: Sliding Window for Deep Hierarchies](adr/0003-sliding-window-navigation.md)
 - [ADR-0004: Separation of Concerns](adr/0004-separation-of-concerns.md)
+- [ADR-0005: Filesystem Tree Building Strategy](adr/0005-filesystem-tree-building-strategy.md)
+- [ADR-0006: Execution History Management](adr/0006-execution-history-management.md)
+- [ADR-0007: Configuration Management Strategy](adr/0007-configuration-management-strategy.md)
+- [ADR-0008: Dual-Mode TUI Architecture](adr/0008-dual-mode-tui-architecture.md)
+- [ADR-0009: Executor Isolation Pattern](adr/0009-executor-isolation-pattern.md)
 
 ### 📐 [Standards](standards/)
 

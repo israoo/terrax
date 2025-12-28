@@ -27,6 +27,8 @@ Each ADR follows this structure:
 
 **Deciders**: [Names/Roles]
 
+**Related**: [ADR-NNNN: Title](NNNN-title.md) (if applicable)
+
 ## Context
 
 What is the issue we're facing? What are the constraints and requirements?
@@ -91,7 +93,17 @@ Create an ADR for decisions that:
 
 ## Current ADRs
 
-- [ADR-0001: Bubble Tea Architecture](0001-bubble-tea-architecture.md)
-- [ADR-0002: Navigator Pattern for Business Logic](0002-navigator-pattern.md)
-- [ADR-0003: Sliding Window for Deep Hierarchies](0003-sliding-window-navigation.md)
-- [ADR-0004: Separation of Concerns](0004-separation-of-concerns.md)
+### Core Architecture
+
+- [ADR-0001: Bubble Tea Architecture](0001-bubble-tea-architecture.md) - Elm Architecture pattern with Model-Update-View
+- [ADR-0002: Navigator Pattern for Business Logic](0002-navigator-pattern.md) - Separation of business logic from UI framework
+- [ADR-0003: Sliding Window for Deep Hierarchies](0003-sliding-window-navigation.md) - Fixed 3-column navigation window
+- [ADR-0004: Separation of Concerns](0004-separation-of-concerns.md) - Layer boundaries and responsibilities
+
+### Feature Implementation
+
+- [ADR-0005: Filesystem Tree Building Strategy](0005-filesystem-tree-building-strategy.md) - Single-pass scanning with stack detection
+- [ADR-0006: Execution History Management](0006-execution-history-management.md) - Project-aware history with JSONL persistence
+- [ADR-0007: Configuration Management Strategy](0007-configuration-management-strategy.md) - Defaults-first approach with Viper
+- [ADR-0008: Dual-Mode TUI Architecture](0008-dual-mode-tui-architecture.md) - State machine for navigation and history modes
+- [ADR-0009: Executor Isolation Pattern](0009-executor-isolation-pattern.md) - Command execution with dependency injection
