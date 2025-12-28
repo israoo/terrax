@@ -61,6 +61,13 @@ Description and why it was rejected.
 
 Description and why it was rejected.
 
+## Future Enhancements (if applicable)
+
+**Potential Improvements**:
+
+1. **Potential Future Improvement 1**: Description of a potential future improvement.
+2. **Potential Future Improvement 2**: Description of another potential future improvement.
+
 ## References
 
 - Links to relevant discussions, documentation, or external resources
