@@ -119,8 +119,7 @@ Testing-related mistakes and gaps.
 
 Performance issues and inefficiencies.
 
-- [Repeated Filesystem Scans](performance/repeated-fs-scans.md)
-- [Excessive String Allocations in Rendering](performance/string-allocations.md)
+- [Repeated Filesystem Scans](performance/repeated-filesystem-scans.md)
 
 ### Tooling
 
@@ -132,8 +131,11 @@ Build, development environment, and tooling issues.
 ## Current Pitfalls
 
 - [Mixing Business Logic with UI](architecture/mixing-business-logic-ui.md)
+- [Tight Coupling Between Layers](architecture/tight-coupling.md)
 - [Ignoring Errors Silently](code-quality/ignoring-errors.md)
 - [Deleting Helpful Comments](code-quality/deleting-comments.md)
+- [Skipping Unit Tests for Business Logic](testing/skipping-unit-tests.md)
+- [Repeated Filesystem Scans](performance/repeated-filesystem-scans.md)
 - [Platform-Specific Path Handling](tooling/platform-paths.md)
 
 ## Contributing

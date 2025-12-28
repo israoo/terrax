@@ -40,18 +40,24 @@ Lessons learned, known pitfalls, and common errors to avoid.
 
 **Architecture**:
 - [Mixing Business Logic with UI](pitfalls/architecture/mixing-business-logic-ui.md)
+- [Tight Coupling Between Layers](pitfalls/architecture/tight-coupling.md)
 
 **Code Quality**:
+
 - [Deleting Helpful Comments](pitfalls/code-quality/deleting-comments.md)
+- [Ignoring Errors Silently](pitfalls/code-quality/ignoring-errors.md)
+
+**Testing**:
+
+- [Skipping Unit Tests for Business Logic](pitfalls/testing/skipping-unit-tests.md)
+
+**Performance**:
+
+- [Repeated Filesystem Scans](pitfalls/performance/repeated-filesystem-scans.md)
 
 **Tooling**:
-- [Platform-Specific Path Handling](pitfalls/tooling/platform-paths.md)
 
-**Planned Pitfalls**:
-- Tight Coupling Between Layers
-- Ignoring Errors Silently
-- Skipping Unit Tests for Business Logic
-- Repeated Filesystem Scans
+- [Platform-Specific Path Handling](pitfalls/tooling/platform-paths.md)
 
 ## Quick Reference
 
