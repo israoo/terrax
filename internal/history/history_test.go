@@ -25,14 +25,12 @@ func splitLines(s string) []string {
 }
 
 func TestGetHistoryFilePath(t *testing.T) {
-	// This tests the DEFAULT path logic
 	path, err := GetDefaultHistoryFilePath()
 	require.NoError(t, err)
 	assert.NotEmpty(t, path)
 	assert.Contains(t, path, ConfigDirName)
 	assert.Contains(t, path, HistoryFileName)
 
-	// Verify directory exists after call
 	dir := filepath.Dir(path)
 	info, err := os.Stat(dir)
 	require.NoError(t, err)
@@ -42,7 +40,6 @@ func TestGetHistoryFilePath(t *testing.T) {
 func TestAppendToHistory(t *testing.T) {
 	ctx := context.Background()
 
-	// Setup: Create a temporary directory for testing
 	tempDir := t.TempDir()
 	tempHistoryPath := filepath.Join(tempDir, HistoryFileName)
 
@@ -87,16 +84,13 @@ func TestAppendToHistory(t *testing.T) {
 			err := svc.Append(ctx, tt.entry)
 			require.NoError(t, err)
 
-			// Verify file exists
 			_, err = os.Stat(tempHistoryPath)
 			require.NoError(t, err)
 
-			// Read and verify the last line
 			data, err := os.ReadFile(tempHistoryPath)
 			require.NoError(t, err)
 			assert.NotEmpty(t, data)
 
-			// Parse the JSON to verify it's valid
 			lines := splitLines(string(data))
 			lastLine := lines[len(lines)-1]
 
@@ -166,7 +160,6 @@ func TestTrimHistory(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Setup: Create a temporary directory for testing
 			tempDir := t.TempDir()
 			tempHistoryPath := filepath.Join(tempDir, HistoryFileName)
 
@@ -174,7 +167,6 @@ func TestTrimHistory(t *testing.T) {
 			require.NoError(t, err)
 			svc := NewService(repo, "root.hcl")
 
-			// Create initial entries
 			for i := 1; i <= tt.initialEntries; i++ {
 				entry := ExecutionLogEntry{
 					ID:        i,
@@ -190,7 +182,6 @@ func TestTrimHistory(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			// Execute trim
 			err = svc.TrimHistory(ctx, tt.maxEntries)
 
 			if tt.expectError {
@@ -199,7 +190,6 @@ func TestTrimHistory(t *testing.T) {
 				assert.NoError(t, err)
 			}
 
-			// Verify the number of lines
 			if tt.initialEntries > 0 && !tt.expectError {
 				data, err := os.ReadFile(tempHistoryPath)
 				require.NoError(t, err)
@@ -223,7 +213,6 @@ func TestTrimHistory(t *testing.T) {
 func TestTrimHistoryNonExistentFile(t *testing.T) {
 	ctx := context.Background()
 
-	// Setup: Create a temporary directory without creating the file
 	tempDir := t.TempDir()
 	tempHistoryPath := filepath.Join(tempDir, HistoryFileName)
 
@@ -248,17 +237,14 @@ func TestExecutionLogEntry_JSONSerialization(t *testing.T) {
 		Summary:   "5 added, 2 changed, 0 destroyed",
 	}
 
-	// Serialize to JSON
 	jsonData, err := json.Marshal(entry)
 	require.NoError(t, err)
 	assert.NotEmpty(t, jsonData)
 
-	// Deserialize from JSON
 	var parsed ExecutionLogEntry
 	err = json.Unmarshal(jsonData, &parsed)
 	require.NoError(t, err)
 
-	// Verify all fields match
 	assert.Equal(t, entry.ID, parsed.ID)
 	assert.True(t, entry.Timestamp.Equal(parsed.Timestamp))
 	assert.Equal(t, entry.User, parsed.User)

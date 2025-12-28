@@ -50,7 +50,6 @@ func NewFileRepository(filePath string) (*FileRepository, error) {
 
 // Append adds an entry to the history file.
 func (r *FileRepository) Append(ctx context.Context, entry ExecutionLogEntry) error {
-	// Open file in append mode, create if doesn't exist
 	// 0644 = rw-r--r-- (owner can read/write, others can read)
 	file, err := os.OpenFile(r.filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -60,13 +59,11 @@ func (r *FileRepository) Append(ctx context.Context, entry ExecutionLogEntry) er
 		_ = file.Close()
 	}()
 
-	// Serialize entry to JSON
 	jsonData, err := json.Marshal(entry)
 	if err != nil {
 		return fmt.Errorf("failed to marshal entry to JSON: %w", err)
 	}
 
-	// Write JSON line + newline (JSONL format)
 	if _, err := file.Write(append(jsonData, '\n')); err != nil {
 		return fmt.Errorf("failed to write entry to history: %w", err)
 	}
@@ -76,7 +73,6 @@ func (r *FileRepository) Append(ctx context.Context, entry ExecutionLogEntry) er
 
 // LoadAll returns all history entries sorted by most recent first.
 func (r *FileRepository) LoadAll(ctx context.Context) ([]ExecutionLogEntry, error) {
-	// Check if file exists
 	if _, err := os.Stat(r.filePath); os.IsNotExist(err) {
 		return []ExecutionLogEntry{}, nil
 	}
@@ -100,7 +96,6 @@ func (r *FileRepository) LoadAll(ctx context.Context) ([]ExecutionLogEntry, erro
 
 		var entry ExecutionLogEntry
 		if err := json.Unmarshal([]byte(line), &entry); err != nil {
-			// Skip invalid lines but continue reading
 			continue
 		}
 
@@ -116,7 +111,6 @@ func (r *FileRepository) LoadAll(ctx context.Context) ([]ExecutionLogEntry, erro
 		return nil, fmt.Errorf("error reading history file: %w", err)
 	}
 
-	// Reverse entries to show most recent first
 	for i, j := 0, len(entries)-1; i < j; i, j = i+1, j-1 {
 		entries[i], entries[j] = entries[j], entries[i]
 	}
@@ -130,7 +124,6 @@ func (r *FileRepository) Trim(ctx context.Context, maxEntries int) error {
 		return fmt.Errorf("maxEntries must be positive, got: %d", maxEntries)
 	}
 
-	// Open file for reading
 	file, err := os.Open(r.filePath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -144,7 +137,7 @@ func (r *FileRepository) Trim(ctx context.Context, maxEntries int) error {
 	for scanner.Scan() {
 		lines = append(lines, scanner.Text())
 	}
-	_ = file.Close() // Close before writing
+	_ = file.Close()
 
 	if err := scanner.Err(); err != nil {
 		return fmt.Errorf("failed to read history file: %w", err)
@@ -154,10 +147,8 @@ func (r *FileRepository) Trim(ctx context.Context, maxEntries int) error {
 		return nil // No trimming needed
 	}
 
-	// Keep only the last maxEntries lines
 	trimmedLines := lines[len(lines)-maxEntries:]
 
-	// Atomic write using temp file
 	tempPath := r.filePath + ".tmp"
 	tempFile, err := os.Create(tempPath)
 	if err != nil {

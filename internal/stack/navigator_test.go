@@ -180,7 +180,6 @@ func TestNavigator_PropagateSelection(t *testing.T) {
 
 			resultNode := nav.PropagateSelection(state)
 
-			// Verify columns (skip if expectedColumns is nil).
 			if tt.expectedColumns != nil {
 				for i, expectedCol := range tt.expectedColumns {
 					if i < len(state.Columns) {
@@ -190,10 +189,8 @@ func TestNavigator_PropagateSelection(t *testing.T) {
 				}
 			}
 
-			// Verify selected indices.
 			assert.Equal(t, tt.expectedIndices, state.SelectedIndices)
 
-			// Verify current nodes.
 			for i, expectedName := range tt.expectedNodeNames {
 				if i < len(state.CurrentNodes) && state.CurrentNodes[i] != nil {
 					assert.Equal(t, expectedName, state.CurrentNodes[i].Name,
@@ -201,7 +198,6 @@ func TestNavigator_PropagateSelection(t *testing.T) {
 				}
 			}
 
-			// Verify result node.
 			if len(tt.expectedNodeNames) > 0 && resultNode != nil {
 				lastIdx := len(tt.expectedNodeNames) - 1
 				assert.Equal(t, tt.expectedNodeNames[lastIdx], resultNode.Name)

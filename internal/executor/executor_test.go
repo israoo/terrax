@@ -73,27 +73,22 @@ func TestBuildTerragruntArgs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Reset viper before each test
 			viper.Reset()
 
-			// Set configuration values
 			if tt.logLevel != "" {
 				viper.Set("log_level", tt.logLevel)
 			}
 			if tt.logFormat != "" {
 				viper.Set("log_format", tt.logFormat)
 			} else {
-				// Set default log format
 				viper.Set("log_format", "pretty")
 			}
 			if tt.logCustomFmt != "" {
 				viper.Set("log_custom_format", tt.logCustomFmt)
 			}
 
-			// Build arguments
 			args := buildTerragruntArgs(tt.stackPath, tt.command)
 
-			// Verify expected arguments
 			assert.Equal(t, tt.expected, args, "Arguments should match expected output")
 		})
 	}
@@ -192,13 +187,9 @@ func TestBuildTerragruntArgs_DynamicFlags(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Reset viper before each test
 			viper.Reset()
-
-			// Set default log format
 			viper.Set("log_format", "pretty")
 
-			// Set configuration values
 			if tt.parallelism > 0 {
 				viper.Set("terragrunt.parallelism", tt.parallelism)
 			}
@@ -221,10 +212,8 @@ func TestBuildTerragruntArgs_DynamicFlags(t *testing.T) {
 				viper.Set("terragrunt.extra_flags", tt.extraFlags)
 			}
 
-			// Build arguments
 			args := buildTerragruntArgs(tt.stackPath, tt.command)
 
-			// Verify expected arguments
 			assert.Equal(t, tt.expected, args, "Arguments should match expected output")
 		})
 	}
@@ -255,26 +244,21 @@ func (m *mockHistoryLogger) TrimHistory(ctx context.Context, maxEntries int) err
 
 // TestDisplayExecutionSummary tests the displayExecutionSummary function.
 func TestDisplayExecutionSummary(t *testing.T) {
-	// Capture stdout
 	oldStdout := os.Stdout
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 
-	// Call function
 	timestamp := time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC)
 	displayExecutionSummary("plan", "/test/stack", 5*time.Second, 0, timestamp)
 
-	// Restore stdout
 	require.NoError(t, w.Close())
 	os.Stdout = oldStdout
 
-	// Read output
 	var buf bytes.Buffer
 	_, err := io.Copy(&buf, r)
 	require.NoError(t, err)
 	output := buf.String()
 
-	// Verify output contains expected fields
 	assert.Contains(t, output, "Execution Summary")
 	assert.Contains(t, output, "Command")
 	assert.Contains(t, output, "plan")
@@ -326,7 +310,6 @@ func TestLogExecutionToHistory(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setupViper()
 
-			// Capture stderr (warnings go there)
 			oldStderr := os.Stderr
 			_, w, _ := os.Pipe()
 			os.Stderr = w
@@ -343,7 +326,6 @@ func TestLogExecutionToHistory(t *testing.T) {
 				"Test execution",
 			)
 
-			// Restore stderr
 			require.NoError(t, w.Close())
 			os.Stderr = oldStderr
 

@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// testCommands defines a standard list of commands for testing.
 var testCommands = []string{
 	"plan",
 	"apply",
@@ -45,7 +44,6 @@ func captureStdout(t *testing.T) (restore func() string) {
 	}
 }
 
-// TestGetWorkingDirectory tests that getWorkingDirectory returns a valid path.
 func TestGetWorkingDirectory(t *testing.T) {
 	workDir, err := getWorkingDirectory()
 

@@ -14,13 +14,11 @@ func FindAndBuildTree(rootDir string) (*Node, int, error) {
 		return nil, 0, fmt.Errorf("root directory cannot be empty")
 	}
 
-	// Resolve absolute path
 	absPath, err := filepath.Abs(rootDir)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to resolve absolute path: %w", err)
 	}
 
-	// Verify directory exists and is accessible
 	info, err := os.Stat(absPath)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to access directory: %w", err)
@@ -29,7 +27,6 @@ func FindAndBuildTree(rootDir string) (*Node, int, error) {
 		return nil, 0, fmt.Errorf("%s is not a directory", absPath)
 	}
 
-	// Build the tree starting from root
 	root := &Node{
 		Name:     filepath.Base(absPath),
 		Path:     absPath,
@@ -56,12 +53,10 @@ func buildTreeRecursive(node *Node, maxDepth *int) error {
 	}
 
 	for _, entry := range entries {
-		// Skip non-directories and hidden directories.
 		if !entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
 			continue
 		}
 
-		// Skip common non-stack directories.
 		if shouldSkipDirectory(entry.Name()) {
 			continue
 		}
@@ -82,7 +77,6 @@ func buildTreeRecursive(node *Node, maxDepth *int) error {
 
 		// Only add this node if it's a stack OR if it has children (contains stacks in hierarchy).
 		if childNode.IsStack || len(childNode.Children) > 0 {
-			// Update max depth.
 			if childNode.Depth > *maxDepth {
 				*maxDepth = childNode.Depth
 			}
@@ -96,7 +90,6 @@ func buildTreeRecursive(node *Node, maxDepth *int) error {
 
 // isStackDirectory checks if a directory contains stack definition files
 func isStackDirectory(dirPath string) bool {
-	// Check for Terragrunt
 	if _, err := os.Stat(filepath.Join(dirPath, "terragrunt.hcl")); err == nil {
 		return true
 	}

@@ -9,8 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestFindAndBuildTree_Success tests the tree building with a mocked filesystem.
-// It verifies that the tree structure matches the expected hierarchy and depth.
 func TestFindAndBuildTree_Success(t *testing.T) {
 	// Create in-memory filesystem.
 	fs := afero.NewMemMapFs()

@@ -142,7 +142,6 @@ func TestRenderPageIndicators(t *testing.T) {
 				assert.Empty(t, result)
 			} else {
 				assert.NotEmpty(t, result)
-				// Each dot is rendered, should contain the bullet character
 				assert.Contains(t, result, "•")
 			}
 		})

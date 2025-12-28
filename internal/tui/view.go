@@ -6,12 +6,10 @@ import (
 
 // View renders the complete UI (BubbleTea interface).
 func (m Model) View() string {
-	// Delegate to history view if in StateHistory
 	if m.state == StateHistory {
 		return m.renderHistoryView()
 	}
 
-	// Default: StateNavigation view
 	if !m.ready || m.width == 0 {
 		return Initializing
 	}

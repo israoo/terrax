@@ -287,7 +287,6 @@ func TestModel_HandleKeyPress(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			msg := tea.KeyMsg{Type: tea.KeyRunes}
-			// Set the key string representation
 			switch tt.key {
 			case KeyCtrlC:
 				msg.Type = tea.KeyCtrlC
@@ -305,8 +304,6 @@ func TestModel_HandleKeyPress(t *testing.T) {
 			if tt.expectQuit {
 				assert.NotNil(t, cmd, "should return quit command")
 			} else {
-				// Non-quit keys may or may not return a command
-				// Just verify no panic occurred
 				assert.NotPanics(t, func() {
 					_, _ = tt.initialModel.handleKeyPress(msg)
 				})
@@ -737,7 +734,6 @@ func TestModel_Update(t *testing.T) {
 				Type: tea.KeyUp,
 			},
 			checkResult: func(t *testing.T, m tea.Model, cmd tea.Cmd) {
-				// Should not panic
 				assert.NotNil(t, m)
 			},
 		},
@@ -991,14 +987,12 @@ func TestModel_HandleKeyPress_UnknownKey(t *testing.T) {
 
 	updatedModel, cmd := model.handleKeyPress(msg)
 
-	// Should return model unchanged and no command.
 	assert.Nil(t, cmd)
 	assert.NotNil(t, updatedModel)
 }
 
 // TestModel_HandleEnterKey_NilNode tests enter key when no node is available.
 func TestModel_HandleEnterKey_NilNode(t *testing.T) {
-	// Create a model with nil navigator root.
 	nav := stack.NewNavigator(nil, 0)
 	state := stack.NewNavigationState(0)
 
@@ -1010,7 +1004,6 @@ func TestModel_HandleEnterKey_NilNode(t *testing.T) {
 
 	updatedModel, cmd := model.handleEnterKey()
 
-	// Should not quit when target node is nil.
 	assert.Nil(t, cmd)
 	finalModel := updatedModel.(Model)
 	assert.False(t, finalModel.confirmed)
@@ -1032,10 +1025,8 @@ func TestModel_MoveNavigationSelection_InvalidDepth(t *testing.T) {
 		focusedColumn: 0, // Commands column - depth will be -1
 	}
 
-	// Call moveNavigationSelection when depth is -1.
 	model.moveNavigationSelection(true)
 
-	// Should handle gracefully without panic.
 	assert.NotNil(t, model.navState)
 }
 
@@ -1068,7 +1059,6 @@ func TestModel_CanAdvanceFurther_EdgeCases(t *testing.T) {
 				nav := stack.NewNavigator(root, 2)
 				state := stack.NewNavigationState(2)
 
-				// Manually set a nil current node.
 				state.CurrentNodes = []*stack.Node{nil, nil}
 
 				return Model{
@@ -1095,13 +1085,11 @@ func TestModel_Update_UnhandledMessage(t *testing.T) {
 	root := &stack.Node{Name: "root"}
 	model := NewModel(root, 1, testCommands, 3)
 
-	// Send a message type that's not handled (e.g., a custom message).
 	type CustomMsg struct{}
 	msg := CustomMsg{}
 
 	updatedModel, cmd := model.Update(msg)
 
-	// Should return model unchanged and no command.
 	assert.Nil(t, cmd)
 	assert.NotNil(t, updatedModel)
 }
@@ -1466,8 +1454,6 @@ func TestModel_HandleKeyPress_FilterMode(t *testing.T) {
 			},
 			checkResult: func(t *testing.T, m Model) {
 				filter := m.columnFilters[0]
-				// Note: The actual value depends on textinput's Update logic
-				// We just verify the filter still exists and is active
 				assert.NotNil(t, filter)
 				assert.Equal(t, 0, m.activeFilterColumn)
 			},

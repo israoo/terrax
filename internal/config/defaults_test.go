@@ -64,7 +64,6 @@ func TestDefaultConstants(t *testing.T) {
 
 // TestDefaultCommands verifies the default commands list.
 func TestDefaultCommands(t *testing.T) {
-	// Verify expected commands are present
 	expectedCommands := []string{
 		"plan",
 		"apply",

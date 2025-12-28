@@ -91,7 +91,6 @@ func TestRenderColumnsWithArrows(t *testing.T) {
 
 			assert.NotEmpty(t, columns)
 
-			// Check for left arrow
 			hasLeftArrow := false
 			hasRightArrow := false
 			for _, col := range columns {
@@ -164,12 +163,9 @@ func TestBuildCommandList(t *testing.T) {
 
 			list := renderer.buildCommandList()
 
-			// Verify all commands appear
 			for _, cmd := range tt.commands {
 				assert.Contains(t, list, cmd)
 			}
-
-			// Verify cursor appears
 			if tt.expectCursor {
 				assert.Contains(t, list, "►")
 			}

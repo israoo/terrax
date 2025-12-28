@@ -7,14 +7,13 @@ package stack
 
 // Node represents a directory node in the stack tree
 type Node struct {
-	Name     string  // Directory name
-	Path     string  // Full path
-	IsStack  bool    // True if contains terragrunt.hcl
-	Children []*Node // Child directories
-	Depth    int     // Depth level in the tree
+	Name     string
+	Path     string
+	IsStack  bool
+	Children []*Node
+	Depth    int
 }
 
-// GetChildren returns the child nodes of this node
 func (n *Node) GetChildren() []*Node {
 	if n == nil {
 		return nil
@@ -22,12 +21,10 @@ func (n *Node) GetChildren() []*Node {
 	return n.Children
 }
 
-// HasChildren returns true if the node has children
 func (n *Node) HasChildren() bool {
 	return n != nil && len(n.Children) > 0
 }
 
-// GetChildNames returns a slice of child node names
 func (n *Node) GetChildNames() []string {
 	if !n.HasChildren() {
 		return []string{}
@@ -44,7 +41,6 @@ func (n *Node) GetChildNames() []string {
 	return names
 }
 
-// FindChildByIndex returns the child node at the given index
 func (n *Node) FindChildByIndex(index int) *Node {
 	if !n.HasChildren() || index < 0 || index >= len(n.Children) {
 		return nil

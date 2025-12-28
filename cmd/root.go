@@ -47,13 +47,9 @@ func init() {
 	// Assign the version to rootCmd to enable --version flag
 	rootCmd.Version = Version
 
-	// Configure professional CLI behavior
 	rootCmd.SilenceUsage = true
 
-	// Add --last flag for executing the most recent command
 	rootCmd.Flags().BoolP("last", "l", false, "Execute the last command from history")
-
-	// Add --history flag for viewing execution history interactively
 	rootCmd.Flags().Bool("history", false, "View execution history interactively")
 }
 
@@ -64,7 +60,6 @@ func Execute() error {
 
 // initConfig initializes the configuration using Viper.
 func initConfig() {
-	// Set default values
 	viper.SetDefault("commands", config.DefaultCommands)
 	viper.SetDefault("max_navigation_columns", config.DefaultMaxNavigationColumns)
 	viper.SetDefault("history.max_entries", config.DefaultHistoryMaxEntries)
@@ -73,17 +68,14 @@ func initConfig() {
 	viper.SetDefault("terragrunt.parallelism", config.DefaultParallelism)
 	viper.SetDefault("terragrunt.no_color", config.DefaultNoColor)
 
-	// Configure config file search paths
 	viper.SetConfigName(".terrax")
 	viper.SetConfigType("yaml")
 
-	// Search in current directory first, then home directory
 	viper.AddConfigPath(".")
 	if home, err := os.UserHomeDir(); err == nil {
 		viper.AddConfigPath(home)
 	}
 
-	// Read config file (if exists)
 	if err := viper.ReadInConfig(); err != nil {
 		// Ignore config file not found error - use defaults
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
@@ -95,7 +87,6 @@ func initConfig() {
 
 // getHistoryService creates and returns a new history service instance.
 func getHistoryService() (*history.Service, error) {
-	// Get root config file from configuration
 	rootConfigFile := viper.GetString("root_config_file")
 	if rootConfigFile == "" {
 		rootConfigFile = config.DefaultRootConfigFile
@@ -113,60 +104,49 @@ func getHistoryService() (*history.Service, error) {
 func runTUI(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 
-	// Initialize history service
 	historyService, err := getHistoryService()
 	if err != nil {
 		return err
 	}
 
-	// Check if --last flag is set
 	lastFlag, _ := cmd.Flags().GetBool("last")
 	if lastFlag {
 		return executeLastCommand(ctx, historyService)
 	}
 
-	// Check if --history flag is set
 	historyFlag, _ := cmd.Flags().GetBool("history")
 	if historyFlag {
 		return runHistoryViewer(ctx, historyService)
 	}
 
-	// Get working directory
 	workDir, err := getWorkingDirectory()
 	if err != nil {
 		return fmt.Errorf("failed to get working directory: %w", err)
 	}
 
-	// Build stack tree
 	stackRoot, maxDepth, err := buildStackTree(workDir)
 	if err != nil {
 		return fmt.Errorf("failed to build stack tree: %w", err)
 	}
 
-	// Get commands from config (with defaults fallback)
 	commands := viper.GetStringSlice("commands")
 	if len(commands) == 0 {
-		// Fallback to defaults if config is empty
 		commands = config.DefaultCommands
 	}
 
-	// Get max navigation columns from config and validate
 	maxNavColumns := viper.GetInt("max_navigation_columns")
 	if maxNavColumns < config.MinMaxNavigationColumns {
 		maxNavColumns = config.DefaultMaxNavigationColumns
 	}
 
-	// Run TUI using the current runner (injectable for tests)
 	initialModel := tui.NewModel(stackRoot, maxDepth, commands, maxNavColumns)
 	model, err := currentTUIRunner(initialModel)
 	if err != nil {
 		return fmt.Errorf("TUI error: %w", err)
 	}
 
-	// Display results
 	displayResults(model)
 
-	// Execute command if confirmed
 	if model.IsConfirmed() {
 		return executor.Run(ctx, historyService, model.GetSelectedCommand(), model.GetSelectedStackPath())
 	}
@@ -253,7 +233,6 @@ func displayResults(model tui.Model) {
 
 // executeLastCommand retrieves and executes the most recent command from history for the current project.
 func executeLastCommand(ctx context.Context, historyService *history.Service) error {
-	// Get last execution for the current project
 	lastEntry, err := historyService.GetLastExecutionForProject(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get last execution: %w", err)
@@ -265,7 +244,6 @@ func executeLastCommand(ctx context.Context, historyService *history.Service) er
 		return nil
 	}
 
-	// Display what will be executed
 	fmt.Println("═══════════════════════════════════════")
 	fmt.Println("  🔄 Re-executing last command")
 	fmt.Println("═══════════════════════════════════════")
@@ -275,7 +253,6 @@ func executeLastCommand(ctx context.Context, historyService *history.Service) er
 	fmt.Println("═══════════════════════════════════════")
 	fmt.Println()
 
-	// Execute the command using the absolute path
 	// (StackPath is relative for display, AbsolutePath is for execution)
 	absolutePath := lastEntry.AbsolutePath
 	if absolutePath == "" {
@@ -290,11 +267,6 @@ func executeLastCommand(ctx context.Context, historyService *history.Service) er
 // It filters the history to show only entries from the current project.
 // If the user selects an entry and presses Enter, it re-executes that command.
 func runHistoryViewer(ctx context.Context, historyService *history.Service) error {
-	// Load history from service
-	// Note: historyService.repo.LoadAll is not exposed via Service explicitly as "LoadAll".
-	// We need to use FilterByCurrentProject which internally calls LoadAll + Filter.
-	// But FilterByCurrentProject takes entries as input in service.go: "FilterByCurrentProject(entries []ExecutionLogEntry)"
-	// Wait, let's look at service.go in Step 195.
 	// FilterByCurrentProject(entries []ExecutionLogEntry) -> requires entries.
 	// GetLastExecutionForProject calls repo.LoadAll then filters.
 
@@ -329,7 +301,6 @@ func runHistoryViewer(ctx context.Context, historyService *history.Service) erro
 		return fmt.Errorf("failed to load history: %w", err)
 	}
 
-	// Filter history to show only entries from current project
 	filteredEntries, err := historyService.FilterByCurrentProject(entries)
 	if err != nil {
 		// Log warning but continue with unfiltered entries
@@ -337,10 +308,8 @@ func runHistoryViewer(ctx context.Context, historyService *history.Service) erro
 		filteredEntries = entries
 	}
 
-	// Create history model with filtered entries
 	initialModel := tui.NewHistoryModel(filteredEntries)
 
-	// Run TUI with stderr output (to keep stdout clean for data)
 	p := tea.NewProgram(
 		initialModel,
 		tea.WithAltScreen(),
@@ -352,7 +321,6 @@ func runHistoryViewer(ctx context.Context, historyService *history.Service) erro
 		return fmt.Errorf("history viewer error: %w", err)
 	}
 
-	// Check if a history entry was selected for re-execution
 	model, ok := finalModel.(tui.Model)
 	if !ok {
 		return fmt.Errorf("unexpected model type")
@@ -365,7 +333,6 @@ func runHistoryViewer(ctx context.Context, historyService *history.Service) erro
 			fmt.Fprintf(os.Stderr, "Command: %s\n", entry.Command)
 			fmt.Fprintf(os.Stderr, "Path: %s\n\n", entry.StackPath)
 
-			// Use AbsolutePath for execution
 			absolutePath := entry.AbsolutePath
 			if absolutePath == "" {
 				// Backward compatibility: old entries only have StackPath (which was absolute)

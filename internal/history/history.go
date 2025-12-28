@@ -9,11 +9,9 @@ import (
 	"context"
 )
 
-// Global default service for backward compatibility
 var DefaultService *Service
 
 func init() {
-	// Initialize default service with default repository
 	repo, err := NewFileRepository("")
 	if err != nil {
 		// This primarily fails if home directory cannot be determined.

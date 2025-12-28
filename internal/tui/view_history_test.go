@@ -121,7 +121,6 @@ func TestFormatExitCode(t *testing.T) {
 			result := formatExitCode(tt.exitCode, styles, tt.width)
 
 			assert.Contains(t, result, tt.shouldContain)
-			// Just verify it contains the exit code number
 			assert.NotEmpty(t, result)
 		})
 	}
@@ -521,7 +520,6 @@ func TestBuildHistoryTableRows(t *testing.T) {
 			expectedRows:  2,
 			checkContent: func(t *testing.T, rows []string) {
 				assert.Equal(t, 2, len(rows))
-				// Neither row should have cursor
 				for _, row := range rows {
 					if !strings.Contains(row, "plan") && !strings.Contains(row, "apply") {
 						t.Error("unexpected row content")
@@ -705,7 +703,6 @@ func TestFormatExitCode_Padding(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := formatExitCode(tt.exitCode, styles, tt.width)
-			// The result should have padding to match width
 			assert.GreaterOrEqual(t, len(result), tt.minLen)
 		})
 	}

@@ -53,15 +53,12 @@ func (nav *Navigator) PropagateSelection(state *NavigationState) *Node {
 			return currentNode
 		}
 
-		// Populate column with children names
 		state.Columns[depth] = currentNode.GetChildNames()
 
-		// Validate and clamp selected index
 		if state.SelectedIndices[depth] >= len(currentNode.Children) {
 			state.SelectedIndices[depth] = 0
 		}
 
-		// Navigate to selected child
 		if len(currentNode.Children) > 0 {
 			selectedIndex := state.SelectedIndices[depth]
 			currentNode = currentNode.Children[selectedIndex]

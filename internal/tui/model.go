@@ -105,7 +105,6 @@ func NewModel(stackRoot *stack.Node, maxDepth int, commands []string, maxNavigat
 		reExecuteFromHistory: false,
 	}
 
-	// Initialize navigation state
 	navigator.PropagateSelection(navState)
 
 	return m
@@ -200,7 +199,6 @@ func (m Model) getTotalPages(totalItems int) int {
 	if totalItems <= maxVisibleItems {
 		return 1
 	}
-	// Calculate pages (ceiling division)
 	pages := (totalItems + maxVisibleItems - 1) / maxVisibleItems
 	return pages
 }
@@ -247,10 +245,8 @@ func (m Model) GetSelectedStackPath() string {
 	var targetNode *stack.Node
 
 	if m.isCommandsColumnFocused() {
-		// Commands column: return root directory path
 		targetNode = m.navigator.GetRoot()
 	} else {
-		// Navigation column: return path up to focused level
 		depth := m.getNavigationDepth()
 		targetNode = m.navigator.GetNodeAtDepth(m.navState, depth)
 	}
@@ -281,7 +277,6 @@ func (m Model) hasLeftOverflow() bool {
 // canAdvanceFurther returns true if the currently focused node has children.
 // This determines if the user can navigate deeper into the hierarchy.
 func (m Model) canAdvanceFurther() bool {
-	// Commands column has no children to advance to
 	if m.isCommandsColumnFocused() {
 		return false
 	}
@@ -291,13 +286,11 @@ func (m Model) canAdvanceFurther() bool {
 		return false
 	}
 
-	// Get the currently focused node
 	currentNode := m.navState.CurrentNodes[depth]
 	if currentNode == nil {
 		return false
 	}
 
-	// Check if this node has children
 	return currentNode.HasChildren()
 }
 
@@ -306,12 +299,10 @@ func (m Model) canAdvanceFurther() bool {
 func (m Model) hasRightOverflow() bool {
 	maxDepth := m.navigator.GetMaxDepth()
 
-	// First check: is there space beyond the visible window?
 	if m.navigationOffset+3 >= maxDepth {
 		return false
 	}
 
-	// Second check: does the currently selected node have children?
 	// (Don't show arrow if we're at a leaf node even if maxDepth is deeper)
 	if !m.canAdvanceFurther() {
 		return false
