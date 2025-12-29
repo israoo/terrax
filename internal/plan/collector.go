@@ -176,26 +176,18 @@ func (c *Collector) processStack(ctx context.Context, planPath string) (*StackRe
 	return result, nil
 }
 
-// cleanStackPath removes .terragrunt-cache segments from the path
+// cleanStackPath removes everything from .terragrunt-cache onwards
 func cleanStackPath(path string) string {
 	parts := strings.Split(path, string(filepath.Separator))
-	var cleanParts []string
 
-	skip := false
-	for _, part := range parts {
+	for i, part := range parts {
 		if part == ".terragrunt-cache" {
-			skip = true
-			continue
+			// Found the cache dir, return everything before it
+			return strings.Join(parts[:i], string(filepath.Separator))
 		}
-		if skip {
-			// Skip the hash directory following .terragrunt-cache
-			skip = false
-			continue
-		}
-		cleanParts = append(cleanParts, part)
 	}
 
-	return strings.Join(cleanParts, string(filepath.Separator))
+	return path
 }
 
 // isSubDir checks if child is a subdirectory of parent
