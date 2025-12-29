@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -89,11 +90,10 @@ func (c *Collector) Collect(ctx context.Context, progressChan chan<- ProgressMsg
 		}
 	}
 
-	// Determine parallelism suitable for file I/O and subprocess execution
-	maxWorkers := viper.GetInt("terragrunt.parallelism")
-	if maxWorkers <= 0 {
-		maxWorkers = 4 // Default modest parallelism
-	}
+	// Determine parallelism suitable for file I/O and subprocess execution.
+	// We use all available CPUs for plan analysis as it involves JSON parsing and transformation.
+	maxWorkers := runtime.NumCPU()
+
 	// Don't spawn more workers than tasks
 	if totalFiles < maxWorkers {
 		maxWorkers = totalFiles
