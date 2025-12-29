@@ -128,11 +128,7 @@ func TestRenderAttributes(t *testing.T) {
 	diff := renderAttributes(rc)
 
 	// We expect ANSI codes, but we can check for the text content
-	// or specific tokens. Since lipgloss adds style, exact string match is hard.
-	// But let's check basic logic:
-	// Test checks for Update case where prefixes might still be present or changed values shown
-	// But let's add specific tests for Create/Delete to ensure no prefixes.
-
+	// or specific tokens.
 	// Check for update diffs
 	assert.Contains(t, diff, "new_attr")
 	assert.Contains(t, diff, "new_val")
@@ -147,11 +143,6 @@ func TestRenderAttributes_Prefixes(t *testing.T) {
 		},
 	}
 	diffCreate := renderAttributes(rcCreate)
-	// We check for presence of "+ " sequence.
-	// Note: lipgloss adds ANSI codes. "+ " might be split if "+" is colored and " " is not?
-	// Implementation: fmt.Sprintf("%s%s %s: %v", indent, prefixAdd, keyStr, vAfter)
-	// prefixAdd contains ANSI codes for "+"
-	// So it's "    " + ANSI + "+" + ANSI_RESET + " attr: val"
 
 	// Assert content contains key/val
 	assert.Contains(t, diffCreate, "attr: val")

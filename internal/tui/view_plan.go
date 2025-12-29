@@ -111,17 +111,6 @@ func (m Model) renderPlanMasterView() string {
 		node := m.planFlatItems[i]
 
 		// Calculate indentation level based on path depth
-		// A simple heuristic: count separators in relative path, or use pre-calculated depth?
-		// Since we have the flat items but not explicit depth in TreeNode struct, we can infer it.
-		// Or strictly, we should have stored depth in flattenTree.
-		// For now, let's count separators in Path.
-		// Note from BuildTree: Path is relative to project root (or as built).
-		// Name is just the segment.
-
-		// To properly draw the tree lines (└, ├), we need context of siblings, which flat view loses.
-		// For a simple first version, indentation by depth is sufficient.
-		// Depth = number of separators in node.Path?
-		// Actually, node.Path is built accumulatively.
 		depth := strings.Count(node.Path, string(filepath.Separator))
 
 		indent := strings.Repeat("  ", depth)
@@ -143,13 +132,12 @@ func (m Model) renderPlanMasterView() string {
 		}
 
 		// Styling based on change type
-		// If it's a directory (no Stack), maybe different color?
 		var itemStyle lipgloss.Style
 		if node.Stack == nil {
-			// Directory
+			// Directory style
 			itemStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("252")) // White/Gray
 		} else {
-			// Leaf
+			// Leaf style based on change type
 			if node.Stats.Add > 0 {
 				itemStyle = addStyle
 			} else if node.Stats.Destroy > 0 {
@@ -166,14 +154,10 @@ func (m Model) renderPlanMasterView() string {
 		}
 
 		if i == m.planListCursor {
-			// Selected item gets reversed colors or highlight
+			// Selected item highlight
 			b.WriteString(planSelectedItemStyle.Render(lineContent))
 		} else {
-			// Unselected item uses its semantic color
-			// We need to apply the color to the text, but not background
-			// Actually planSelectedItemStyle sets background.
-			// planUnselectedItemStyle sets basic foreground.
-			// We want semantic color if unselected.
+			// Unselected item uses semantic color
 			b.WriteString(itemStyle.Render(lineContent))
 		}
 		b.WriteString("\n")
@@ -207,7 +191,7 @@ func (m Model) renderPlanDetailView() string {
 	// So inner text width is roughly detailWidth - 4
 	innerContentWidth := detailWidth - 4
 	if innerContentWidth < 20 {
-		innerContentWidth = 20 // minimal safety
+		innerContentWidth = 20
 	}
 
 	if node.Stack != nil {
@@ -231,15 +215,12 @@ func (m Model) renderPlanDetailView() string {
 				style = changeStyle
 			}
 
-			// Use JoinHorizontal for hanging indent effect
+			// Use JoinHorizontal for hanging indent effect:
 			// Left column: Prefix
 			// Right column: Address + Type (Wrapped)
 			prefixView := style.Render(prefix)
 
 			// Right block width: innerContentWidth - len(prefix) - 1 (space)
-			// prefix len is 1 or 3 ("-/+"). Let's assume average or dynamic?
-			// "-/+" is 3 chars. "+" is 1.
-			// Let's give right block the remaining space.
 			pLen := len(prefix)
 			rightWidth := innerContentWidth - pLen - 1
 			if rightWidth < 10 {
@@ -330,19 +311,12 @@ func renderAttributes(rc plan.ResourceChange) string {
 	sort.Strings(sortedKeys)
 
 	// Styles for attributes depend on the change type context
-	// User requested "white" (neutral) for right side text of Create/Delete resource details
-	// But symbols should be colored.
 	createAttrStyle := lipgloss.NewStyle() // Default white/neutral
 	deleteAttrStyle := lipgloss.NewStyle() // Default white/neutral
 
 	// Prefixes
 	prefixAdd := addStyle.Render("+")
 	prefixDel := destroyStyle.Render("-")
-	// For alignment, we might want consistent spacing.
-	// Standard indent is 4 spaces.
-	// If we have prefix, maybe we indent 2 spaces + prefix + space?
-	// To align with "    key", maybe "  + key"?
-	// Let's use standard indent for now as assumed before: "    + key"
 
 	for _, k := range sortedKeys {
 		vBefore, inBefore := before[k]
@@ -356,12 +330,11 @@ func renderAttributes(rc plan.ResourceChange) string {
 			}
 		}
 
-		// Skip internal attributes or noise if needed
+		// Skip internal attributes
 		if strings.HasPrefix(k, "_") {
 			continue
 		}
 
-		// User asked to remove bold from keys.
 		keyStr := k
 
 		if inBefore && isUnknown {
@@ -373,7 +346,6 @@ func renderAttributes(rc plan.ResourceChange) string {
 			// Add Unknown: (known after apply)
 			if rc.ChangeType == plan.ChangeTypeCreate {
 				// Colored prefix, neutral text
-				// use " " after prefix to separate from key
 				line := fmt.Sprintf("%s%s %s: (known after apply)", indent, prefixAdd, keyStr)
 				b.WriteString(createAttrStyle.Render(line))
 			} else {

@@ -48,7 +48,7 @@ func FindAndBuildTree(rootDir string) (*Node, int, error) {
 func buildTreeRecursive(node *Node, maxDepth *int) error {
 	entries, err := os.ReadDir(node.Path)
 	if err != nil {
-		// Skip directories we can't read (permission issues, etc.)
+		// Ignore unreadable directories
 		return nil
 	}
 
@@ -70,12 +70,12 @@ func buildTreeRecursive(node *Node, maxDepth *int) error {
 			Depth:    node.Depth + 1,
 		}
 
-		// Recursively build children first to check if this directory contains stacks.
+		// Recursively build children to find nested stacks
 		if err := buildTreeRecursive(childNode, maxDepth); err != nil {
-			continue // Skip problematic subdirectories.
+			continue
 		}
 
-		// Only add this node if it's a stack OR if it has children (contains stacks in hierarchy).
+		// Only add this node if it's a stack or contains stacks
 		if childNode.IsStack || len(childNode.Children) > 0 {
 			if childNode.Depth > *maxDepth {
 				*maxDepth = childNode.Depth

@@ -103,7 +103,6 @@ func (c *Collector) findPlanFiles() ([]string, error) {
 func (c *Collector) processStack(ctx context.Context, planPath string) (*StackResult, error) {
 	stackDir := filepath.Dir(planPath)
 
-	// Calculate relative path
 	// Calculate cleaned relative path
 	configRoot := viper.GetString("root_config_file")
 	if configRoot == "" {

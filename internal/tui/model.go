@@ -162,28 +162,9 @@ func NewPlanReviewModel(report *plan.PlanReport) Model {
 	roots := plan.BuildTree(report.Stacks)
 
 	// Flatten the tree for navigation
-	// By default, we might want to expand everything or just top level?
-	// User request showed expanded tree. Let's fully expand for now to match "see everything".
-	// Or maybe just show filtered ones?
-	// The BuildTree already aggregates. We should filter the ROOTS or NODES that have NO changes?
-	// The user said: "if +0 ~0 -0 ... still show ... if 0 don't apply color".
-	// But in previous request: "show in the plan viewer only the stacks with changes".
-	// The Tree view implies structure. If a dir has no changes but a child does, we show the dir.
-	// We can use node.HasChanges to filter the tree display.
-
 	flatItems := flattenTree(roots)
 
-	// Recalculate global stats just for header (though collector/model does separate counts)
-	// Actually we keep targetStats/dependencyStats logic from before, operating on the list.
-	// But we need to use the full list for stats, while tree might only show nodes with changes?
-	// The previous logic filtered the LIST.
-	// New logic: BuildTree takes ALL stacks. Then we filter the tree for display?
-	// User said: "mostrar en el plan viewer solo los stacks con cambios".
-
-	// Re-calculating stats based on full report as before is fine.
-	// But for flatItems, we should only include nodes where HasChanges is true?
-	// Let's filter flatItems.
-
+	// Filter flattened items to only include those with changes
 	var filteredFlatItems []*plan.TreeNode
 	for _, item := range flatItems {
 		if item.HasChanges {
