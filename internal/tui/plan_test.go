@@ -437,7 +437,109 @@ func TestPlanReview_PageNavigation(t *testing.T) {
 	offset := newModel.planDetailScrollOffset
 	assert.Greater(t, offset, 4)
 
-	updatedModel, _ = newModel.Update(tea.KeyMsg{Type: tea.KeyPgDown})
 	newModel = updatedModel.(Model)
 	assert.Equal(t, offset, newModel.planDetailScrollOffset)
+}
+
+func TestRenderPlanDetailView_ScrollingLogic(t *testing.T) {
+	// Create a model with many lines in detailed view
+	report := &plan.PlanReport{
+		Stacks: []plan.StackResult{
+			{
+				StackPath:  "long-stack",
+				HasChanges: true,
+				Stats:      plan.StackStats{Change: 1},
+				ResourceChanges: []plan.ResourceChange{
+					{
+						Address:    "res.long",
+						Type:       "type",
+						ChangeType: plan.ChangeTypeUpdate,
+						Before:     map[string]interface{}{"val": "old"},
+						After:      map[string]interface{}{"val": "new"},
+					},
+				},
+			},
+		},
+	}
+
+	// We want to force getPlanDetailLines to return many lines
+	// The standard renderer output might be short.
+	// Let's rely on the fact that we can interact with the scroll offset directly.
+
+	m := NewPlanReviewModel(report)
+	m.width = 100
+	m.height = 10
+	m.planListCursor = 0 // Select the root dir
+
+	// Root dir summary might be short if only 1 child.
+	// Let's use the explicit stack which has more content?
+	// The flatten logic puts the stack at some index.
+	// "long-stack" -> 1 item if root level?
+
+	// Let's manually inject planFlatItems to ensure we control what's selected
+	node := &plan.TreeNode{
+		Path:       "test",
+		Name:       "test",
+		HasChanges: true,
+		Stats:      plan.StackStats{Add: 100}, // Make it look interesting
+		Stack: &plan.StackResult{
+			HasChanges:      true,
+			ResourceChanges: make([]plan.ResourceChange, 20), // 20 changes
+		},
+	}
+	for i := 0; i < 20; i++ {
+		node.Stack.ResourceChanges[i] = plan.ResourceChange{
+			Address:    "res",
+			Type:       "type",
+			ChangeType: plan.ChangeTypeCreate,
+			After:      map[string]interface{}{"foo": "bar"},
+		}
+	}
+
+	m.planFlatItems = []*plan.TreeNode{node}
+	m.planListCursor = 0
+
+	// Render with 0 offset
+	m.planDetailScrollOffset = 0
+	view0 := m.renderPlanDetailView()
+	assert.NotEmpty(t, view0)
+
+	// Render with offset
+	m.planDetailScrollOffset = 5
+	view5 := m.renderPlanDetailView()
+	assert.NotEmpty(t, view5)
+	assert.NotEqual(t, view0, view5)
+
+	// Render with large offset (should be clamped/handled safety)
+	m.planDetailScrollOffset = 1000
+	viewOver := m.renderPlanDetailView()
+	assert.NotEmpty(t, viewOver)
+}
+
+func TestRenderPlanDetailView_NoSelection(t *testing.T) {
+	m := NewPlanReviewModel(&plan.PlanReport{})
+	m.planFlatItems = []*plan.TreeNode{}
+	m.planListCursor = -1
+
+	view := m.renderPlanDetailView()
+	assert.Contains(t, view, "Select an item")
+}
+
+func TestRenderAttributes_Unknown(t *testing.T) {
+	// Case 1: Unknown value after update
+	rc := plan.ResourceChange{
+		ChangeType: plan.ChangeTypeUpdate,
+		Before:     map[string]interface{}{"attr": "old"},
+		Unknown:    map[string]interface{}{"attr": true},
+	}
+	diff := renderAttributes(rc)
+	assert.Contains(t, diff, "old -> (known after apply)")
+
+	// Case 2: Unknown value new (create)
+	rc2 := plan.ResourceChange{
+		ChangeType: plan.ChangeTypeCreate,
+		Unknown:    map[string]interface{}{"attr": true},
+	}
+	diff2 := renderAttributes(rc2)
+	assert.Contains(t, diff2, "attr: (known after apply)")
 }

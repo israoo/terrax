@@ -16,6 +16,9 @@ import (
 	"github.com/spf13/viper"
 )
 
+// execCommandContext allows mocking exec.CommandContext in tests
+var execCommandContext = exec.CommandContext
+
 // Collector handles the collection and processing of plan files.
 type Collector struct {
 	projectRoot string
@@ -273,7 +276,7 @@ func (c *Collector) processStack(ctx context.Context, planPath string) (*StackRe
 
 	// We use terraform directly to avoid parsing issues with terragrunt output wrappers
 	planBinary := getSessionPlanFilename()
-	cmd := exec.CommandContext(ctx, "terraform", "show", "-json", planBinary)
+	cmd := execCommandContext(ctx, "terraform", "show", "-json", planBinary)
 	cmd.Dir = stackDir
 
 	// Capture output
