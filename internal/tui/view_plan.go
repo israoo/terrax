@@ -212,8 +212,9 @@ func (m Model) renderPlanDetailView() string {
 				style = changeStyle
 			}
 
-			line := fmt.Sprintf("%s %s (%s)\n", prefix, rc.Address, rc.Type)
+			line := fmt.Sprintf("%s %s (%s)", prefix, rc.Address, rc.Type)
 			b.WriteString(style.Render(line))
+			b.WriteString("\n")
 		}
 	} else {
 		// Render Directory Summary
@@ -233,9 +234,10 @@ func (m Model) renderPlanDetailView() string {
 					style = changeStyle
 				}
 
-				line := fmt.Sprintf("- %s (Add: %d, Change: %d, Destroy: %d)\n",
+				line := fmt.Sprintf("- %s (Add: %d, Change: %d, Destroy: %d)",
 					child.Name, child.Stats.Add, child.Stats.Change, child.Stats.Destroy)
 				b.WriteString(style.Render(line))
+				b.WriteString("\n")
 			}
 		}
 	}
