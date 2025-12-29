@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -104,7 +105,7 @@ func (m Model) renderPlanMasterView() string {
 		return "No changes to display."
 	}
 
-	start, end := m.calculateVisibleRange(len(m.planFlatItems), m.planListCursor, m.height-PlanContentFrame)
+	start, end := calculateVisibleRange(len(m.planFlatItems), m.planListCursor, m.height-PlanContentFrame)
 
 	for i := start; i < end; i++ {
 		node := m.planFlatItems[i]
@@ -223,6 +224,13 @@ func (m Model) renderPlanDetailView() string {
 			line := fmt.Sprintf("%s %s (%s)", prefix, rc.Address, rc.Type)
 			b.WriteString(style.Render(line))
 			b.WriteString("\n")
+
+			// Render attribute changes
+			attrDiff := renderAttributes(rc)
+			if attrDiff != "" {
+				b.WriteString(attrDiff)
+				b.WriteString("\n")
+			}
 		}
 	} else {
 		// Render Directory Summary
@@ -253,28 +261,66 @@ func (m Model) renderPlanDetailView() string {
 	return b.String()
 }
 
-// Helper for generic list scrolling (could be moved to shared util)
-func (m Model) calculateVisibleRange(totalItems, cursor, visibleHeight int) (int, int) {
-	if totalItems == 0 {
-		return 0, 0
+// renderAttributes generates a diff string for resource attributes
+func renderAttributes(rc plan.ResourceChange) string {
+	var b strings.Builder
+	indent := "    "
+
+	// Helper to safely cast interface{} to map[string]interface{}
+	toMap := func(i interface{}) map[string]interface{} {
+		if m, ok := i.(map[string]interface{}); ok {
+			return m
+		}
+		return make(map[string]interface{})
 	}
 
-	// Simple scrolling logic: keep cursor in middle-ish or ensure visible
-	start := 0
-	end := totalItems
+	before := toMap(rc.Before)
+	after := toMap(rc.After)
 
-	if totalItems > visibleHeight {
-		if cursor < visibleHeight/2 {
-			start = 0
-			end = visibleHeight
-		} else if cursor >= totalItems-visibleHeight/2 {
-			start = totalItems - visibleHeight
-			end = totalItems
-		} else {
-			start = cursor - visibleHeight/2
-			end = start + visibleHeight
+	// Collect all keys
+	keys := make(map[string]bool)
+	for k := range before {
+		keys[k] = true
+	}
+	for k := range after {
+		keys[k] = true
+	}
+
+	// Sort keys for deterministic output
+	var sortedKeys []string
+	for k := range keys {
+		sortedKeys = append(sortedKeys, k)
+	}
+	sort.Strings(sortedKeys)
+
+	for _, k := range sortedKeys {
+		vBefore, inBefore := before[k]
+		vAfter, inAfter := after[k]
+
+		// Skip internal attributes or noise if needed
+		if k == "id" || strings.HasPrefix(k, "_") {
+			continue // Optional: skip ID or internal fields if not relevant
+		}
+
+		if inBefore && inAfter {
+			// Update: check if value changed
+			if fmt.Sprintf("%v", vBefore) != fmt.Sprintf("%v", vAfter) {
+				line := fmt.Sprintf("%s%s: %v -> %v", indent, k, vBefore, vAfter)
+				b.WriteString(changeStyle.Render(line))
+				b.WriteString("\n")
+			}
+		} else if inAfter {
+			// Create (or added attribute)
+			line := fmt.Sprintf("%s+ %s: %v", indent, k, vAfter)
+			b.WriteString(addStyle.Render(line))
+			b.WriteString("\n")
+		} else if inBefore {
+			// Delete (or removed attribute)
+			line := fmt.Sprintf("%s- %s: %v", indent, k, vBefore)
+			b.WriteString(destroyStyle.Render(line))
+			b.WriteString("\n")
 		}
 	}
 
-	return start, end
+	return b.String()
 }
