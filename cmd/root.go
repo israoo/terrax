@@ -9,6 +9,8 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/israoo/terrax/internal/config"
@@ -40,6 +42,7 @@ of Terragrunt stacks. It provides a TUI for easy navigation
 and selection of infrastructure commands.`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		initConfig()
+		viper.Set("terrax.session_timestamp", time.Now().UnixNano())
 	},
 	RunE: runTUI,
 }
@@ -197,23 +200,7 @@ func buildStackTree(workDir string) (*stack.Node, int, error) {
 
 // defaultTUIRunner is the default implementation that runs Bubble Tea interactively.
 func defaultTUIRunner(initialModel tui.Model) (tui.Model, error) {
-	p := tea.NewProgram(
-		initialModel,
-		tea.WithAltScreen(),
-		tea.WithMouseCellMotion(),
-	)
-
-	finalModel, err := p.Run()
-	if err != nil {
-		return tui.Model{}, err
-	}
-
-	model, ok := finalModel.(tui.Model)
-	if !ok {
-		return tui.Model{}, fmt.Errorf("unexpected model type")
-	}
-
-	return model, nil
+	return runBubbleTeaProgram(initialModel)
 }
 
 // setTUIRunner allows tests to inject a custom TUI runner.
@@ -289,35 +276,6 @@ func executeLastCommand(ctx context.Context, historyService *history.Service) er
 // It filters the history to show only entries from the current project.
 // If the user selects an entry and presses Enter, it re-executes that command.
 func runHistoryViewer(ctx context.Context, historyService *history.Service) error {
-	// FilterByCurrentProject(entries []ExecutionLogEntry) -> requires entries.
-	// GetLastExecutionForProject calls repo.LoadAll then filters.
-
-	// We need a method on Service to LoadAll or LoadProjectHistory.
-	// Service has: Append, GetLastExecutionForProject, TrimHistory, GetNextID, FilterByCurrentProject(entries), GetRelativeStackPath.
-	// It relies on repo for LoadAll but doesn't expose it.
-
-	// Let's create a temporary solution: Access repo directly or add LoadAll to Service.
-	// Adding LoadAll to Service is cleaner.
-	// For now, I'll assume I can access repo since it's in internal package, but Service struct fields might be private (repo is private).
-	// Ah, I cannot access private field `repo` from `cmd` package.
-
-	// I should add `LoadAll` or better `GetProjectHistory` to Service.
-	// Or use `GetLastExecutionForProject`... no that's only last.
-
-	// I will add `LoadAll` to Service in the next step. For now in this file I will comment or use a placeholder,
-	// BUT wait, I need this to compile.
-
-	// I'll update Service first? No, I'm writing `root.go` now.
-	// Use `history.LoadHistory` (facade) for now? No, that defeats DI.
-
-	// I'll add `LoadAll(ctx)` to Service.
-	// Let's modify Service.go in next step.
-	// Here I will assume `historyService.LoadAll(ctx)` exists.
-	// Actually, `history.LoadHistory(ctx)` is the facade.
-	// If I strictly want DI, I need `historyService.LoadAll(ctx)`.
-
-	// I will use `historyService.LoadAll(ctx)` and make sure to add it.
-
 	entries, err := historyService.LoadAll(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to load history: %w", err)
@@ -332,6 +290,8 @@ func runHistoryViewer(ctx context.Context, historyService *history.Service) erro
 
 	initialModel := tui.NewHistoryModel(filteredEntries)
 
+	// Note: History viewer uses Stderr specifically, so we don't use the shared runBubbleTeaProgram helper here
+	// unless we update it to support custom output.
 	p := tea.NewProgram(
 		initialModel,
 		tea.WithAltScreen(),
@@ -377,31 +337,104 @@ func runHistoryViewer(ctx context.Context, historyService *history.Service) erro
 	return nil
 }
 
+// PlanReviewRunner is a function type that runs the Plan Review TUI.
+type PlanReviewRunner func(initialModel tui.Model) (tui.Model, error)
+
+// currentPlanReviewRunner holds the active Plan Review TUI runner.
+var currentPlanReviewRunner PlanReviewRunner = defaultPlanReviewRunner
+
 // runPlanReview collects plan results and launches the review TUI.
 func runPlanReview(ctx context.Context, stackPath string) error {
-	fmt.Println("🔍 Collecting plan results...")
-
 	collector := plan.NewCollector(stackPath)
-	report, err := collector.Collect(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to collect plan results: %w", err)
+	progressChan := make(chan plan.ProgressMsg, 10) // Buffered channel
+
+	// Error channel to capture collection error from goroutine
+	errChan := make(chan error, 1)
+	var report *plan.PlanReport
+
+	// Start collection in background
+	go func() {
+		defer close(errChan)
+		defer close(progressChan)
+
+		r, err := collector.Collect(ctx, progressChan)
+		if err != nil {
+			errChan <- err
+			return
+		}
+		report = r
+	}()
+
+	// CLI Progress Loop
+	fmt.Println() // Start with a newline
+	for msg := range progressChan {
+		if msg.TotalFiles > 0 {
+			percent := float64(msg.Current) / float64(msg.TotalFiles)
+			width := 30
+			completed := int(percent * float64(width))
+			bar := strings.Repeat("█", completed) + strings.Repeat("░", width-completed)
+
+			// \r to overwrite line. \033[2K clears the entire line first.
+			fmt.Printf("\r\033[2K🔍 %s [%s] %d/%d", msg.Message, bar, msg.Current, msg.TotalFiles)
+		} else {
+			fmt.Printf("\r\033[2K🔍 %s...", msg.Message)
+		}
+	}
+	fmt.Println() // End progress line
+
+	// Check for collection error
+	if err := <-errChan; err != nil {
+		return fmt.Errorf("plan collection failed: %w", err)
 	}
 
-	if len(report.Stacks) == 0 {
-		fmt.Println("⚠️  No plan files found to review.")
-		return nil
+	if report == nil {
+		return fmt.Errorf("no plan results collected")
 	}
 
-	fmt.Printf("✅ Found %d stack plans. Launching reviewer...\n", len(report.Stacks))
-
+	// Launch Review TUI with ready report
 	initialModel := tui.NewPlanReviewModel(report)
 
+	_, err := currentPlanReviewRunner(initialModel)
+
+	// Best-effort cleanup after review
+	if cleanupErr := collector.CleanupOldPlans(); cleanupErr != nil {
+		fmt.Fprintf(os.Stderr, "Warning: Failed to cleanup old plans: %v\n", cleanupErr)
+	}
+
+	return err
+}
+
+// defaultPlanReviewRunner is the default implementation that runs Bubble Tea interactively.
+func defaultPlanReviewRunner(initialModel tui.Model) (tui.Model, error) {
+	return runBubbleTeaProgram(initialModel)
+}
+
+// setPlanReviewRunner allows tests to inject a custom Plan Review runner.
+func setPlanReviewRunner(runner PlanReviewRunner) func() {
+	original := currentPlanReviewRunner
+	currentPlanReviewRunner = runner
+	return func() {
+		currentPlanReviewRunner = original
+	}
+}
+
+// runBubbleTeaProgram runs a Bubble Tea program with standard options.
+func runBubbleTeaProgram(model tui.Model) (tui.Model, error) {
 	p := tea.NewProgram(
-		initialModel,
+		model,
 		tea.WithAltScreen(),
 		tea.WithMouseCellMotion(),
 	)
 
-	_, err = p.Run()
-	return err
+	finalModel, err := p.Run()
+	if err != nil {
+		return tui.Model{}, err
+	}
+
+	resultModel, ok := finalModel.(tui.Model)
+	if !ok {
+		return tui.Model{}, fmt.Errorf("unexpected model type")
+	}
+
+	return resultModel, nil
 }

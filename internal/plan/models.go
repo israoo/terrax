@@ -67,3 +67,10 @@ type TreeNode struct {
 	Children   []*TreeNode  // Sub-directories or stacks
 	Stack      *StackResult // Nil if directory, set if leaf stack (or mixed)
 }
+
+// ProgressMsg represents a progress update during plan collection.
+type ProgressMsg struct {
+	TotalFiles int    // Total number of files found (only set in initial message)
+	Current    int    // Number of files processed so far
+	Message    string // Short description, e.g., "Scanning..." or plan path
+}

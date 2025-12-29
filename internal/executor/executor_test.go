@@ -29,7 +29,7 @@ func TestBuildTerragruntArgs(t *testing.T) {
 			name:      "basic command without logging config",
 			stackPath: "/path/to/stack",
 			command:   "plan",
-			expected:  []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--", "plan", "-out=tfplan.binary"},
+			expected:  []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--", "plan", "-out=terrax-tfplan-0.binary"},
 		},
 		{
 			name:      "command with log level",
@@ -116,7 +116,7 @@ func TestBuildTerragruntArgs_DynamicFlags(t *testing.T) {
 			stackPath:   "/path/to/stack",
 			command:     "plan",
 			parallelism: 4,
-			expected:    []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--terragrunt-parallelism", "4", "--", "plan", "-out=tfplan.binary"},
+			expected:    []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--terragrunt-parallelism", "4", "--", "plan", "-out=terrax-tfplan-0.binary"},
 		},
 		{
 			name:      "no-color flag",
@@ -158,14 +158,14 @@ func TestBuildTerragruntArgs_DynamicFlags(t *testing.T) {
 			stackPath:            "/path/to/stack",
 			command:              "plan",
 			queueIncludeExternal: true,
-			expected:             []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--queue-include-external", "--", "plan", "-out=tfplan.binary"},
+			expected:             []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--queue-include-external", "--", "plan", "-out=terrax-tfplan-0.binary"},
 		},
 		{
 			name:       "extra flags",
 			stackPath:  "/path/to/stack",
 			command:    "plan",
 			extraFlags: []string{"--terragrunt-download-dir=/tmp/tg", "--terragrunt-source-update"},
-			expected:   []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--terragrunt-download-dir=/tmp/tg", "--terragrunt-source-update", "--", "plan", "-out=tfplan.binary"},
+			expected:   []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--terragrunt-download-dir=/tmp/tg", "--terragrunt-source-update", "--", "plan", "-out=terrax-tfplan-0.binary"},
 		},
 		{
 			name:                        "multiple flags combined",
@@ -183,14 +183,14 @@ func TestBuildTerragruntArgs_DynamicFlags(t *testing.T) {
 			stackPath:   "/path/to/stack",
 			command:     "plan",
 			parallelism: 0,
-			expected:    []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--", "plan", "-out=tfplan.binary"},
+			expected:    []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--", "plan", "-out=terrax-tfplan-0.binary"},
 		},
 		{
 			name:      "false boolean flags not added",
 			stackPath: "/path/to/stack",
 			command:   "plan",
 			noColor:   false,
-			expected:  []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--", "plan", "-out=tfplan.binary"},
+			expected:  []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--", "plan", "-out=terrax-tfplan-0.binary"},
 		},
 	}
 

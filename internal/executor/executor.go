@@ -75,6 +75,28 @@ func Run(ctx context.Context, historyLogger HistoryLogger, command, absoluteStac
 func buildTerragruntArgs(absoluteStackPath, command string) []string {
 	args := []string{"run", "--all", "--working-dir", absoluteStackPath}
 
+	args = appendLoggingFlags(args)
+	args = appendTerragruntFlags(args)
+
+	// Extra flags
+	extraFlags := viper.GetStringSlice("terragrunt.extra_flags")
+	if len(extraFlags) > 0 {
+		args = append(args, extraFlags...)
+	}
+
+	args = append(args, "--", command)
+
+	// If command is "plan", we want to output to a binary file for later analysis
+	if command == "plan" {
+		timestamp := viper.GetInt64("terrax.session_timestamp")
+		planFile := fmt.Sprintf("terrax-tfplan-%d.binary", timestamp)
+		args = append(args, fmt.Sprintf("-out=%s", planFile))
+	}
+
+	return args
+}
+
+func appendLoggingFlags(args []string) []string {
 	logLevel := viper.GetString("log_level")
 	if logLevel != "" {
 		args = append(args, "--log-level", logLevel)
@@ -89,52 +111,32 @@ func buildTerragruntArgs(absoluteStackPath, command string) []string {
 			args = append(args, "--log-format", logFormat)
 		}
 	}
+	return args
+}
 
+func appendTerragruntFlags(args []string) []string {
 	parallelism := viper.GetInt("terragrunt.parallelism")
 	if parallelism > 0 {
 		args = append(args, "--terragrunt-parallelism", fmt.Sprintf("%d", parallelism))
 	}
 
-	noColor := viper.GetBool("terragrunt.no_color")
-	if noColor {
+	if viper.GetBool("terragrunt.no_color") {
 		args = append(args, "--terragrunt-no-color")
 	}
-
-	nonInteractive := viper.GetBool("terragrunt.non_interactive")
-	if nonInteractive {
+	if viper.GetBool("terragrunt.non_interactive") {
 		args = append(args, "--terragrunt-non-interactive")
 	}
-
-	queueIncludeExternal := viper.GetBool("terragrunt.queue_include_external")
-	if queueIncludeExternal {
+	if viper.GetBool("terragrunt.queue_include_external") {
 		args = append(args, "--queue-include-external")
 	}
-
-	ignoreDependencyErrors := viper.GetBool("terragrunt.ignore_dependency_errors")
-	if ignoreDependencyErrors {
+	if viper.GetBool("terragrunt.ignore_dependency_errors") {
 		args = append(args, "--terragrunt-ignore-dependency-errors")
 	}
-
-	ignoreExternalDependencies := viper.GetBool("terragrunt.ignore_external_dependencies")
-	if ignoreExternalDependencies {
+	if viper.GetBool("terragrunt.ignore_external_dependencies") {
 		args = append(args, "--terragrunt-ignore-external-dependencies")
 	}
-
-	includeExternalDependencies := viper.GetBool("terragrunt.include_external_dependencies")
-	if includeExternalDependencies {
+	if viper.GetBool("terragrunt.include_external_dependencies") {
 		args = append(args, "--terragrunt-include-external-dependencies")
-	}
-
-	extraFlags := viper.GetStringSlice("terragrunt.extra_flags")
-	if len(extraFlags) > 0 {
-		args = append(args, extraFlags...)
-	}
-
-	args = append(args, "--", command)
-
-	// If command is "plan", we want to output to a binary file for later analysis
-	if command == "plan" {
-		args = append(args, "-out=tfplan.binary")
 	}
 
 	return args

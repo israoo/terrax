@@ -301,6 +301,13 @@ func TestExecute_WithConfirmation(t *testing.T) {
 	restoreRunner := setTUIRunner(mockTUIRunner)
 	defer restoreRunner()
 
+	// Mock Plan Review Runner to prevent blocking
+	mockPlanRunner := func(initialModel tui.Model) (tui.Model, error) {
+		return initialModel, nil
+	}
+	restorePlanRunner := setPlanReviewRunner(mockPlanRunner)
+	defer restorePlanRunner()
+
 	// Execute the command - should complete without blocking
 	err = Execute()
 

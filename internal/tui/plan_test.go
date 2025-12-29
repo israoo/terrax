@@ -93,9 +93,39 @@ func TestHandlePlanReviewUpdate_Quit(t *testing.T) {
 	m := createTestPlanModel()
 
 	msg := tea.KeyMsg{Type: tea.KeyEsc}
-	_, cmd := m.Update(msg)
+	updatedModel, cmd := m.Update(msg)
+	newModel := updatedModel.(Model)
 
+	assert.NotNil(t, cmd)
+	// We can't easily compare function pointers, but we can verify it's not nil
+	// and maybe check if it matches tea.Quit if possible, or just trust it.
+	// Actually tea.Quit returns a Msg, we can run it.
 	assert.Equal(t, tea.Quit(), cmd())
+	assert.Equal(t, StatePlanReview, newModel.state)
+}
+
+func TestHandlePlanReviewUpdate_Quit_FromDetail(t *testing.T) {
+	m := createTestPlanModel()
+	m.planReviewFocusedElement = 1 // Focus Detail View
+
+	// Test Esc
+	msg := tea.KeyMsg{Type: tea.KeyEsc}
+	updatedModel, cmd := m.Update(msg)
+	newModel := updatedModel.(Model)
+
+	assert.NotNil(t, cmd)
+	assert.Equal(t, tea.Quit(), cmd())
+	assert.Equal(t, StatePlanReview, newModel.state)
+
+	// Test 'q'
+	m.planReviewFocusedElement = 1
+	msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("q")}
+	updatedModel, cmd = m.Update(msg)
+	newModel = updatedModel.(Model)
+
+	assert.NotNil(t, cmd)
+	assert.Equal(t, tea.Quit(), cmd())
+	assert.Equal(t, StatePlanReview, newModel.state)
 }
 
 func TestRenderPlanReviewView(t *testing.T) {

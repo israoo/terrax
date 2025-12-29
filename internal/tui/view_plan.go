@@ -90,7 +90,7 @@ func (m Model) renderPlanReviewView() string {
 		lipgloss.Left,
 		headerStyle.Width(m.width).Render("🔎 Plan Viewer"),
 		mainContent,
-		footerStyle.Render(HelpText),
+		footerStyle.Render(PlanHelpText),
 	)
 }
 
