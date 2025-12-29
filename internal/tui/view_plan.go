@@ -389,6 +389,7 @@ func renderAttributes(rc plan.ResourceChange) string {
 
 	// Prefixes
 	prefixAdd := addStyle.Render("+")
+	prefixChange := changeStyle.Render("~")
 	prefixDel := destroyStyle.Render("-")
 
 	for _, k := range sortedKeys {
@@ -412,8 +413,11 @@ func renderAttributes(rc plan.ResourceChange) string {
 
 		if inBefore && isUnknown {
 			// Update to Unknown: value -> (known after apply)
-			line := fmt.Sprintf("%s%s: %v -> (known after apply)", indent, keyStr, vBefore)
-			b.WriteString(changeStyle.Render(line))
+			part1 := fmt.Sprintf("%s%s %s: ", indent, prefixChange, keyStr)
+			part2 := grayStyle.Render(fmt.Sprintf("%v", vBefore))
+			part3 := changeStyle.Render(" -> ")
+			part4 := "(known after apply)"
+			b.WriteString(part1 + part2 + part3 + part4)
 			b.WriteString("\n")
 		} else if !inBefore && isUnknown {
 			// Add Unknown: (known after apply)
@@ -430,8 +434,11 @@ func renderAttributes(rc plan.ResourceChange) string {
 		} else if inBefore && inAfter {
 			// Update: check if value changed
 			if fmt.Sprintf("%v", vBefore) != fmt.Sprintf("%v", vAfter) {
-				line := fmt.Sprintf("%s%s: %v -> %v", indent, keyStr, vBefore, vAfter)
-				b.WriteString(changeStyle.Render(line))
+				part1 := fmt.Sprintf("%s%s %s: ", indent, prefixChange, keyStr)
+				part2 := grayStyle.Render(fmt.Sprintf("%v", vBefore))
+				part3 := changeStyle.Render(" -> ")
+				part4 := fmt.Sprintf("%v", vAfter)
+				b.WriteString(part1 + part2 + part3 + part4)
 				b.WriteString("\n")
 			} else {
 				// Unchanged
