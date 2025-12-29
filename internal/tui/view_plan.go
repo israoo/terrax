@@ -23,8 +23,7 @@ var (
 
 	planHeaderStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("205")).
-			Bold(true).
-			Padding(0, 1)
+			Bold(true)
 
 	planSelectedItemStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("229")).
@@ -45,13 +44,23 @@ func (m Model) renderPlanReviewView() string {
 	detailView := m.renderPlanDetailView()
 
 	// Calculate widths
-	masterWidth := m.width / 3
-	detailWidth := m.width - masterWidth - 4 // border/margin adjustment
+	// Total width = width
+	// Master Block = masterWidth + 2 (border)
+	// Margin = 1
+	// Detail Block = detailWidth + 2 (padding) + 2 (border)
+	// Constraint: (masterWidth + 2) + 1 + (detailWidth + 4) <= width
+	// detailWidth <= width - masterWidth - PlanDetailMargin
+	masterWidth := m.width / PlanMasterWidthRatio
+	detailWidth := m.width - masterWidth - PlanDetailMargin
+
+	if detailWidth < PlanMinDetailWidth {
+		detailWidth = PlanMinDetailWidth // Safety floor
+	}
 
 	return lipgloss.JoinHorizontal(
 		lipgloss.Top,
-		planMasterStyle.Width(masterWidth).Height(m.height-2).Render(masterView),
-		planDetailStyle.Width(detailWidth).Height(m.height-2).Render(detailView),
+		planMasterStyle.Width(masterWidth).Height(m.height-PlanVerticalFrame).Render(masterView),
+		planDetailStyle.Width(detailWidth).Height(m.height-PlanVerticalFrame).Render(detailView),
 	)
 }
 
@@ -88,15 +97,14 @@ func (m Model) renderPlanMasterView() string {
 
 	b.WriteString(planHeaderStyle.Render("Execution plan:"))
 	b.WriteString("\n")
-	b.WriteString(fmt.Sprintf("Target: %s\n", targetStr))
-	b.WriteString(fmt.Sprintf("Deps:   %s\n\n", depStr))
+	b.WriteString(fmt.Sprintf("Target: %s | Deps: %s\n\n", targetStr, depStr))
 
 	// Render Tree
 	if len(m.planFlatItems) == 0 {
 		return "No changes to display."
 	}
 
-	start, end := m.calculateVisibleRange(len(m.planFlatItems), m.planListCursor, m.height-6)
+	start, end := m.calculateVisibleRange(len(m.planFlatItems), m.planListCursor, m.height-PlanContentFrame)
 
 	for i := start; i < end; i++ {
 		node := m.planFlatItems[i]

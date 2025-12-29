@@ -25,6 +25,13 @@ const (
 	EllipsisWidth       = 3  // Width of truncation ellipsis "..."
 	MinItemTextWidth    = 10 // Minimum width for item text
 	BreadcrumbLineCount = 1  // Number of lines for breadcrumb bar
+
+	// Plan Review Layout
+	PlanMasterWidthRatio = 3  // 1/3 of screen width
+	PlanDetailMargin     = 7  // Overhead for detail view width calculation
+	PlanMinDetailWidth   = 10 // Minimum width for detail view
+	PlanVerticalFrame    = 2  // Vertical border overhead
+	PlanContentFrame     = 6  // Vertical overhead for content (header + padding)
 )
 
 // Column types
