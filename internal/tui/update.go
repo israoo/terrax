@@ -39,12 +39,16 @@ func (m Model) handleHistoryUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
-		switch msg.String() {
-		case KeyQ, KeyEsc:
-			// Exit the history viewer
+		switch msg.Type {
+		case tea.KeyEsc:
 			return m, tea.Quit
 
-		case KeyUp:
+		case tea.KeyRunes:
+			if msg.String() == KeyQ {
+				return m, tea.Quit
+			}
+
+		case tea.KeyUp:
 			if len(m.history) > 0 {
 				m.historyCursor--
 				if m.historyCursor < 0 {
@@ -54,7 +58,7 @@ func (m Model) handleHistoryUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 
-		case KeyDown:
+		case tea.KeyDown:
 			if len(m.history) > 0 {
 				m.historyCursor++
 				if m.historyCursor >= len(m.history) {
@@ -64,7 +68,31 @@ func (m Model) handleHistoryUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 
-		case KeyEnter:
+		case tea.KeyPgUp, tea.KeyPgDown:
+			if len(m.history) > 0 {
+				// Calculate content height matches view_history.go
+				// contentHeight := m.height - HeaderHeight - FooterHeight - 6
+				const historyFrameOverhead = 8 // 1+1+6
+				visibleHeight := m.height - historyFrameOverhead
+				if visibleHeight < 1 {
+					visibleHeight = 1
+				}
+
+				if msg.Type == tea.KeyPgDown {
+					m.historyCursor += visibleHeight
+					if m.historyCursor >= len(m.history) {
+						m.historyCursor = len(m.history) - 1
+					}
+				} else {
+					m.historyCursor -= visibleHeight
+					if m.historyCursor < 0 {
+						m.historyCursor = 0
+					}
+				}
+			}
+			return m, nil
+
+		case tea.KeyEnter:
 			// Re-execute the selected history entry
 			if len(m.history) > 0 && m.historyCursor >= 0 && m.historyCursor < len(m.history) {
 				m.selectedHistoryEntry = &m.history[m.historyCursor]
@@ -121,35 +149,47 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	// Normal navigation mode (always available)
-	switch msg.String() {
-	case KeyCtrlC, KeyQ:
+	// Normal navigation mode (always available)
+	switch msg.Type {
+	case tea.KeyCtrlC, tea.KeyEsc:
 		return m, tea.Quit
-	case KeySlash:
-		// Activate filter for current focused column
-		columnID := m.focusedColumn
-		if _, exists := m.columnFilters[columnID]; !exists {
-			// Create new filter for this column
-			ti := textinput.New()
-			ti.Placeholder = "Filter..."
-			ti.CharLimit = 50
-			ti.Width = 20
-			m.columnFilters[columnID] = ti
+
+	case tea.KeyRunes:
+		if msg.String() == KeyQ {
+			return m, tea.Quit
 		}
-		filter := m.columnFilters[columnID]
-		filter.Focus()
-		m.columnFilters[columnID] = filter
-		m.activeFilterColumn = columnID
-		return m, textinput.Blink
-	case KeyEnter:
+		if msg.String() == KeySlash {
+			// Activate filter for current focused column
+			columnID := m.focusedColumn
+			if _, exists := m.columnFilters[columnID]; !exists {
+				// Create new filter for this column
+				ti := textinput.New()
+				ti.Placeholder = "Filter..."
+				ti.CharLimit = 50
+				ti.Width = 20
+				m.columnFilters[columnID] = ti
+			}
+			filter := m.columnFilters[columnID]
+			filter.Focus()
+			m.columnFilters[columnID] = filter
+			m.activeFilterColumn = columnID
+			return m, textinput.Blink
+		}
+
+	case tea.KeyEnter:
 		return m.handleEnterKey()
-	case KeyUp:
+	case tea.KeyUp:
 		return m.handleVerticalMove(true), nil
-	case KeyDown:
+	case tea.KeyDown:
 		return m.handleVerticalMove(false), nil
-	case KeyLeft:
+	case tea.KeyLeft:
 		return m.handleHorizontalMove(true)
-	case KeyRight:
+	case tea.KeyRight:
 		return m.handleHorizontalMove(false)
+	case tea.KeyPgUp:
+		return m.handlePageMove(true), nil
+	case tea.KeyPgDown:
+		return m.handlePageMove(false), nil
 	}
 	return m, nil
 }
@@ -578,5 +618,147 @@ func (m *Model) adjustSelectionAfterFilter() {
 				m.navigator.PropagateSelection(m.navState)
 			}
 		}
+	}
+}
+
+// handlePageMove processes page up/down navigation.
+func (m Model) handlePageMove(isUp bool) Model {
+	if m.isCommandsColumnFocused() {
+		m.moveCommandSelectionPage(isUp)
+	} else {
+		m.moveNavigationSelectionPage(isUp)
+	}
+	return m
+}
+
+// moveCommandSelectionPage moves selection in commands column by a full page.
+func (m *Model) moveCommandSelectionPage(isUp bool) {
+	filteredCommands := m.getFilteredCommands()
+	if len(filteredCommands) == 0 {
+		return
+	}
+
+	if m.scrollOffsets == nil {
+		m.scrollOffsets = make(map[int]int)
+	}
+
+	maxVisibleItems := m.getMaxVisibleItems()
+
+	// Check if filter is active
+	hasFilter := false
+	if filter, exists := m.columnFilters[0]; exists && filter.Value() != "" {
+		hasFilter = true
+	}
+
+	var currentIdx, totalItems int
+	if hasFilter {
+		currentIdx = findFilteredIndex(m.commands, filteredCommands, m.selectedCommand)
+		totalItems = len(filteredCommands)
+	} else {
+		currentIdx = m.selectedCommand
+		totalItems = len(m.commands)
+	}
+
+	if currentIdx < 0 && hasFilter {
+		currentIdx = 0
+	}
+
+	// Calculate target index
+	var targetIdx int
+	if isUp {
+		targetIdx = currentIdx - maxVisibleItems
+		if targetIdx < 0 {
+			targetIdx = 0
+		}
+	} else {
+		targetIdx = currentIdx + maxVisibleItems
+		if targetIdx >= totalItems {
+			targetIdx = totalItems - 1
+		}
+	}
+
+	// Update selection and scroll offset
+	if hasFilter {
+		m.selectedCommand = findOriginalIndex(m.commands, filteredCommands, targetIdx)
+		// Update scroll offset to ensure visibility
+		pageIndex := targetIdx / maxVisibleItems
+		m.scrollOffsets[0] = pageIndex * maxVisibleItems
+	} else {
+		m.selectedCommand = targetIdx
+		// Update scroll offset
+		pageIndex := targetIdx / maxVisibleItems
+		m.scrollOffsets[0] = pageIndex * maxVisibleItems
+	}
+}
+
+// moveNavigationSelectionPage moves selection in navigation column by a full page.
+func (m *Model) moveNavigationSelectionPage(isUp bool) {
+	depth := m.getNavigationDepth()
+	if depth < 0 {
+		return
+	}
+
+	filteredItems := m.getFilteredNavigationItems(depth)
+	if len(filteredItems) == 0 {
+		return
+	}
+
+	if m.scrollOffsets == nil {
+		m.scrollOffsets = make(map[int]int)
+	}
+
+	originalItems := m.navState.Columns[depth]
+	currentIdxOriginal := m.navState.SelectedIndices[depth]
+	columnID := depth + 1
+
+	maxVisibleItems := m.getMaxVisibleItems()
+
+	// Check filter
+	hasFilter := false
+	if filter, exists := m.columnFilters[columnID]; exists && filter.Value() != "" {
+		hasFilter = true
+	}
+
+	var currentIdx, totalItems int
+	if hasFilter {
+		currentIdx = findFilteredIndex(originalItems, filteredItems, currentIdxOriginal)
+		totalItems = len(filteredItems)
+	} else {
+		currentIdx = currentIdxOriginal
+		totalItems = len(originalItems)
+	}
+
+	if currentIdx < 0 && hasFilter {
+		currentIdx = 0
+	}
+
+	// Calculate target index
+	var targetIdx int
+	if isUp {
+		targetIdx = currentIdx - maxVisibleItems
+		if targetIdx < 0 {
+			targetIdx = 0
+		}
+	} else {
+		targetIdx = currentIdx + maxVisibleItems
+		if targetIdx >= totalItems {
+			targetIdx = totalItems - 1
+		}
+	}
+
+	// Update selection and scroll offset
+	if hasFilter {
+		newOriginalIndex := findOriginalIndex(originalItems, filteredItems, targetIdx)
+		if newOriginalIndex >= 0 {
+			m.navState.SelectedIndices[depth] = newOriginalIndex
+			m.navigator.PropagateSelection(m.navState)
+			pageIndex := targetIdx / maxVisibleItems
+			m.scrollOffsets[columnID] = pageIndex * maxVisibleItems
+		}
+	} else {
+		m.navState.SelectedIndices[depth] = targetIdx
+		m.navigator.PropagateSelection(m.navState)
+		pageIndex := targetIdx / maxVisibleItems
+		m.scrollOffsets[columnID] = pageIndex * maxVisibleItems
 	}
 }
