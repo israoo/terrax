@@ -385,6 +385,7 @@ func renderAttributes(rc plan.ResourceChange) string {
 	// Styles for attributes depend on the change type context
 	createAttrStyle := lipgloss.NewStyle() // Default white/neutral
 	deleteAttrStyle := lipgloss.NewStyle() // Default white/neutral
+	grayStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 
 	// Prefixes
 	prefixAdd := addStyle.Render("+")
@@ -417,8 +418,8 @@ func renderAttributes(rc plan.ResourceChange) string {
 		} else if !inBefore && isUnknown {
 			// Add Unknown: (known after apply)
 			if rc.ChangeType == plan.ChangeTypeCreate {
-				// Colored prefix, neutral text
-				line := fmt.Sprintf("%s%s %s: (known after apply)", indent, prefixAdd, keyStr)
+				// Prefix is colored, text is neutral
+				line := fmt.Sprintf("%s%s %s: %s", indent, prefixAdd, keyStr, grayStyle.Render("(known after apply)"))
 				b.WriteString(createAttrStyle.Render(line))
 			} else {
 				// Update adding field -> Green line
