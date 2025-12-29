@@ -344,3 +344,70 @@ func TestPlanReview_ScrollResetOnSelectionChange(t *testing.T) {
 	// Scroll offset should be reset to 0
 	assert.Equal(t, 0, newModel.planDetailScrollOffset)
 }
+
+func TestPlanReview_PageNavigation(t *testing.T) {
+	// Inject a larger plan report to ensure sufficient content for scrolling
+	largeReport := &plan.PlanReport{
+		Stacks: []plan.StackResult{
+			{
+				StackPath:  "long/stack",
+				HasChanges: true,
+				Stats:      plan.StackStats{Add: 1},
+				ResourceChanges: []plan.ResourceChange{
+					{
+						Address:    "res.long",
+						Type:       "type",
+						ChangeType: plan.ChangeTypeCreate,
+						After: map[string]interface{}{
+							"attr1": "val1", "attr2": "val2", "attr3": "val3",
+							"attr4": "val4", "attr5": "val5", "attr6": "val6",
+							"attr7": "val7", "attr8": "val8", "attr9": "val9",
+						},
+					},
+				},
+			},
+		},
+	}
+	m := NewPlanReviewModel(largeReport)
+	m.width = 100
+	m.height = 8 // Visible = 8 - 4 = 4 lines.
+
+	// Focus Detail View
+	// Cursor 0 is "long" (dir), Cursor 1 is "long/stack" (stack with changes)
+	m.planListCursor = 1
+	m.planReviewFocusedElement = 1
+	m.ready = true
+
+	// Test 1: Page Down
+	// Initial offset = 0
+	msg := tea.KeyMsg{Type: tea.KeyPgDown}
+	updatedModel, _ := m.Update(msg)
+	newModel := updatedModel.(Model)
+
+	// Should have scrolled by visible height (4)
+	assert.Equal(t, 4, newModel.planDetailScrollOffset)
+
+	// Test 2: Page Up
+	// Scroll back up
+	msg = tea.KeyMsg{Type: tea.KeyPgUp}
+	updatedModel, _ = newModel.Update(msg)
+	newModel = updatedModel.(Model)
+
+	// Should be back to 0
+	assert.Equal(t, 0, newModel.planDetailScrollOffset)
+
+	// Test 3: Page Down at Boundary
+	// Scroll down multiple times
+	for i := 0; i < 5; i++ {
+		updatedModel, _ = newModel.Update(tea.KeyMsg{Type: tea.KeyPgDown})
+		newModel = updatedModel.(Model)
+	}
+	// Should be capped at maxOffset (Total - Visible)
+	// Just verify it's > 4 and stable
+	offset := newModel.planDetailScrollOffset
+	assert.Greater(t, offset, 4)
+
+	updatedModel, _ = newModel.Update(tea.KeyMsg{Type: tea.KeyPgDown})
+	newModel = updatedModel.(Model)
+	assert.Equal(t, offset, newModel.planDetailScrollOffset)
+}

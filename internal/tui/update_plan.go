@@ -14,22 +14,26 @@ func (m Model) handlePlanReviewUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
-		switch msg.String() {
-		case KeyQ, KeyEsc:
-			// Exit Plan Review mode
+		switch msg.Type {
+		case tea.KeyEsc, tea.KeyCtrlC:
 			return m, tea.Quit
 
-		case KeyRight, KeyEnter:
+		case tea.KeyRunes:
+			if msg.String() == KeyQ {
+				return m, tea.Quit
+			}
+
+		case tea.KeyRight, tea.KeyEnter:
 			// Switch focus to Detail View
 			m.planReviewFocusedElement = 1
 			return m, nil
 
-		case KeyLeft:
+		case tea.KeyLeft:
 			// Switch focus to Master List
 			m.planReviewFocusedElement = 0
 			return m, nil
 
-		case KeyUp:
+		case tea.KeyUp:
 			if m.planReviewFocusedElement == 0 {
 				// Master List Navigation
 				if m.planListCursor > 0 {
@@ -44,7 +48,7 @@ func (m Model) handlePlanReviewUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 
-		case KeyDown:
+		case tea.KeyDown:
 			if m.planReviewFocusedElement == 0 {
 				// Master List Navigation
 				if m.planFlatItems != nil && m.planListCursor < len(m.planFlatItems)-1 {
@@ -70,6 +74,36 @@ func (m Model) handlePlanReviewUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 				if m.planDetailScrollOffset < maxOffset {
 					m.planDetailScrollOffset++
+				}
+			}
+			return m, nil
+
+		case tea.KeyPgUp, tea.KeyPgDown:
+			if m.planReviewFocusedElement == 1 {
+				// Detail View Page Scrolling
+				lines := m.getPlanDetailLines()
+				totalLines := len(lines)
+
+				visibleHeight := m.height - PlanVerticalFrame - 2
+				if visibleHeight < 1 {
+					visibleHeight = 1
+				}
+
+				maxOffset := totalLines - visibleHeight
+				if maxOffset < 0 {
+					maxOffset = 0
+				}
+
+				if msg.Type == tea.KeyPgDown {
+					m.planDetailScrollOffset += visibleHeight
+					if m.planDetailScrollOffset > maxOffset {
+						m.planDetailScrollOffset = maxOffset
+					}
+				} else {
+					m.planDetailScrollOffset -= visibleHeight
+					if m.planDetailScrollOffset < 0 {
+						m.planDetailScrollOffset = 0
+					}
 				}
 			}
 			return m, nil
