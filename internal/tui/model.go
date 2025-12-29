@@ -64,6 +64,8 @@ type Model struct {
 	planListCursor           int
 	planDetailScrollOffset   int
 	planReviewFocusedElement int // 0 = Master List, 1 = Detail View
+	planTargetStats          plan.StackStats
+	planDependencyStats      plan.StackStats
 
 	// UI State
 	focusedColumn    int  // 0 = commands, 1+ = navigation columns
@@ -134,12 +136,40 @@ func NewHistoryModel(historyEntries []history.ExecutionLogEntry) Model {
 
 // NewPlanReviewModel creates a model initialized in plan review mode.
 func NewPlanReviewModel(report *plan.PlanReport) Model {
+	// Filter stacks to only show those with changes
+	var filteredStacks []plan.StackResult
+	targetStats := plan.StackStats{}
+	dependencyStats := plan.StackStats{}
+
+	for _, stack := range report.Stacks {
+		if !stack.HasChanges {
+			continue
+		}
+
+		filteredStacks = append(filteredStacks, stack)
+
+		if stack.IsDependency {
+			dependencyStats.Add += stack.Stats.Add
+			dependencyStats.Change += stack.Stats.Change
+			dependencyStats.Destroy += stack.Stats.Destroy
+		} else {
+			targetStats.Add += stack.Stats.Add
+			targetStats.Change += stack.Stats.Change
+			targetStats.Destroy += stack.Stats.Destroy
+		}
+	}
+
+	// Update report with filtered stacks
+	report.Stacks = filteredStacks
+
 	return Model{
 		state:                    StatePlanReview,
 		planReport:               report,
 		planListCursor:           0,
 		planDetailScrollOffset:   0,
 		planReviewFocusedElement: 0,
+		planTargetStats:          targetStats,
+		planDependencyStats:      dependencyStats,
 		ready:                    false,
 	}
 }

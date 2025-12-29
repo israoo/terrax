@@ -60,8 +60,38 @@ func (m Model) renderPlanReviewView() string {
 func (m Model) renderPlanMasterView() string {
 	var b strings.Builder
 
-	b.WriteString(planHeaderStyle.Render("Stacks"))
-	b.WriteString("\n\n")
+	// Helper to render stats string
+	renderStats := func(stats plan.StackStats) string {
+		var addStr, changeStr, destroyStr string
+
+		if stats.Add > 0 {
+			addStr = addStyle.Render(fmt.Sprintf("+%d", stats.Add))
+		} else {
+			addStr = fmt.Sprintf("+%d", stats.Add)
+		}
+
+		if stats.Change > 0 {
+			changeStr = changeStyle.Render(fmt.Sprintf("~%d", stats.Change))
+		} else {
+			changeStr = fmt.Sprintf("~%d", stats.Change)
+		}
+
+		if stats.Destroy > 0 {
+			destroyStr = destroyStyle.Render(fmt.Sprintf("-%d", stats.Destroy))
+		} else {
+			destroyStr = fmt.Sprintf("-%d", stats.Destroy)
+		}
+
+		return fmt.Sprintf("%s %s %s", addStr, changeStr, destroyStr)
+	}
+
+	targetStr := renderStats(m.planTargetStats)
+	depStr := renderStats(m.planDependencyStats)
+
+	b.WriteString(planHeaderStyle.Render("Execution plan:"))
+	b.WriteString("\n")
+	b.WriteString(fmt.Sprintf("Target: %s\n", targetStr))
+	b.WriteString(fmt.Sprintf("Deps:   %s\n\n", depStr))
 
 	// Calculate visible range for scrolling
 	start, end := m.calculateVisibleRange(len(m.planReport.Stacks), m.planListCursor, m.height-6)

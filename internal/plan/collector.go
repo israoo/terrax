@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/israoo/terrax/internal/config"
@@ -19,12 +20,25 @@ const PlanBinaryName = "tfplan.binary"
 // Collector handles the collection and processing of plan files.
 type Collector struct {
 	projectRoot string
+	runDir      string
 }
 
-// NewCollector creates a new Collector for the given project root.
-func NewCollector(projectRoot string) *Collector {
+// NewCollector creates a new Collector for the given run directory.
+// It automatically finds the project root to ensure dependencies are captured.
+func NewCollector(runDir string) *Collector {
+	rootConfigFile := viper.GetString("root_config_file")
+	if rootConfigFile == "" {
+		rootConfigFile = config.DefaultRootConfigFile
+	}
+
+	projectRoot, err := history.FindProjectRoot(runDir, rootConfigFile)
+	if err != nil || projectRoot == "" {
+		projectRoot = runDir // Fallback
+	}
+
 	return &Collector{
 		projectRoot: projectRoot,
+		runDir:      runDir,
 	}
 }
 
@@ -90,15 +104,21 @@ func (c *Collector) processStack(ctx context.Context, planPath string) (*StackRe
 	stackDir := filepath.Dir(planPath)
 
 	// Calculate relative path
-	rootConfigFile := viper.GetString("root_config_file")
-	if rootConfigFile == "" {
-		rootConfigFile = config.DefaultRootConfigFile
+	// Calculate cleaned relative path
+	configRoot := viper.GetString("root_config_file")
+	if configRoot == "" {
+		configRoot = config.DefaultRootConfigFile
 	}
 
-	relPath, err := history.GetRelativeStackPath(stackDir, rootConfigFile)
+	// Clean path from .terragrunt-cache
+	cleanDir := cleanStackPath(stackDir)
+	relPath, err := history.GetRelativeStackPath(cleanDir, configRoot)
 	if err != nil {
-		relPath = stackDir
+		relPath = cleanDir
 	}
+
+	// A stack is a dependency if it's NOT within the runDir
+	isDependency := !isSubDir(c.runDir, cleanDir)
 
 	// We use terraform directly to avoid parsing issues with terragrunt output wrappers
 	cmd := exec.CommandContext(ctx, "terraform", "show", "-json", PlanBinaryName)
@@ -114,9 +134,10 @@ func (c *Collector) processStack(ctx context.Context, planPath string) (*StackRe
 	}
 
 	result := &StackResult{
-		StackPath: relPath,
-		AbsPath:   stackDir,
-		Stats:     StackStats{},
+		StackPath:    relPath,
+		AbsPath:      stackDir,
+		IsDependency: isDependency,
+		Stats:        StackStats{},
 	}
 
 	for _, rc := range planJSON.ResourceChanges {
@@ -153,6 +174,38 @@ func (c *Collector) processStack(ctx context.Context, planPath string) (*StackRe
 	}
 
 	return result, nil
+}
+
+// cleanStackPath removes .terragrunt-cache segments from the path
+func cleanStackPath(path string) string {
+	parts := strings.Split(path, string(filepath.Separator))
+	var cleanParts []string
+
+	skip := false
+	for _, part := range parts {
+		if part == ".terragrunt-cache" {
+			skip = true
+			continue
+		}
+		if skip {
+			// Skip the hash directory following .terragrunt-cache
+			skip = false
+			continue
+		}
+		cleanParts = append(cleanParts, part)
+	}
+
+	return strings.Join(cleanParts, string(filepath.Separator))
+}
+
+// isSubDir checks if child is a subdirectory of parent
+func isSubDir(parent, child string) bool {
+	rel, err := filepath.Rel(parent, child)
+	if err != nil {
+		return false
+	}
+	// If relative path starts with ".." it's outside
+	return !strings.HasPrefix(rel, "..")
 }
 
 func mapActionsToChangeType(actions []string) ChangeType {
