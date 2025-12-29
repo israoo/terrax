@@ -57,3 +57,13 @@ type ResourceChange struct {
 	After      interface{} // JSON structure of resource after change
 	Unknown    interface{} // JSON structure of computed values
 }
+
+// TreeNode represents a node in the plan tree (directory or stack).
+type TreeNode struct {
+	Name       string       // Segment name (e.g., "us-east-1")
+	Path       string       // Full relative path
+	Stats      StackStats   // Aggregated stats
+	HasChanges bool         // True if self or children have changes
+	Children   []*TreeNode  // Sub-directories or stacks
+	Stack      *StackResult // Nil if directory, set if leaf stack (or mixed)
+}

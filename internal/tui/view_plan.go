@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -30,9 +31,6 @@ var (
 				Background(lipgloss.Color("57")).
 				Bold(true)
 
-	planUnselectedItemStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("252"))
-
 	addStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("42"))  // Green
 	changeStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("214")) // Orange/Yellow
 	destroyStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("196")) // Red
@@ -60,7 +58,7 @@ func (m Model) renderPlanReviewView() string {
 func (m Model) renderPlanMasterView() string {
 	var b strings.Builder
 
-	// Helper to render stats string
+	// Render Header
 	renderStats := func(stats plan.StackStats) string {
 		var addStr, changeStr, destroyStr string
 
@@ -93,41 +91,82 @@ func (m Model) renderPlanMasterView() string {
 	b.WriteString(fmt.Sprintf("Target: %s\n", targetStr))
 	b.WriteString(fmt.Sprintf("Deps:   %s\n\n", depStr))
 
-	// Calculate visible range for scrolling
-	start, end := m.calculateVisibleRange(len(m.planReport.Stacks), m.planListCursor, m.height-6)
+	// Render Tree
+	if len(m.planFlatItems) == 0 {
+		return "No changes to display."
+	}
+
+	start, end := m.calculateVisibleRange(len(m.planFlatItems), m.planListCursor, m.height-6)
 
 	for i := start; i < end; i++ {
-		stack := m.planReport.Stacks[i]
+		node := m.planFlatItems[i]
 
-		// Icon based on changes
+		// Calculate indentation level based on path depth
+		// A simple heuristic: count separators in relative path, or use pre-calculated depth?
+		// Since we have the flat items but not explicit depth in TreeNode struct, we can infer it.
+		// Or strictly, we should have stored depth in flattenTree.
+		// For now, let's count separators in Path.
+		// Note from BuildTree: Path is relative to project root (or as built).
+		// Name is just the segment.
+
+		// To properly draw the tree lines (└, ├), we need context of siblings, which flat view loses.
+		// For a simple first version, indentation by depth is sufficient.
+		// Depth = number of separators in node.Path?
+		// Actually, node.Path is built accumulatively.
+		depth := strings.Count(node.Path, string(filepath.Separator))
+
+		indent := strings.Repeat("  ", depth)
+
+		// Symbol based on node stats
 		icon := " "
-		if stack.HasChanges {
-			if stack.Stats.Destroy > 0 && stack.Stats.Add > 0 {
-				icon = "~" // Replace/Mix
-			} else if stack.Stats.Destroy > 0 {
-				icon = "-"
-			} else if stack.Stats.Add > 0 {
+		if node.HasChanges {
+			if node.Stats.Add > 0 {
 				icon = "+"
-			} else if stack.Stats.Change > 0 {
+			} else if node.Stats.Destroy > 0 {
+				icon = "-"
+			} else if node.Stats.Change > 0 {
+				icon = "~"
+			}
+			// If mix, prioritize destructive/transformative?
+			if node.Stats.Add > 0 && node.Stats.Destroy > 0 {
 				icon = "~"
 			}
 		}
 
-		// Line content
-		line := fmt.Sprintf("%s %s", icon, stack.StackPath)
-		if stack.IsDependency {
-			line += " [dep]"
-		}
-
-		// Styling
-		var styledLine string
-		if i == m.planListCursor {
-			styledLine = planSelectedItemStyle.Render(line)
+		// Styling based on change type
+		// If it's a directory (no Stack), maybe different color?
+		var itemStyle lipgloss.Style
+		if node.Stack == nil {
+			// Directory
+			itemStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("252")) // White/Gray
 		} else {
-			styledLine = planUnselectedItemStyle.Render(line)
+			// Leaf
+			if node.Stats.Add > 0 {
+				itemStyle = addStyle
+			} else if node.Stats.Destroy > 0 {
+				itemStyle = destroyStyle
+			} else {
+				itemStyle = changeStyle
+			}
 		}
 
-		b.WriteString(styledLine)
+		// Apply selection style
+		lineContent := fmt.Sprintf("%s%s %s", indent, icon, node.Name)
+		if node.Stack != nil && node.Stack.IsDependency {
+			lineContent += " [dep]"
+		}
+
+		if i == m.planListCursor {
+			// Selected item gets reversed colors or highlight
+			b.WriteString(planSelectedItemStyle.Render(lineContent))
+		} else {
+			// Unselected item uses its semantic color
+			// We need to apply the color to the text, but not background
+			// Actually planSelectedItemStyle sets background.
+			// planUnselectedItemStyle sets basic foreground.
+			// We want semantic color if unselected.
+			b.WriteString(itemStyle.Render(lineContent))
+		}
 		b.WriteString("\n")
 	}
 
@@ -135,44 +174,70 @@ func (m Model) renderPlanMasterView() string {
 }
 
 func (m Model) renderPlanDetailView() string {
-	if m.planListCursor < 0 || m.planListCursor >= len(m.planReport.Stacks) {
-		return "Select a stack to view details"
+	if m.planListCursor < 0 || m.planListCursor >= len(m.planFlatItems) {
+		return "Select an item to view details"
 	}
 
-	stack := m.planReport.Stacks[m.planListCursor]
+	node := m.planFlatItems[m.planListCursor]
 	var b strings.Builder
 
-	b.WriteString(planHeaderStyle.Render(fmt.Sprintf("Plan: %s", stack.StackPath)))
+	b.WriteString(planHeaderStyle.Render(fmt.Sprintf("Plan: %s", node.Path)))
 	b.WriteString("\n")
 	b.WriteString(fmt.Sprintf("Add: %d, Change: %d, Destroy: %d\n\n",
-		stack.Stats.Add, stack.Stats.Change, stack.Stats.Destroy))
+		node.Stats.Add, node.Stats.Change, node.Stats.Destroy))
 
-	if !stack.HasChanges {
+	if !node.HasChanges {
 		b.WriteString("No changes.")
 		return b.String()
 	}
 
-	for _, rc := range stack.ResourceChanges {
-		var prefix string
-		var style lipgloss.Style
+	if node.Stack != nil {
+		// Render Leaf Stack Details
+		for _, rc := range node.Stack.ResourceChanges {
+			var prefix string
+			var style lipgloss.Style
 
-		switch rc.ChangeType {
-		case plan.ChangeTypeCreate:
-			prefix = "+"
-			style = addStyle
-		case plan.ChangeTypeDelete:
-			prefix = "-"
-			style = destroyStyle
-		case plan.ChangeTypeUpdate:
-			prefix = "~"
-			style = changeStyle
-		case plan.ChangeTypeReplace:
-			prefix = "-/+"
-			style = changeStyle
+			switch rc.ChangeType {
+			case plan.ChangeTypeCreate:
+				prefix = "+"
+				style = addStyle
+			case plan.ChangeTypeDelete:
+				prefix = "-"
+				style = destroyStyle
+			case plan.ChangeTypeUpdate:
+				prefix = "~"
+				style = changeStyle
+			case plan.ChangeTypeReplace:
+				prefix = "-/+"
+				style = changeStyle
+			}
+
+			line := fmt.Sprintf("%s %s (%s)\n", prefix, rc.Address, rc.Type)
+			b.WriteString(style.Render(line))
 		}
+	} else {
+		// Render Directory Summary
+		b.WriteString("Directory Summary:\n\n")
 
-		line := fmt.Sprintf("%s %s (%s)\n", prefix, rc.Address, rc.Type)
-		b.WriteString(style.Render(line))
+		// Find children with changes
+		// Since we don't have direct children pointer easily in flat view, we rely on the node structure which IS preserved.
+		// node is a *TreeNode, so it has .Children
+		for _, child := range node.Children {
+			if child.HasChanges {
+				var style lipgloss.Style
+				if child.Stats.Add > 0 {
+					style = addStyle
+				} else if child.Stats.Destroy > 0 {
+					style = destroyStyle
+				} else {
+					style = changeStyle
+				}
+
+				line := fmt.Sprintf("- %s (Add: %d, Change: %d, Destroy: %d)\n",
+					child.Name, child.Stats.Add, child.Stats.Change, child.Stats.Destroy)
+				b.WriteString(style.Render(line))
+			}
+		}
 	}
 
 	return b.String()

@@ -61,6 +61,8 @@ type Model struct {
 
 	// Plan Review
 	planReport               *plan.PlanReport
+	planTreeRoots            []*plan.TreeNode
+	planFlatItems            []*plan.TreeNode // Flattened view for linear navigation
 	planListCursor           int
 	planDetailScrollOffset   int
 	planReviewFocusedElement int // 0 = Master List, 1 = Detail View
@@ -137,7 +139,6 @@ func NewHistoryModel(historyEntries []history.ExecutionLogEntry) Model {
 // NewPlanReviewModel creates a model initialized in plan review mode.
 func NewPlanReviewModel(report *plan.PlanReport) Model {
 	// Filter stacks to only show those with changes
-	var filteredStacks []plan.StackResult
 	targetStats := plan.StackStats{}
 	dependencyStats := plan.StackStats{}
 
@@ -145,8 +146,6 @@ func NewPlanReviewModel(report *plan.PlanReport) Model {
 		if !stack.HasChanges {
 			continue
 		}
-
-		filteredStacks = append(filteredStacks, stack)
 
 		if stack.IsDependency {
 			dependencyStats.Add += stack.Stats.Add
@@ -159,12 +158,44 @@ func NewPlanReviewModel(report *plan.PlanReport) Model {
 		}
 	}
 
-	// Update report with filtered stacks
-	report.Stacks = filteredStacks
+	// Build the tree from all stacks
+	roots := plan.BuildTree(report.Stacks)
+
+	// Flatten the tree for navigation
+	// By default, we might want to expand everything or just top level?
+	// User request showed expanded tree. Let's fully expand for now to match "see everything".
+	// Or maybe just show filtered ones?
+	// The BuildTree already aggregates. We should filter the ROOTS or NODES that have NO changes?
+	// The user said: "if +0 ~0 -0 ... still show ... if 0 don't apply color".
+	// But in previous request: "show in the plan viewer only the stacks with changes".
+	// The Tree view implies structure. If a dir has no changes but a child does, we show the dir.
+	// We can use node.HasChanges to filter the tree display.
+
+	flatItems := flattenTree(roots)
+
+	// Recalculate global stats just for header (though collector/model does separate counts)
+	// Actually we keep targetStats/dependencyStats logic from before, operating on the list.
+	// But we need to use the full list for stats, while tree might only show nodes with changes?
+	// The previous logic filtered the LIST.
+	// New logic: BuildTree takes ALL stacks. Then we filter the tree for display?
+	// User said: "mostrar en el plan viewer solo los stacks con cambios".
+
+	// Re-calculating stats based on full report as before is fine.
+	// But for flatItems, we should only include nodes where HasChanges is true?
+	// Let's filter flatItems.
+
+	var filteredFlatItems []*plan.TreeNode
+	for _, item := range flatItems {
+		if item.HasChanges {
+			filteredFlatItems = append(filteredFlatItems, item)
+		}
+	}
 
 	return Model{
 		state:                    StatePlanReview,
 		planReport:               report,
+		planTreeRoots:            roots,
+		planFlatItems:            filteredFlatItems,
 		planListCursor:           0,
 		planDetailScrollOffset:   0,
 		planReviewFocusedElement: 0,
@@ -172,6 +203,18 @@ func NewPlanReviewModel(report *plan.PlanReport) Model {
 		planDependencyStats:      dependencyStats,
 		ready:                    false,
 	}
+}
+
+// flattenTree converts the recursive tree into a linear list (DFS)
+func flattenTree(nodes []*plan.TreeNode) []*plan.TreeNode {
+	var items []*plan.TreeNode
+	for _, node := range nodes {
+		items = append(items, node)
+		if len(node.Children) > 0 {
+			items = append(items, flattenTree(node.Children)...)
+		}
+	}
+	return items
 }
 
 // Init initializes the model (BubbleTea interface).

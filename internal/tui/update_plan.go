@@ -28,7 +28,7 @@ func (m Model) handlePlanReviewUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case KeyDown:
 			// Master List Navigation
-			if m.planReport != nil && m.planListCursor < len(m.planReport.Stacks)-1 {
+			if m.planFlatItems != nil && m.planListCursor < len(m.planFlatItems)-1 {
 				m.planListCursor++
 			}
 			return m, nil
