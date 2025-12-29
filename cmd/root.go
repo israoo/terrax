@@ -9,7 +9,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -368,16 +367,12 @@ func runPlanReview(ctx context.Context, stackPath string) error {
 	// CLI Progress Loop
 	fmt.Println() // Start with a newline
 	for msg := range progressChan {
-		if msg.TotalFiles > 0 {
-			percent := float64(msg.Current) / float64(msg.TotalFiles)
-			width := 30
-			completed := int(percent * float64(width))
-			bar := strings.Repeat("█", completed) + strings.Repeat("░", width-completed)
-
-			// \r to overwrite line. \033[2K clears the entire line first.
-			fmt.Printf("\r\033[2K🔍 %s [%s] %d/%d", msg.Message, bar, msg.Current, msg.TotalFiles)
+		if msg.TotalFiles > 0 && msg.Current > 0 {
+			// [1/10] Processed path/to/stack
+			fmt.Printf("[%d/%d] %s\n", msg.Current, msg.TotalFiles, msg.Message)
 		} else {
-			fmt.Printf("\r\033[2K🔍 %s...", msg.Message)
+			// Initial messages (Scanning..., Found X plans)
+			fmt.Printf("🔍 %s\n", msg.Message)
 		}
 	}
 	fmt.Println() // End progress line
