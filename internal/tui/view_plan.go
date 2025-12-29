@@ -200,6 +200,16 @@ func (m Model) renderPlanDetailView() string {
 		return b.String()
 	}
 
+	// Calculate explicit width for inner content to support wrapping
+	masterWidth := m.width / PlanMasterWidthRatio
+	detailWidth := m.width - masterWidth - PlanDetailMargin
+	// planDetailStyle has Border (2 chars) + Padding(0,1) (2 chars)
+	// So inner text width is roughly detailWidth - 4
+	innerContentWidth := detailWidth - 4
+	if innerContentWidth < 20 {
+		innerContentWidth = 20 // minimal safety
+	}
+
 	if node.Stack != nil {
 		// Render Leaf Stack Details
 		for _, rc := range node.Stack.ResourceChanges {
@@ -221,8 +231,28 @@ func (m Model) renderPlanDetailView() string {
 				style = changeStyle
 			}
 
-			line := fmt.Sprintf("%s\u00A0%s (%s)", prefix, rc.Address, rc.Type)
-			b.WriteString(style.Render(line))
+			// Use JoinHorizontal for hanging indent effect
+			// Left column: Prefix
+			// Right column: Address + Type (Wrapped)
+			prefixView := style.Render(prefix)
+
+			// Right block width: innerContentWidth - len(prefix) - 1 (space)
+			// prefix len is 1 or 3 ("-/+"). Let's assume average or dynamic?
+			// "-/+" is 3 chars. "+" is 1.
+			// Let's give right block the remaining space.
+			pLen := len(prefix)
+			rightWidth := innerContentWidth - pLen - 1
+			if rightWidth < 10 {
+				rightWidth = 10
+			}
+
+			rightContent := fmt.Sprintf("%s (%s)", rc.Address, rc.Type)
+			rightView := style.Width(rightWidth).Render(rightContent)
+
+			// Join with a space
+			line := lipgloss.JoinHorizontal(lipgloss.Top, prefixView, " ", rightView)
+
+			b.WriteString(line)
 			b.WriteString("\n")
 
 			// Render attribute changes
@@ -300,16 +330,19 @@ func renderAttributes(rc plan.ResourceChange) string {
 	sort.Strings(sortedKeys)
 
 	// Styles for attributes depend on the change type context
-	// User requested "white" (neutral) for Create/Delete resource details
-	createAttrStyle := addStyle
-	deleteAttrStyle := destroyStyle
+	// User requested "white" (neutral) for right side text of Create/Delete resource details
+	// But symbols should be colored.
+	createAttrStyle := lipgloss.NewStyle() // Default white/neutral
+	deleteAttrStyle := lipgloss.NewStyle() // Default white/neutral
 
-	if rc.ChangeType == plan.ChangeTypeCreate {
-		createAttrStyle = lipgloss.NewStyle() // Default white
-	}
-	if rc.ChangeType == plan.ChangeTypeDelete {
-		deleteAttrStyle = lipgloss.NewStyle() // Default white
-	}
+	// Prefixes
+	prefixAdd := addStyle.Render("+")
+	prefixDel := destroyStyle.Render("-")
+	// For alignment, we might want consistent spacing.
+	// Standard indent is 4 spaces.
+	// If we have prefix, maybe we indent 2 spaces + prefix + space?
+	// To align with "    key", maybe "  + key"?
+	// Let's use standard indent for now as assumed before: "    + key"
 
 	for _, k := range sortedKeys {
 		vBefore, inBefore := before[k]
@@ -317,8 +350,6 @@ func renderAttributes(rc plan.ResourceChange) string {
 		isUnknown := false
 
 		// Check if key is unknown/computed
-		// In Terraform JSON, unknown values are represented in 'after_unknown' (mapped to Unknown here)
-		// as Boolean true (or sometimes other structures for nested types, but simple fields are true).
 		if val, ok := unknown[k]; ok {
 			if bVal, isBool := val.(bool); isBool && bVal {
 				isUnknown = true
@@ -327,81 +358,65 @@ func renderAttributes(rc plan.ResourceChange) string {
 
 		// Skip internal attributes or noise if needed
 		if strings.HasPrefix(k, "_") {
-			continue // Optional: skip internal fields if not relevant
+			continue
 		}
+
+		// User asked to remove bold from keys.
+		keyStr := k
 
 		if inBefore && isUnknown {
 			// Update to Unknown: value -> (known after apply)
-			line := fmt.Sprintf("%s%s: %v -> (known after apply)", indent, k, vBefore)
+			line := fmt.Sprintf("%s%s: %v -> (known after apply)", indent, keyStr, vBefore)
 			b.WriteString(changeStyle.Render(line))
 			b.WriteString("\n")
 		} else if !inBefore && isUnknown {
 			// Add Unknown: (known after apply)
-			// For Create, this should also be neutral? "known after apply" is yellow usually.
-			// But user said "detalles ... en color blanco".
-			// Let's keep "known after apply" highlighted as it's special state?
-			// Or should it be white too?
-			// Usually "known after apply" is arguably a value.
-			// Let's keep addStyle logic (which uses createAttrStyle now).
-
-			// Actually, let's stick to yellow for "known after apply" as it implies "computed".
-			// The user specific complaint was about add/delete green/red.
-			// Re-reading user request: "deberían mostrarse en color blanco (o sea sin color verde o rojo)"
-			// This specifically targets the green/red aspect.
-			// "known after apply" is handled by my previous fix to be yellow (ChangeStyle) or addStyle.
-
-			// If I use addStyle for the known-after-apply line in a Create resource, it's green.
-			// Should I make it white?
-			// Standard behavior for `(known after apply)` is usually distinctive.
-			// Let's assume keep distinct logic for Unknown.
-
-			// If I use createAttrStyle (white), it loses the distinction?
-			// But previous task I made it ChangeStyle (Yellow) or AddStyle (Green).
-			// The change "add unknown" used `addStyle`.
-			// If I change `addStyle` to `createAttrStyle` here, it becomes white.
-			// But known-after-apply might deserve yellow?
-			// The previous task specifically asked to make known-after-apply yellow for *Updates* where it looked like a deletion.
-			// For a pure Create, valid values are green, known are ...?
-			// I'll use createAttrStyle (White) generally, but maybe "known after apply" text itself could be styled?
-			// For now, let's use the createAttrStyle to satisfy "no green".
-
-			var prefix string
-			if rc.ChangeType != plan.ChangeTypeCreate {
-				prefix = "+ "
+			if rc.ChangeType == plan.ChangeTypeCreate {
+				// Colored prefix, neutral text
+				// use " " after prefix to separate from key
+				line := fmt.Sprintf("%s%s %s: (known after apply)", indent, prefixAdd, keyStr)
+				b.WriteString(createAttrStyle.Render(line))
+			} else {
+				// Update adding field -> Green line
+				line := fmt.Sprintf("%s+ %s: (known after apply)", indent, keyStr)
+				b.WriteString(addStyle.Render(line))
 			}
-			line := fmt.Sprintf("%s%s%s: (known after apply)", indent, prefix, k)
-			b.WriteString(createAttrStyle.Render(line))
 			b.WriteString("\n")
 		} else if inBefore && inAfter {
 			// Update: check if value changed
 			if fmt.Sprintf("%v", vBefore) != fmt.Sprintf("%v", vAfter) {
-				line := fmt.Sprintf("%s%s: %v -> %v", indent, k, vBefore, vAfter)
+				line := fmt.Sprintf("%s%s: %v -> %v", indent, keyStr, vBefore, vAfter)
 				b.WriteString(changeStyle.Render(line))
 				b.WriteString("\n")
 			} else {
 				// Unchanged
-				line := fmt.Sprintf("%s%s: %v", indent, k, vBefore)
-				// Neutral style (no color) -> Gray/Dim
+				line := fmt.Sprintf("%s%s: %v", indent, keyStr, vBefore)
 				b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render(line))
 				b.WriteString("\n")
 			}
 		} else if inAfter {
 			// Create (or added attribute)
-			var prefix string
-			if rc.ChangeType != plan.ChangeTypeCreate {
-				prefix = "+ "
+			if rc.ChangeType == plan.ChangeTypeCreate {
+				// Prefix is colored, text is neutral
+				line := fmt.Sprintf("%s%s %s: %v", indent, prefixAdd, keyStr, vAfter)
+				b.WriteString(createAttrStyle.Render(line))
+			} else {
+				// Update adding field -> Green line
+				line := fmt.Sprintf("%s+ %s: %v", indent, keyStr, vAfter)
+				b.WriteString(addStyle.Render(line))
 			}
-			line := fmt.Sprintf("%s%s%s: %v", indent, prefix, k, vAfter)
-			b.WriteString(createAttrStyle.Render(line))
 			b.WriteString("\n")
 		} else if inBefore {
 			// Delete (or removed attribute)
-			var prefix string
-			if rc.ChangeType != plan.ChangeTypeDelete {
-				prefix = "- "
+			if rc.ChangeType == plan.ChangeTypeDelete {
+				// Prefix is colored, text is neutral
+				line := fmt.Sprintf("%s%s %s: %v", indent, prefixDel, keyStr, vBefore)
+				b.WriteString(deleteAttrStyle.Render(line))
+			} else {
+				// Update removing field -> Red line
+				line := fmt.Sprintf("%s- %s: %v", indent, keyStr, vBefore)
+				b.WriteString(destroyStyle.Render(line))
 			}
-			line := fmt.Sprintf("%s%s%s: %v", indent, prefix, k, vBefore)
-			b.WriteString(deleteAttrStyle.Render(line))
 			b.WriteString("\n")
 		}
 	}
