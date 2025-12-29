@@ -291,7 +291,7 @@ func TestCalculateVisibleRangePlan(t *testing.T) {
 func TestPlanReview_FocusAndScroll(t *testing.T) {
 	m := createTestPlanModel()
 	m.width = 100
-	m.height = 20
+	m.height = 8 // Reduced height to ensure content overflows and scrolling is possible
 
 	// Initial State: Focus on Master (0)
 	assert.Equal(t, 0, m.planReviewFocusedElement)
@@ -308,13 +308,22 @@ func TestPlanReview_FocusAndScroll(t *testing.T) {
 	newModel = updatedModel.(Model)
 	assert.Equal(t, 1, newModel.planDetailScrollOffset)
 
-	// Test 3: Scroll Up
-	keyMsg = tea.KeyMsg{Type: tea.KeyUp}
-	updatedModel, _ = newModel.Update(keyMsg)
-	newModel = updatedModel.(Model)
-	assert.Equal(t, 0, newModel.planDetailScrollOffset)
+	// Test 3: Scroll Down to Limit
+	for i := 0; i < 10; i++ {
+		keyMsg = tea.KeyMsg{Type: tea.KeyDown}
+		updatedModel, _ = newModel.Update(keyMsg)
+		newModel = updatedModel.(Model)
+	}
+	assert.Greater(t, newModel.planDetailScrollOffset, 0)
+	assert.Less(t, newModel.planDetailScrollOffset, 20)
 
-	// Test 4: Switch Focus Left
+	// Test 4: Scroll Up
+	previousOffset := newModel.planDetailScrollOffset
+	updatedModel, _ = newModel.Update(tea.KeyMsg{Type: tea.KeyUp})
+	newModel = updatedModel.(Model)
+	assert.Equal(t, previousOffset-1, newModel.planDetailScrollOffset)
+
+	// Test 5: Switch Focus Left
 	keyMsg = tea.KeyMsg{Type: tea.KeyLeft}
 	updatedModel, _ = newModel.Update(keyMsg)
 	newModel = updatedModel.(Model)

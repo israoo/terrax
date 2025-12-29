@@ -53,8 +53,24 @@ func (m Model) handlePlanReviewUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			} else {
 				// Detail View Scrolling
-				// Increment offset unbounded; view logic clamps it to content height.
-				m.planDetailScrollOffset++
+				lines := m.getPlanDetailLines()
+				totalLines := len(lines)
+
+				// Calculate visible height matching view_plan.go
+				// PlanVerticalFrame = 2, Detail Border = 2
+				visibleHeight := m.height - PlanVerticalFrame - 2
+				if visibleHeight < 1 {
+					visibleHeight = 1
+				}
+
+				maxOffset := totalLines - visibleHeight
+				if maxOffset < 0 {
+					maxOffset = 0
+				}
+
+				if m.planDetailScrollOffset < maxOffset {
+					m.planDetailScrollOffset++
+				}
 			}
 			return m, nil
 		}
