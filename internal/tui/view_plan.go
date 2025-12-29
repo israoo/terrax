@@ -15,7 +15,8 @@ var (
 	planMasterStyle = lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder()).
 			BorderForeground(lipgloss.Color("63")).
-			MarginRight(1)
+			MarginRight(1).
+			PaddingLeft(1)
 
 	planDetailStyle = lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder()).
@@ -41,6 +42,21 @@ func (m Model) renderPlanReviewView() string {
 		return "No plan results found."
 	}
 
+	// Calculate content height properly accounting for Header (1) and Footer (1)
+	// We use the full m.height, subtract 2 for header/footer.
+	// PlanVerticalFrame currently subtracts for borders.
+	// Let's ensure consistency.
+	contentAvailableHeight := m.height - 2
+	if contentAvailableHeight < 10 {
+		contentAvailableHeight = 10 // Min height
+	}
+
+	// We pass a modified height to the internal views so they know how much space they have
+	// The internal views use m.height - PlanVerticalFrame.
+	// We need to adjust PlanVerticalFrame or temporarily shadow m.height?
+	// Shadowing m.height in a copy of Model is cleaner, but let's just make sure
+	// the styles use `contentAvailableHeight - PlanVerticalFrame`.
+
 	masterView := m.renderPlanMasterView()
 	detailView := m.renderPlanDetailView()
 
@@ -58,10 +74,31 @@ func (m Model) renderPlanReviewView() string {
 		detailWidth = PlanMinDetailWidth // Safety floor
 	}
 
-	return lipgloss.JoinHorizontal(
+	// Dynamic styling based on focus
+	// Subtract extra 2 lines for header/footer from the height calculation for columns
+	columnHeight := contentAvailableHeight - PlanVerticalFrame
+	masterStyle := planMasterStyle.Width(masterWidth).Height(columnHeight)
+	detailStyle := planDetailStyle.Width(detailWidth).Height(columnHeight)
+
+	if m.planReviewFocusedElement == 0 {
+		masterStyle = masterStyle.BorderForeground(lipgloss.Color("205")) // Pink/Active
+		detailStyle = detailStyle.BorderForeground(lipgloss.Color("240")) // Dim
+	} else {
+		masterStyle = masterStyle.BorderForeground(lipgloss.Color("240")) // Dim
+		detailStyle = detailStyle.BorderForeground(lipgloss.Color("205")) // Pink/Active
+	}
+
+	mainContent := lipgloss.JoinHorizontal(
 		lipgloss.Top,
-		planMasterStyle.Width(masterWidth).Height(m.height-PlanVerticalFrame).Render(masterView),
-		planDetailStyle.Width(detailWidth).Height(m.height-PlanVerticalFrame).Render(detailView),
+		masterStyle.Render(masterView),
+		detailStyle.Render(detailView),
+	)
+
+	return lipgloss.JoinVertical(
+		lipgloss.Left,
+		headerStyle.Width(m.width).Render("🌍 "+AppTitle+" - Plan Viewer"),
+		mainContent,
+		footerStyle.Render(HelpText),
 	)
 }
 
@@ -199,26 +236,31 @@ func (m Model) renderPlanDetailView() string {
 		for _, rc := range node.Stack.ResourceChanges {
 			var prefix string
 			var style lipgloss.Style
+			var prefixColorStyle lipgloss.Style
 
 			switch rc.ChangeType {
 			case plan.ChangeTypeCreate:
 				prefix = "+"
 				style = addStyle
+				prefixColorStyle = addStyle
 			case plan.ChangeTypeDelete:
 				prefix = "-"
 				style = destroyStyle
+				prefixColorStyle = destroyStyle
 			case plan.ChangeTypeUpdate:
 				prefix = "~"
 				style = changeStyle
+				prefixColorStyle = changeStyle
 			case plan.ChangeTypeReplace:
 				prefix = "-/+"
 				style = changeStyle
+				prefixColorStyle = changeStyle
 			}
 
 			// Use JoinHorizontal for hanging indent effect:
 			// Left column: Prefix
 			// Right column: Address + Type (Wrapped)
-			prefixView := style.Render(prefix)
+			prefixView := prefixColorStyle.Render(prefix)
 
 			// Right block width: innerContentWidth - len(prefix) - 1 (space)
 			pLen := len(prefix)
@@ -239,7 +281,7 @@ func (m Model) renderPlanDetailView() string {
 			// Render attribute changes
 			attrDiff := renderAttributes(rc)
 			if attrDiff != "" {
-				// Add extra newline as requested
+				// Add extra newline
 				b.WriteString("\n")
 				b.WriteString(attrDiff)
 				b.WriteString("\n")
@@ -250,8 +292,6 @@ func (m Model) renderPlanDetailView() string {
 		b.WriteString("Directory Summary:\n\n")
 
 		// Find children with changes
-		// Since we don't have direct children pointer easily in flat view, we rely on the node structure which IS preserved.
-		// node is a *TreeNode, so it has .Children
 		for _, child := range node.Children {
 			if child.HasChanges {
 				var style lipgloss.Style
@@ -271,7 +311,46 @@ func (m Model) renderPlanDetailView() string {
 		}
 	}
 
-	return b.String()
+	// Handle Vertical Scrolling with Strict Wrapping
+	fullContent := b.String()
+
+	// Crucial Fix: Wrap content strictly to width BEFORE splitting lines for viewport
+	wrappedContent := lipgloss.NewStyle().Width(innerContentWidth).Render(fullContent)
+	lines := strings.Split(wrappedContent, "\n")
+
+	// Calculate visible height
+	// height - PlanVerticalFrame (borders/margin) - 2 (detail border)
+	visibleHeight := m.height - PlanVerticalFrame - 2
+	// Adjust for global header (1) + footer (1) if they are not part of PlanVerticalFrame calculation updates
+	// PlanVerticalFrame was likely just borders. We need to account for the new layout.
+	// We will update PlanVerticalFrame or handle it in renderPlanReviewView.
+	// For now, let's assume the height passed to renderPlanDetailView's style is the height of the container,
+	// so we just subtract the container's borders (2).
+
+	if visibleHeight < 1 {
+		visibleHeight = 1
+	}
+
+	totalLines := len(lines)
+	if totalLines <= visibleHeight {
+		return wrappedContent
+	}
+
+	start := m.planDetailScrollOffset
+	if start > totalLines-visibleHeight {
+		start = totalLines - visibleHeight
+	}
+	if start < 0 {
+		start = 0
+	}
+
+	end := start + visibleHeight
+	if end > totalLines {
+		end = totalLines
+	}
+
+	visibleContent := strings.Join(lines[start:end], "\n")
+	return visibleContent
 }
 
 // renderAttributes generates a diff string for resource attributes

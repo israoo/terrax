@@ -19,17 +19,42 @@ func (m Model) handlePlanReviewUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Exit Plan Review mode
 			return m, tea.Quit
 
+		case KeyRight, KeyEnter:
+			// Switch focus to Detail View
+			m.planReviewFocusedElement = 1
+			return m, nil
+
+		case KeyLeft:
+			// Switch focus to Master List
+			m.planReviewFocusedElement = 0
+			return m, nil
+
 		case KeyUp:
-			// Master List Navigation
-			if m.planListCursor > 0 {
-				m.planListCursor--
+			if m.planReviewFocusedElement == 0 {
+				// Master List Navigation
+				if m.planListCursor > 0 {
+					m.planListCursor--
+					m.planDetailScrollOffset = 0 // Reset detail scroll
+				}
+			} else {
+				// Detail View Scrolling
+				if m.planDetailScrollOffset > 0 {
+					m.planDetailScrollOffset--
+				}
 			}
 			return m, nil
 
 		case KeyDown:
-			// Master List Navigation
-			if m.planFlatItems != nil && m.planListCursor < len(m.planFlatItems)-1 {
-				m.planListCursor++
+			if m.planReviewFocusedElement == 0 {
+				// Master List Navigation
+				if m.planFlatItems != nil && m.planListCursor < len(m.planFlatItems)-1 {
+					m.planListCursor++
+					m.planDetailScrollOffset = 0 // Reset detail scroll
+				}
+			} else {
+				// Detail View Scrolling
+				// Increment offset unbounded; view logic clamps it to content height.
+				m.planDetailScrollOffset++
 			}
 			return m, nil
 		}

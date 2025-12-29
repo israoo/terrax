@@ -287,3 +287,51 @@ func TestCalculateVisibleRangePlan(t *testing.T) {
 	assert.Equal(t, 8, start)
 	assert.Equal(t, 13, end)
 }
+
+func TestPlanReview_FocusAndScroll(t *testing.T) {
+	m := createTestPlanModel()
+	m.width = 100
+	m.height = 20
+
+	// Initial State: Focus on Master (0)
+	assert.Equal(t, 0, m.planReviewFocusedElement)
+
+	// Test 1: Switch Focus Right
+	msg := tea.KeyMsg{Type: tea.KeyRight}
+	updatedModel, _ := m.Update(msg)
+	newModel := updatedModel.(Model)
+	assert.Equal(t, 1, newModel.planReviewFocusedElement)
+
+	// Test 2: Scroll Down (increment count)
+	keyMsg := tea.KeyMsg{Type: tea.KeyDown}
+	updatedModel, _ = newModel.Update(keyMsg)
+	newModel = updatedModel.(Model)
+	assert.Equal(t, 1, newModel.planDetailScrollOffset)
+
+	// Test 3: Scroll Up
+	keyMsg = tea.KeyMsg{Type: tea.KeyUp}
+	updatedModel, _ = newModel.Update(keyMsg)
+	newModel = updatedModel.(Model)
+	assert.Equal(t, 0, newModel.planDetailScrollOffset)
+
+	// Test 4: Switch Focus Left
+	keyMsg = tea.KeyMsg{Type: tea.KeyLeft}
+	updatedModel, _ = newModel.Update(keyMsg)
+	newModel = updatedModel.(Model)
+	assert.Equal(t, 0, newModel.planReviewFocusedElement)
+}
+
+func TestPlanReview_ScrollResetOnSelectionChange(t *testing.T) {
+	m := createTestPlanModel()
+	// Set some scroll offset
+	m.planDetailScrollOffset = 5
+	m.planReviewFocusedElement = 0 // Focus Master
+
+	// Move Selection Down
+	msg := tea.KeyMsg{Type: tea.KeyDown}
+	updatedModel, _ := m.Update(msg)
+	newModel := updatedModel.(Model)
+
+	// Scroll offset should be reset to 0
+	assert.Equal(t, 0, newModel.planDetailScrollOffset)
+}
