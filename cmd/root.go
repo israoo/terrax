@@ -391,6 +391,16 @@ func runPlanReview(ctx context.Context, stackPath string) error {
 		return fmt.Errorf("no plan results collected")
 	}
 
+	// Check if there are any changes to display
+	if report.Summary.StacksWithChanges == 0 {
+		fmt.Println("✅ No changes found in any stack.")
+		// We still perform cleanup
+		if cleanupErr := collector.CleanupOldPlans(); cleanupErr != nil {
+			fmt.Fprintf(os.Stderr, "Warning: Failed to cleanup old plans: %v\n", cleanupErr)
+		}
+		return nil
+	}
+
 	// Launch Review TUI with ready report
 	initialModel := tui.NewPlanReviewModel(report)
 
