@@ -221,13 +221,15 @@ func (m Model) renderPlanDetailView() string {
 				style = changeStyle
 			}
 
-			line := fmt.Sprintf("%s %s (%s)", prefix, rc.Address, rc.Type)
+			line := fmt.Sprintf("%s\u00A0%s (%s)", prefix, rc.Address, rc.Type)
 			b.WriteString(style.Render(line))
 			b.WriteString("\n")
 
 			// Render attribute changes
 			attrDiff := renderAttributes(rc)
 			if attrDiff != "" {
+				// Add extra newline as requested
+				b.WriteString("\n")
 				b.WriteString(attrDiff)
 				b.WriteString("\n")
 			}
@@ -276,6 +278,7 @@ func renderAttributes(rc plan.ResourceChange) string {
 
 	before := toMap(rc.Before)
 	after := toMap(rc.After)
+	unknown := toMap(rc.Unknown)
 
 	// Collect all keys
 	keys := make(map[string]bool)
@@ -283,6 +286,9 @@ func renderAttributes(rc plan.ResourceChange) string {
 		keys[k] = true
 	}
 	for k := range after {
+		keys[k] = true
+	}
+	for k := range unknown {
 		keys[k] = true
 	}
 
@@ -296,17 +302,45 @@ func renderAttributes(rc plan.ResourceChange) string {
 	for _, k := range sortedKeys {
 		vBefore, inBefore := before[k]
 		vAfter, inAfter := after[k]
+		isUnknown := false
 
-		// Skip internal attributes or noise if needed
-		if k == "id" || strings.HasPrefix(k, "_") {
-			continue // Optional: skip ID or internal fields if not relevant
+		// Check if key is unknown/computed
+		// In Terraform JSON, unknown values are represented in 'after_unknown' (mapped to Unknown here)
+		// as Boolean true (or sometimes other structures for nested types, but simple fields are true).
+		if val, ok := unknown[k]; ok {
+			if bVal, isBool := val.(bool); isBool && bVal {
+				isUnknown = true
+			}
 		}
 
-		if inBefore && inAfter {
+		// Skip internal attributes or noise if needed
+		if strings.HasPrefix(k, "_") {
+			continue // Optional: skip internal fields if not relevant
+		}
+
+		if inBefore && isUnknown {
+			// Update to Unknown: value -> (known after apply)
+			line := fmt.Sprintf("%s%s: %v -> (known after apply)", indent, k, vBefore)
+			b.WriteString(changeStyle.Render(line))
+			b.WriteString("\n")
+		} else if !inBefore && isUnknown {
+			// Add Unknown: (known after apply)
+			line := fmt.Sprintf("%s+ %s: (known after apply)", indent, k)
+			b.WriteString(addStyle.Render(line))
+			b.WriteString("\n")
+		} else if inBefore && inAfter {
 			// Update: check if value changed
 			if fmt.Sprintf("%v", vBefore) != fmt.Sprintf("%v", vAfter) {
 				line := fmt.Sprintf("%s%s: %v -> %v", indent, k, vBefore, vAfter)
 				b.WriteString(changeStyle.Render(line))
+				b.WriteString("\n")
+			} else {
+				// Unchanged
+				line := fmt.Sprintf("%s%s: %v", indent, k, vBefore)
+				// Neutral style (no color)
+				// We can define a style or just write string.
+				// lipgloss style for neutral/dim might be good.
+				b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render(line))
 				b.WriteString("\n")
 			}
 		} else if inAfter {

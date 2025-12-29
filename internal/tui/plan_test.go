@@ -208,7 +208,7 @@ func TestRenderPlanReviewView_Detailed(t *testing.T) {
 		m.planListCursor = idx
 		out := m.View()
 		assert.Contains(t, out, "Plan: delete-stack")
-		assert.Contains(t, out, "- res.del")
+		assert.Contains(t, out, "-\u00A0res.del")
 	}
 
 	// Test 2: Render Update Stack
@@ -217,7 +217,7 @@ func TestRenderPlanReviewView_Detailed(t *testing.T) {
 		m.planListCursor = idx
 		out := m.View()
 		assert.Contains(t, out, "Plan: update-stack")
-		assert.Contains(t, out, "~ res.upd")
+		assert.Contains(t, out, "~\u00A0res.upd")
 		assert.Contains(t, out, "val: 1 -> 2")
 	}
 
@@ -227,7 +227,7 @@ func TestRenderPlanReviewView_Detailed(t *testing.T) {
 		m.planListCursor = idx
 		out := m.View()
 		assert.Contains(t, out, "Plan: replace-stack")
-		assert.Contains(t, out, "-/+ res.rep")
+		assert.Contains(t, out, "-/+\u00A0res.rep")
 	}
 }
 
