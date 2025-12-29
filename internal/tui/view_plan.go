@@ -299,6 +299,18 @@ func renderAttributes(rc plan.ResourceChange) string {
 	}
 	sort.Strings(sortedKeys)
 
+	// Styles for attributes depend on the change type context
+	// User requested "white" (neutral) for Create/Delete resource details
+	createAttrStyle := addStyle
+	deleteAttrStyle := destroyStyle
+
+	if rc.ChangeType == plan.ChangeTypeCreate {
+		createAttrStyle = lipgloss.NewStyle() // Default white
+	}
+	if rc.ChangeType == plan.ChangeTypeDelete {
+		deleteAttrStyle = lipgloss.NewStyle() // Default white
+	}
+
 	for _, k := range sortedKeys {
 		vBefore, inBefore := before[k]
 		vAfter, inAfter := after[k]
@@ -325,8 +337,40 @@ func renderAttributes(rc plan.ResourceChange) string {
 			b.WriteString("\n")
 		} else if !inBefore && isUnknown {
 			// Add Unknown: (known after apply)
-			line := fmt.Sprintf("%s+ %s: (known after apply)", indent, k)
-			b.WriteString(addStyle.Render(line))
+			// For Create, this should also be neutral? "known after apply" is yellow usually.
+			// But user said "detalles ... en color blanco".
+			// Let's keep "known after apply" highlighted as it's special state?
+			// Or should it be white too?
+			// Usually "known after apply" is arguably a value.
+			// Let's keep addStyle logic (which uses createAttrStyle now).
+
+			// Actually, let's stick to yellow for "known after apply" as it implies "computed".
+			// The user specific complaint was about add/delete green/red.
+			// Re-reading user request: "deberían mostrarse en color blanco (o sea sin color verde o rojo)"
+			// This specifically targets the green/red aspect.
+			// "known after apply" is handled by my previous fix to be yellow (ChangeStyle) or addStyle.
+
+			// If I use addStyle for the known-after-apply line in a Create resource, it's green.
+			// Should I make it white?
+			// Standard behavior for `(known after apply)` is usually distinctive.
+			// Let's assume keep distinct logic for Unknown.
+
+			// If I use createAttrStyle (white), it loses the distinction?
+			// But previous task I made it ChangeStyle (Yellow) or AddStyle (Green).
+			// The change "add unknown" used `addStyle`.
+			// If I change `addStyle` to `createAttrStyle` here, it becomes white.
+			// But known-after-apply might deserve yellow?
+			// The previous task specifically asked to make known-after-apply yellow for *Updates* where it looked like a deletion.
+			// For a pure Create, valid values are green, known are ...?
+			// I'll use createAttrStyle (White) generally, but maybe "known after apply" text itself could be styled?
+			// For now, let's use the createAttrStyle to satisfy "no green".
+
+			var prefix string
+			if rc.ChangeType != plan.ChangeTypeCreate {
+				prefix = "+ "
+			}
+			line := fmt.Sprintf("%s%s%s: (known after apply)", indent, prefix, k)
+			b.WriteString(createAttrStyle.Render(line))
 			b.WriteString("\n")
 		} else if inBefore && inAfter {
 			// Update: check if value changed
@@ -337,21 +381,27 @@ func renderAttributes(rc plan.ResourceChange) string {
 			} else {
 				// Unchanged
 				line := fmt.Sprintf("%s%s: %v", indent, k, vBefore)
-				// Neutral style (no color)
-				// We can define a style or just write string.
-				// lipgloss style for neutral/dim might be good.
+				// Neutral style (no color) -> Gray/Dim
 				b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render(line))
 				b.WriteString("\n")
 			}
 		} else if inAfter {
 			// Create (or added attribute)
-			line := fmt.Sprintf("%s+ %s: %v", indent, k, vAfter)
-			b.WriteString(addStyle.Render(line))
+			var prefix string
+			if rc.ChangeType != plan.ChangeTypeCreate {
+				prefix = "+ "
+			}
+			line := fmt.Sprintf("%s%s%s: %v", indent, prefix, k, vAfter)
+			b.WriteString(createAttrStyle.Render(line))
 			b.WriteString("\n")
 		} else if inBefore {
 			// Delete (or removed attribute)
-			line := fmt.Sprintf("%s- %s: %v", indent, k, vBefore)
-			b.WriteString(destroyStyle.Render(line))
+			var prefix string
+			if rc.ChangeType != plan.ChangeTypeDelete {
+				prefix = "- "
+			}
+			line := fmt.Sprintf("%s%s%s: %v", indent, prefix, k, vBefore)
+			b.WriteString(deleteAttrStyle.Render(line))
 			b.WriteString("\n")
 		}
 	}
