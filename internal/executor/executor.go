@@ -71,22 +71,18 @@ func Run(ctx context.Context, historyLogger HistoryLogger, command, absoluteStac
 	return execErr
 }
 
-// buildTerragruntArgs constructs the terragrunt command arguments with logging configuration.
+// buildTerragruntArgs constructs the full Terragrunt command arguments.
 func buildTerragruntArgs(absoluteStackPath, command string) []string {
 	args := []string{"run", "--all", "--working-dir", absoluteStackPath}
 
 	args = appendLoggingFlags(args)
 	args = appendTerragruntFlags(args)
-
-	// Extra flags
-	extraFlags := viper.GetStringSlice("terragrunt.extra_flags")
-	if len(extraFlags) > 0 {
-		args = append(args, extraFlags...)
-	}
+	args = appendFeatureFlags(args)
+	args = appendExtraTerragruntFlags(args)
 
 	args = append(args, "--", command)
 
-	// If command is "plan", we want to output to a binary file for later analysis
+	// If command is "plan", output to a binary file for later analysis.
 	if command == "plan" {
 		timestamp := viper.GetInt64("terrax.session_timestamp")
 		planFile := fmt.Sprintf("terrax-tfplan-%d.binary", timestamp)
@@ -94,6 +90,35 @@ func buildTerragruntArgs(absoluteStackPath, command string) []string {
 	}
 
 	return args
+}
+
+// appendFeatureFlags appends flags derived from the features.* configuration section.
+// Each feature key maps to one or more Terragrunt flags, hiding multi-flag complexity
+// behind a single boolean toggle.
+func appendFeatureFlags(args []string) []string {
+	if viper.GetBool("features.tf_forward_stdout") {
+		args = append(args, "--tf-forward-stdout")
+	}
+	if viper.GetBool("features.summary_per_unit") {
+		args = append(args, "--summary-per-unit")
+	}
+	if viper.GetBool("features.report.enabled") {
+		reportFile := viper.GetString("features.report.file")
+		if reportFile == "" {
+			reportFile = config.DefaultReportFile
+		}
+		reportFormat := viper.GetString("features.report.format")
+		if reportFormat == "" {
+			reportFormat = config.DefaultReportFormat
+		}
+		args = append(args, "--report-file", reportFile, "--report-format", reportFormat)
+	}
+	return args
+}
+
+// appendExtraTerragruntFlags appends global extra Terragrunt flags from terragrunt.extra_flags.
+func appendExtraTerragruntFlags(args []string) []string {
+	return append(args, viper.GetStringSlice("terragrunt.extra_flags")...)
 }
 
 func appendLoggingFlags(args []string) []string {

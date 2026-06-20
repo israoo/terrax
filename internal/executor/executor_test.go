@@ -346,3 +346,91 @@ func TestLogExecutionToHistory(t *testing.T) {
 		})
 	}
 }
+
+// TestBuildTerragruntArgs_FeatureFlags tests feature flag shortcuts via buildTerragruntArgs.
+func TestBuildTerragruntArgs_FeatureFlags(t *testing.T) {
+	tests := []struct {
+		name            string
+		stackPath       string
+		command         string
+		tfForwardStdout bool
+		summaryPerUnit  bool
+		reportEnabled   bool
+		reportFile      string
+		reportFormat    string
+		expected        []string
+	}{
+		{
+			name:            "tf_forward_stdout enabled",
+			stackPath:       "/path/to/stack",
+			command:         "apply",
+			tfForwardStdout: true,
+			expected:        []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--tf-forward-stdout", "--", "apply"},
+		},
+		{
+			name:           "summary_per_unit enabled",
+			stackPath:      "/path/to/stack",
+			command:        "apply",
+			summaryPerUnit: true,
+			expected:       []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--summary-per-unit", "--", "apply"},
+		},
+		{
+			name:          "report enabled uses defaults",
+			stackPath:     "/path/to/stack",
+			command:       "apply",
+			reportEnabled: true,
+			expected:      []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--report-file", "./tmp/report.json", "--report-format", "json", "--", "apply"},
+		},
+		{
+			name:          "report enabled with custom file and format",
+			stackPath:     "/path/to/stack",
+			command:       "apply",
+			reportEnabled: true,
+			reportFile:    "./custom/report.json",
+			reportFormat:  "key-value",
+			expected:      []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--report-file", "./custom/report.json", "--report-format", "key-value", "--", "apply"},
+		},
+		{
+			name:            "all features enabled for plan command",
+			stackPath:       "/path/to/stack",
+			command:         "plan",
+			tfForwardStdout: true,
+			summaryPerUnit:  true,
+			reportEnabled:   true,
+			expected:        []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--tf-forward-stdout", "--summary-per-unit", "--report-file", "./tmp/report.json", "--report-format", "json", "--", "plan", "-out=terrax-tfplan-0.binary"},
+		},
+		{
+			name:      "no features enabled produces no extra flags",
+			stackPath: "/path/to/stack",
+			command:   "apply",
+			expected:  []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--", "apply"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			viper.Reset()
+			viper.Set("log_format", "pretty")
+
+			if tt.tfForwardStdout {
+				viper.Set("features.tf_forward_stdout", true)
+			}
+			if tt.summaryPerUnit {
+				viper.Set("features.summary_per_unit", true)
+			}
+			if tt.reportEnabled {
+				viper.Set("features.report.enabled", true)
+				if tt.reportFile != "" {
+					viper.Set("features.report.file", tt.reportFile)
+				}
+				if tt.reportFormat != "" {
+					viper.Set("features.report.format", tt.reportFormat)
+				}
+			}
+
+			args := buildTerragruntArgs(tt.stackPath, tt.command)
+
+			assert.Equal(t, tt.expected, args, "Arguments should match expected output.")
+		})
+	}
+}
