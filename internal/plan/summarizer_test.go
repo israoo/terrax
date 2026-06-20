@@ -60,12 +60,9 @@ func TestSummarize_EmptyDirectory(t *testing.T) {
 }
 
 func TestSummarize_TFSummarizeNotFound(t *testing.T) {
-	oldExec := execSummarizerContext
-	execSummarizerContext = func(ctx context.Context, name string, args ...string) *exec.Cmd {
-		// Running a nonexistent binary triggers exec.ErrNotFound.
-		return exec.CommandContext(ctx, "tf-summarize-not-installed-xyz123")
+	if _, err := exec.LookPath("tf-summarize"); err == nil {
+		t.Skip("tf-summarize is installed; cannot test not-found path.")
 	}
-	defer func() { execSummarizerContext = oldExec }()
 
 	dir := t.TempDir()
 	stackDir := filepath.Join(dir, "workloads", "dev", "acm")

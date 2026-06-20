@@ -4,7 +4,6 @@ package plan
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -56,6 +55,11 @@ func Summarize(ctx context.Context, dir string) (int, error) {
 		return 0, nil
 	}
 
+	// Check if tf-summarize is installed before scanning files.
+	if _, err := exec.LookPath("tf-summarize"); err != nil {
+		return 0, fmt.Errorf("tf-summarize not found: install from https://github.com/dineshba/tf-summarize")
+	}
+
 	sort.Strings(jsonFiles)
 	fmt.Printf("🔍 Scanning %d JSON plan(s)...\n\n", len(jsonFiles))
 
@@ -67,23 +71,18 @@ func Summarize(ctx context.Context, dir string) (int, error) {
 		cmd := execSummarizerContext(ctx, "tf-summarize", "-json-sum", planFile)
 		output, err := cmd.Output()
 		if err != nil {
-			// Distinguish "not installed" from per-file failure.
-			var execErr *exec.Error
-			if errors.As(err, &execErr) && errors.Is(execErr.Err, exec.ErrNotFound) {
-				return 0, fmt.Errorf("tf-summarize not found: install from https://github.com/dineshba/tf-summarize")
-			}
-			fmt.Fprintf(os.Stderr, "Warning: could not summarize %s\n", stackName)
+			fmt.Fprintf(os.Stderr, "Warning: could not summarize %s.\n", stackName)
 			continue
 		}
 
 		if len(output) == 0 {
-			fmt.Fprintf(os.Stderr, "Warning: could not summarize %s\n", stackName)
+			fmt.Fprintf(os.Stderr, "Warning: could not summarize %s.\n", stackName)
 			continue
 		}
 
 		var summary tfSummarizeJSON
 		if err := json.Unmarshal(output, &summary); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: could not summarize %s\n", stackName)
+			fmt.Fprintf(os.Stderr, "Warning: could not summarize %s.\n", stackName)
 			continue
 		}
 

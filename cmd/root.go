@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -409,11 +410,15 @@ func runForceUnlock(ctx context.Context, historyService *history.Service, absolu
 	return executor.RunForceUnlock(ctx, historyService, lockID, absoluteStackPath)
 }
 
-// runPlanSummary reads JSON plan files from the default output directory and
-// prints a one-line count summary per stack via tf-summarize.
+// runPlanSummary reads JSON plan files and prints a terminal count summary per stack via tf-summarize.
 func runPlanSummary(ctx context.Context) error {
-	fmt.Println()
-	_, err := plan.Summarize(ctx, config.DefaultJSONOutDir)
+	dir := config.DefaultJSONOutDir
+	if !filepath.IsAbs(dir) {
+		if abs, err := filepath.Abs(dir); err == nil {
+			dir = abs
+		}
+	}
+	_, err := plan.Summarize(ctx, dir)
 	return err
 }
 
