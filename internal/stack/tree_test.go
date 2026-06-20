@@ -884,7 +884,7 @@ func TestBuildTreeRecursive_RealFilesystem(t *testing.T) {
 	maxDepth := 0
 
 	// Call the production buildTreeRecursive (uses os.ReadDir).
-	err := buildTreeRecursive(root, &maxDepth)
+	err := buildTreeRecursive(root, &maxDepth, "")
 
 	// Assertions.
 	require.NoError(t, err, "should build tree without error")
@@ -922,7 +922,7 @@ func TestBuildTreeRecursive_ErrorOnNonexistentPath(t *testing.T) {
 	maxDepth := 0
 
 	// Call buildTreeRecursive with a nonexistent path.
-	err := buildTreeRecursive(root, &maxDepth)
+	err := buildTreeRecursive(root, &maxDepth, "")
 
 	// Should not return an error (errors are swallowed in buildTreeRecursive).
 	assert.NoError(t, err, "buildTreeRecursive swallows ReadDir errors")

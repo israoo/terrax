@@ -6,6 +6,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/israoo/terrax/internal/config"
+	"github.com/israoo/terrax/internal/deps"
 )
 
 // FindAndBuildTree scans the filesystem starting from rootDir and builds a tree structure.
@@ -28,16 +31,23 @@ func FindAndBuildTree(rootDir string) (*Node, int, error) {
 		return nil, 0, fmt.Errorf("%s is not a directory", absPath)
 	}
 
+	repoRoot := deps.FindRepoRoot(absPath, config.DefaultRootConfigFile)
+
 	root := &Node{
-		Name:     filepath.Base(absPath),
-		Path:     absPath,
-		IsStack:  isStackDirectory(absPath),
-		Children: make([]*Node, 0),
-		Depth:    0,
+		Name:         filepath.Base(absPath),
+		Path:         absPath,
+		IsStack:      isStackDirectory(absPath),
+		Children:     make([]*Node, 0),
+		Dependencies: []string{},
+		Depth:        0,
+	}
+	if root.IsStack {
+		hclFile := filepath.Join(absPath, "terragrunt.hcl")
+		root.Dependencies, _ = deps.ParseDependencies(hclFile, repoRoot)
 	}
 
 	maxDepth := 0
-	if err := buildTreeRecursive(root, &maxDepth); err != nil {
+	if err := buildTreeRecursive(root, &maxDepth, repoRoot); err != nil {
 		return nil, 0, fmt.Errorf("failed to build tree: %w", err)
 	}
 
@@ -46,10 +56,9 @@ func FindAndBuildTree(rootDir string) (*Node, int, error) {
 
 // buildTreeRecursive recursively builds the tree structure.
 // Only includes directories that are stacks or contain stacks in their hierarchy.
-func buildTreeRecursive(node *Node, maxDepth *int) error {
+func buildTreeRecursive(node *Node, maxDepth *int, repoRoot string) error {
 	entries, err := os.ReadDir(node.Path)
 	if err != nil {
-		// Ignore unreadable directories
 		return nil
 	}
 
@@ -64,25 +73,30 @@ func buildTreeRecursive(node *Node, maxDepth *int) error {
 
 		childPath := filepath.Join(node.Path, entry.Name())
 		childNode := &Node{
-			Name:     entry.Name(),
-			Path:     childPath,
-			IsStack:  isStackDirectory(childPath),
-			Children: make([]*Node, 0),
-			Depth:    node.Depth + 1,
+			Name:         entry.Name(),
+			Path:         childPath,
+			IsStack:      isStackDirectory(childPath),
+			Children:     make([]*Node, 0),
+			Dependencies: []string{},
+			Depth:        node.Depth + 1,
 		}
 
-		// Recursively build children to find nested stacks
-		if err := buildTreeRecursive(childNode, maxDepth); err != nil {
+		if childNode.IsStack {
+			hclFile := filepath.Join(childPath, "terragrunt.hcl")
+			childNode.Dependencies, _ = deps.ParseDependencies(hclFile, repoRoot)
+		}
+
+		// Recursively build children to find nested stacks.
+		if err := buildTreeRecursive(childNode, maxDepth, repoRoot); err != nil {
 			continue
 		}
 
-		// Only add this node if it's a stack or contains stacks
-		if childNode.IsStack || len(childNode.Children) > 0 {
+		// Only add this node if it's a stack or contains stacks.
+		if childNode.IsStack || childNode.HasChildren() {
+			node.Children = append(node.Children, childNode)
 			if childNode.Depth > *maxDepth {
 				*maxDepth = childNode.Depth
 			}
-
-			node.Children = append(node.Children, childNode)
 		}
 	}
 

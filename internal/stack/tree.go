@@ -7,11 +7,12 @@ package stack
 
 // Node represents a directory node in the stack tree.
 type Node struct {
-	Name     string  `json:"name"`
-	Path     string  `json:"path"`
-	IsStack  bool    `json:"isStack"`
-	Children []*Node `json:"children"`
-	Depth    int     `json:"depth"`
+	Name         string   `json:"name"`
+	Path         string   `json:"path"`
+	IsStack      bool     `json:"isStack"`
+	Children     []*Node  `json:"children"`
+	Depth        int      `json:"depth"`
+	Dependencies []string `json:"dependencies"`
 }
 
 func (n *Node) GetChildren() []*Node {
