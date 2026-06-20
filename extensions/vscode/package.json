@@ -44,6 +44,11 @@
         "command": "terrax.expandAll",
         "title": "TerraX: Expand All",
         "icon": "$(expand-all)"
+      },
+      {
+        "command": "terrax.runPlan",
+        "title": "TerraX: Run Plan",
+        "icon": "$(play)"
       }
     ],
     "menus": {
@@ -51,6 +56,13 @@
         {
           "command": "terrax.openHere",
           "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "terrax.runPlan",
+          "when": "view == terrax.stackTree && viewItem == terraxDirectory",
+          "group": "inline"
         }
       ],
       "view/title": [

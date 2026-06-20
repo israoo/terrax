@@ -4,7 +4,7 @@ import * as vscode from 'vscode';
 
 const TERMINAL_NAME = 'TerraX';
 
-export function runInTerminal(binaryPath: string, itemPath: string): void {
+export function runInTerminal(binaryPath: string, itemPath: string, subcommand?: string): void {
   let stat: fs.Stats;
   try {
     stat = fs.statSync(itemPath);
@@ -19,11 +19,15 @@ export function runInTerminal(binaryPath: string, itemPath: string): void {
   if (process.platform === 'win32') {
     const escapedBinary = binaryPath.replace(/"/g, '\\"');
     const escapedDir = targetDir.replace(/"/g, '\\"');
-    command = `"${escapedBinary}" --dir "${escapedDir}"`;
+    command = subcommand
+      ? `"${escapedBinary}" run "${subcommand}" --dir "${escapedDir}"`
+      : `"${escapedBinary}" --dir "${escapedDir}"`;
   } else {
     const escapedBinary = binaryPath.replace(/'/g, "'\\''");
     const escapedDir = targetDir.replace(/'/g, "'\\''");
-    command = `'${escapedBinary}' --dir '${escapedDir}'`;
+    command = subcommand
+      ? `'${escapedBinary}' run '${subcommand}' --dir '${escapedDir}'`
+      : `'${escapedBinary}' --dir '${escapedDir}'`;
   }
 
   const existing = vscode.window.terminals.find((t) => t.name === TERMINAL_NAME);

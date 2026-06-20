@@ -102,6 +102,7 @@ export class TerraXTreeProvider implements vscode.TreeDataProvider<StackNode> {
         title: 'Open in TerraX',
         arguments: [vscode.Uri.file(node.path)],
       };
+      item.contextValue = 'terraxDirectory';
     }
     if (node.isStack) {
       item.iconPath = new vscode.ThemeIcon('package');

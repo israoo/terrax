@@ -41,6 +41,15 @@ export function activate(context: vscode.ExtensionContext): void {
     showCollapseAll: true,
   });
 
+  const runPlanCommand = vscode.commands.registerCommand(
+    'terrax.runPlan',
+    (uri: vscode.Uri) => {
+      const config = vscode.workspace.getConfiguration('terrax');
+      const binaryPath = config.get<string>('binaryPath', 'terrax');
+      runInTerminal(binaryPath, uri.fsPath, 'plan');
+    },
+  );
+
   const refreshCommand = vscode.commands.registerCommand('terrax.refresh', () => {
     treeProvider.refresh();
   });
@@ -57,7 +66,7 @@ export function activate(context: vscode.ExtensionContext): void {
     treeProvider.refresh();
   });
 
-  context.subscriptions.push(openHereCommand, treeView, refreshCommand, expandAllCommand, folderChangeListener);
+  context.subscriptions.push(openHereCommand, runPlanCommand, treeView, refreshCommand, expandAllCommand, folderChangeListener);
 
   treeProvider.refresh();
 }
