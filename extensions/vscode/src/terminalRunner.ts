@@ -44,10 +44,13 @@ export function runInTerminal(binaryPath: string, itemPath: string, subcommand?:
   if (existing.exitStatus !== undefined) {
     existing.sendText(command);
   } else {
-    // terrax TUI is running — send bare Escape (no trailing \r) to exit cleanly,
-    // then launch with new path. sendText adds \r by default which Bubble Tea
-    // interprets as Enter after the Escape, confirming the selection unintentionally.
-    existing.sendText('\x1b', false);
-    setTimeout(() => existing.sendText(command), 300);
+    // Send 'q' (TerraX quit key, no newline) to close the TUI if running.
+    // Then Ctrl+U clears any stale chars from the readline buffer (e.g. the 'q'
+    // itself if the shell was already at a prompt), before sending the new command.
+    existing.sendText('q', false);
+    setTimeout(() => {
+      existing.sendText('\x15', false); // Ctrl+U — clear readline buffer
+      existing.sendText(command);
+    }, 300);
   }
 }
