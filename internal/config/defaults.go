@@ -33,6 +33,12 @@ const (
 
 	// DefaultNoColor controls whether to disable colored output.
 	DefaultNoColor = false
+
+	// DefaultReportFile is the default path for the Terragrunt report file.
+	DefaultReportFile = "./tmp/report.json"
+
+	// DefaultReportFormat is the default format for the Terragrunt report file.
+	DefaultReportFormat = "json"
 )
 
 // DefaultCommands is the default list of Terragrunt commands shown in the TUI.
