@@ -34,6 +34,10 @@ const (
 	// DefaultNoColor controls whether to disable colored output.
 	DefaultNoColor = false
 
+	// DefaultIncludeDependencies controls whether TerraX resolves transitive dependencies
+	// when building the filter list for command execution.
+	DefaultIncludeDependencies = true
+
 	// DefaultOutputDir is the root directory for all TerraX-generated files.
 	DefaultOutputDir = ".terrax"
 

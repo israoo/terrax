@@ -79,6 +79,7 @@ func initConfig() {
 	viper.SetDefault("plan.review_enabled", config.DefaultPlanReviewEnabled)
 	viper.SetDefault("plan.summary_enabled", config.DefaultPlanSummaryEnabled)
 	viper.SetDefault("plan.cleanup_enabled", config.DefaultPlanCleanupEnabled)
+	viper.SetDefault("include_dependencies", config.DefaultIncludeDependencies)
 
 	viper.SetConfigName(".terrax")
 	viper.SetConfigType("yaml")
@@ -442,7 +443,7 @@ func runForceUnlock(ctx context.Context, historyService *history.Service, absolu
 }
 
 // collectTransitiveDeps computes the filter list for summary mode.
-// When terragrunt.queue_include_external is true, transitive dependencies are resolved
+// When include_dependencies is true, transitive dependencies are resolved
 // via static HCL parsing and included in the filter list.
 // When false, only the selected stack(s) are included — no dependency traversal.
 // Non-leaf directories are expanded to all leaf stacks they contain via CollectStackPaths.
@@ -452,7 +453,7 @@ func collectTransitiveDeps(stackPath string) (repoRoot string, filterPaths []str
 		rootConfigFile = config.DefaultRootConfigFile
 	}
 	repoRoot = deps.FindRepoRoot(stackPath, rootConfigFile)
-	includeExternal := viper.GetBool("terragrunt.queue_include_external")
+	includeExternal := viper.GetBool("include_dependencies")
 
 	// Seed the queue: if the path is a leaf stack, start with it alone.
 	// If it is a directory containing multiple stacks, seed with all of them.
@@ -486,7 +487,7 @@ func collectTransitiveDeps(stackPath string) (repoRoot string, filterPaths []str
 			filterPaths = append(filterPaths, filepath.ToSlash(rel))
 		}
 
-		// Only resolve transitive dependencies when queue_include_external is enabled.
+		// Only resolve transitive dependencies when include_dependencies is enabled.
 		if includeExternal {
 			depHCL := filepath.Join(current, "terragrunt.hcl")
 			for _, dep := range deps.ParseDependencies(depHCL, repoRoot) {

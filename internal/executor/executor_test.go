@@ -116,7 +116,6 @@ func TestBuildTerragruntArgs_DynamicFlags(t *testing.T) {
 		ignoreExternalDependencies bool
 
 		includeExternalDependencies bool
-		queueIncludeExternal        bool
 		extraFlags                  []string
 		expected                    []string
 	}{
@@ -161,13 +160,6 @@ func TestBuildTerragruntArgs_DynamicFlags(t *testing.T) {
 			command:                     "output",
 			includeExternalDependencies: true,
 			expected:                    []string{"run", "--filter", "/path/to/stack", "--log-format", "pretty", "--terragrunt-include-external-dependencies", "--", "output"},
-		},
-		{
-			name:                 "queue-include-external flag",
-			stackPath:            "/path/to/stack",
-			command:              "plan",
-			queueIncludeExternal: true,
-			expected:             []string{"run", "--filter", "/path/to/stack", "--log-format", "pretty", "--", "plan", "-out=terrax-tfplan-0.binary"},
 		},
 		{
 			name:       "extra flags",
@@ -225,9 +217,6 @@ func TestBuildTerragruntArgs_DynamicFlags(t *testing.T) {
 			}
 			if tt.includeExternalDependencies {
 				viper.Set("terragrunt.include_external_dependencies", tt.includeExternalDependencies)
-			}
-			if tt.queueIncludeExternal {
-				viper.Set("terragrunt.queue_include_external", tt.queueIncludeExternal)
 			}
 			if len(tt.extraFlags) > 0 {
 				viper.Set("terragrunt.extra_flags", tt.extraFlags)

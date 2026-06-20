@@ -222,7 +222,7 @@ func appendLoggingFlags(args []string) []string {
 }
 
 // appendTerragruntFlags appends first-class Terragrunt flags.
-// Note: queue_include_external is intentionally omitted — the caller pre-computes the exact
+// Note: queue_include_external (now include_dependencies) is intentionally omitted — the caller pre-computes the exact
 // stack list and passes it as explicit --filter flags, so Terragrunt does not need to
 // discover external dependencies on its own.
 func appendTerragruntFlags(args []string) []string {

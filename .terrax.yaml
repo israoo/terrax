@@ -54,6 +54,13 @@ log_format: "pretty"
 # Uncomment to use a custom format:
 # log_custom_format: "%time %level %msg"
 
+# Whether to include transitive dependencies when building the execution filter list.
+# When true, TerraX resolves all dependency stacks via static HCL analysis and passes
+# each as an explicit --filter to Terragrunt.
+# When false, only the selected stack(s) are included.
+# Default: true
+# include_dependencies: false
+
 # Terragrunt execution flags
 terragrunt:
   # Number of modules to run in parallel
@@ -71,7 +78,7 @@ terragrunt:
 
   # Include external dependencies in queue
   # Default: false
-  # queue_include_external: true
+  # (removed — use top-level include_dependencies: true instead)
 
   # Ignore dependency errors and continue execution
   # Default: false

@@ -18,7 +18,7 @@ log_level: "stdout"
 log_format: "pretty"
 
 terragrunt:
-  queue_include_external: true
+  # queue_include_external removed — use top-level include_dependencies: true
 
 # TerraX feature shortcuts
 # These enable high-level Terragrunt behaviors with simple boolean toggles.
