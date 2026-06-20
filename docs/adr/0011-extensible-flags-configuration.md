@@ -50,6 +50,8 @@ terragrunt:
       - "--json-out-dir=./tmp/json-plans"
 ```
 
+> **Warning — `--out-dir` conflicts with TerraX plan review.** When `--out-dir` is set, Terragrunt injects its own `-out=<dir>/<stack>.binary` into each Terraform invocation, overriding the `-out=terrax-tfplan-<ts>.binary` flag that TerraX appends internally. The `plan.Collector` searches for files named `terrax-tfplan-<ts>.binary` inside `.terragrunt-cache/` directories; when `--out-dir` redirects plan files elsewhere under different names, the Collector finds nothing and the plan review feature is non-functional. `--out-dir` and `--json-out-dir` are intended for CI/CD pipelines that consume plan artifacts in subsequent steps — do not use them in `terragrunt.command_flags.plan` for local TerraX usage.
+
 **Layer 3 — Terraform flags (`terraform.extra_flags`, `terraform.command_flags.<cmd>`):**
 Flags passed after the `--` separator to Terraform directly:
 
