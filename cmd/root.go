@@ -203,7 +203,7 @@ func getWorkingDirectory(dir string) (string, error) {
 func buildStackTree(workDir string) (*stack.Node, int, error) {
 	fmt.Println("🔍 Scanning for stacks in:", workDir)
 
-	stackRoot, maxDepth, err := stack.FindAndBuildTree(workDir)
+	stackRoot, maxDepth, err := stack.FindAndBuildTree(workDir, viper.GetString("root_config_file"))
 	if err != nil {
 		return nil, 0, err
 	}

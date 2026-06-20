@@ -12,10 +12,15 @@ import (
 )
 
 // FindAndBuildTree scans the filesystem starting from rootDir and builds a tree structure.
+// rootConfigFile is used to locate the repository root; if empty, config.DefaultRootConfigFile is used.
 // It returns the root node, maximum depth, and any error encountered.
-func FindAndBuildTree(rootDir string) (*Node, int, error) {
+func FindAndBuildTree(rootDir, rootConfigFile string) (*Node, int, error) {
 	if rootDir == "" {
 		return nil, 0, fmt.Errorf("root directory cannot be empty")
+	}
+
+	if rootConfigFile == "" {
+		rootConfigFile = config.DefaultRootConfigFile
 	}
 
 	absPath, err := filepath.Abs(rootDir)
@@ -31,7 +36,7 @@ func FindAndBuildTree(rootDir string) (*Node, int, error) {
 		return nil, 0, fmt.Errorf("%s is not a directory", absPath)
 	}
 
-	repoRoot := deps.FindRepoRoot(absPath, config.DefaultRootConfigFile)
+	repoRoot := deps.FindRepoRoot(absPath, rootConfigFile)
 
 	root := &Node{
 		Name:         filepath.Base(absPath),
@@ -43,7 +48,7 @@ func FindAndBuildTree(rootDir string) (*Node, int, error) {
 	}
 	if root.IsStack {
 		hclFile := filepath.Join(absPath, "terragrunt.hcl")
-		root.Dependencies, _ = deps.ParseDependencies(hclFile, repoRoot)
+		root.Dependencies = deps.ParseDependencies(hclFile, repoRoot)
 	}
 
 	maxDepth := 0
@@ -83,7 +88,7 @@ func buildTreeRecursive(node *Node, maxDepth *int, repoRoot string) error {
 
 		if childNode.IsStack {
 			hclFile := filepath.Join(childPath, "terragrunt.hcl")
-			childNode.Dependencies, _ = deps.ParseDependencies(hclFile, repoRoot)
+			childNode.Dependencies = deps.ParseDependencies(hclFile, repoRoot)
 		}
 
 		// Recursively build children to find nested stacks.
