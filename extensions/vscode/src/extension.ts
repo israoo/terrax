@@ -44,7 +44,13 @@ export function activate(context: vscode.ExtensionContext): void {
     treeProvider.refresh();
   });
 
-  context.subscriptions.push(openHereCommand, treeView, refreshCommand);
+  const folderChangeListener = vscode.workspace.onDidChangeWorkspaceFolders((e) => {
+    const newRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+    treeProvider.updateWorkspaceRoot(newRoot);
+    treeProvider.refresh();
+  });
+
+  context.subscriptions.push(openHereCommand, treeView, refreshCommand, folderChangeListener);
 
   treeProvider.refresh();
 }

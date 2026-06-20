@@ -25,11 +25,21 @@ export class TerraXTreeProvider implements vscode.TreeDataProvider<StackNode> {
   private tree: StackNode | null = null;
   private hasError = false;
 
-  constructor(private readonly workspaceRoot: string) {}
+  constructor(private workspaceRoot: string) {}
+
+  updateWorkspaceRoot(root: string): void {
+    this.workspaceRoot = root;
+  }
 
   refresh(): void {
     this.tree = null;
     this.hasError = false;
+
+    if (!this.workspaceRoot) {
+      this.hasError = true;
+      this._onDidChangeTreeData.fire();
+      return;
+    }
 
     const config = vscode.workspace.getConfiguration('terrax');
     const binaryPath = config.get<string>('binaryPath', 'terrax');
@@ -57,7 +67,12 @@ export class TerraXTreeProvider implements vscode.TreeDataProvider<StackNode> {
           }
         });
     } else {
-      this.tree = JSON.parse(result.stdout) as StackNode;
+      try {
+        this.tree = JSON.parse(result.stdout) as StackNode;
+      } catch {
+        this.hasError = true;
+        vscode.window.showErrorMessage('TerraX: Failed to parse tree output.');
+      }
     }
 
     this._onDidChangeTreeData.fire();

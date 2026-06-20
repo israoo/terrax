@@ -9,10 +9,10 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
-
-	"github.com/israoo/terrax/internal/stack"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/israoo/terrax/internal/stack"
 )
 
 func TestTreeCommand_OutputsValidJSON(t *testing.T) {
