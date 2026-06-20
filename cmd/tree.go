@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 
 	"github.com/israoo/terrax/internal/stack"
 )
@@ -29,7 +30,7 @@ func runTree(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get working directory: %w", err)
 	}
 
-	root, _, err := stack.FindAndBuildTree(workDir)
+	root, _, err := stack.FindAndBuildTree(workDir, viper.GetString("root_config_file"))
 	if err != nil {
 		return fmt.Errorf("failed to build stack tree: %w", err)
 	}

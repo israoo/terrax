@@ -609,7 +609,7 @@ func TestFindAndBuildTree_RealFilesystem(t *testing.T) {
 	require.NoError(t, err)
 
 	// Call the actual production function (not the test helper).
-	tree, maxDepth, err := FindAndBuildTree(wd)
+	tree, maxDepth, err := FindAndBuildTree(wd, "")
 
 	// Assertions.
 	require.NoError(t, err, "should build tree from real filesystem")
@@ -641,7 +641,7 @@ func TestFindAndBuildTree_InvalidPath(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tree, maxDepth, err := FindAndBuildTree(tt.path)
+			tree, maxDepth, err := FindAndBuildTree(tt.path, "")
 
 			if tt.expectError {
 				assert.Error(t, err)

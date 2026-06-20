@@ -25,8 +25,7 @@ dependency "sg" {
 }
 `), 0644))
 
-	got, err := ParseDependencies(hclPath, dir)
-	require.NoError(t, err)
+	got := ParseDependencies(hclPath, dir)
 	assert.Equal(t, []string{
 		filepath.Join(dir, "security-groups"),
 		filepath.Join(dir, "vpc"),
@@ -43,8 +42,7 @@ dependency "iam" {
 }
 `), 0644))
 
-	got, err := ParseDependencies(hclPath, dir)
-	require.NoError(t, err)
+	got := ParseDependencies(hclPath, dir)
 	assert.Equal(t, []string{filepath.Join(dir, "management", "global", "iam")}, got)
 }
 
@@ -66,10 +64,9 @@ include "envcommon" {
 }
 `), 0644))
 
-	got, err := ParseDependencies(leafPath, dir)
-	require.NoError(t, err)
-	// Path resolved relative to _envcommon/, not dev/app/.
-	assert.Equal(t, []string{filepath.Join(dir, "_envcommon", "vpc")}, got)
+	got := ParseDependencies(leafPath, dir)
+	// ../vpc resolved relative to _envcommon/ means one level up from _envcommon, giving dir/vpc.
+	assert.Equal(t, []string{filepath.Join(dir, "vpc")}, got)
 }
 
 func TestParseDependencies_SkipsFindInParentFolders(t *testing.T) {
@@ -82,14 +79,12 @@ include "root" {
 }
 `), 0644))
 
-	got, err := ParseDependencies(hclPath, dir)
-	require.NoError(t, err)
+	got := ParseDependencies(hclPath, dir)
 	assert.Empty(t, got)
 }
 
 func TestParseDependencies_MissingFile(t *testing.T) {
-	got, err := ParseDependencies("/nonexistent/path/terragrunt.hcl", "/repo")
-	require.NoError(t, err)
+	got := ParseDependencies("/nonexistent/path/terragrunt.hcl", "/repo")
 	assert.Equal(t, []string{}, got)
 }
 
