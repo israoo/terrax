@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { runInTerminal } from './terminalRunner';
-import { TerraXTreeProvider } from './treeProvider';
+import { TerraXTreeProvider, StackNode } from './treeProvider';
 
 export function activate(context: vscode.ExtensionContext): void {
   const openHereCommand = vscode.commands.registerCommand(
@@ -43,10 +43,10 @@ export function activate(context: vscode.ExtensionContext): void {
 
   const runPlanCommand = vscode.commands.registerCommand(
     'terrax.runPlan',
-    (uri: vscode.Uri) => {
+    (node: StackNode) => {
       const config = vscode.workspace.getConfiguration('terrax');
       const binaryPath = config.get<string>('binaryPath', 'terrax');
-      runInTerminal(binaryPath, uri.fsPath, 'plan');
+      runInTerminal(binaryPath, node.path, 'plan');
     },
   );
 
