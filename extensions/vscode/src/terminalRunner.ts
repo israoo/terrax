@@ -28,13 +28,20 @@ export function runInTerminal(binaryPath: string, itemPath: string): void {
 
   const existing = vscode.window.terminals.find((t) => t.name === TERMINAL_NAME);
 
-  // Dispose the existing terminal (kills any running process) before creating a
-  // fresh one — avoids sending commands into a live TUI and clears stale output.
-  if (existing) {
-    existing.dispose();
+  if (!existing) {
+    const terminal = vscode.window.createTerminal(TERMINAL_NAME);
+    terminal.show();
+    terminal.sendText(command);
+    return;
   }
 
-  const terminal = vscode.window.createTerminal(TERMINAL_NAME);
-  terminal.show();
-  terminal.sendText(command);
+  existing.show();
+
+  if (existing.exitStatus !== undefined) {
+    existing.sendText(command);
+  } else {
+    // terrax TUI is running — send Ctrl+C to exit it, then launch with new path.
+    existing.sendText('\x03');
+    setTimeout(() => existing.sendText(command), 300);
+  }
 }
