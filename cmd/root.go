@@ -168,18 +168,13 @@ func runTUI(cmd *cobra.Command, args []string) error {
 			return runForceUnlock(ctx, historyService, stackPath)
 		}
 
+		repoRoot, filterPaths := collectTransitiveDeps(stackPath)
+		if err := executor.Run(ctx, historyService, command, stackPath, repoRoot, filterPaths); err != nil {
+			return err
+		}
 		if command == "plan" && viper.GetBool("plan.summary_enabled") {
-			repoRoot, filterPaths := collectTransitiveDeps(stackPath)
-			if err := executor.RunForSummary(ctx, historyService, command, stackPath, repoRoot, filterPaths); err != nil {
-				return err
-			}
 			if err := runPlanSummary(ctx, stackPath, repoRoot); err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: plan summary failed: %v\n", err)
-			}
-		} else {
-			err := executor.Run(ctx, historyService, command, stackPath)
-			if err != nil {
-				return err
 			}
 		}
 		if command == "plan" && viper.GetBool("plan.review_enabled") {
@@ -289,18 +284,13 @@ func executeLastCommand(ctx context.Context, historyService *history.Service) er
 		return runForceUnlock(ctx, historyService, absolutePath)
 	}
 
+	repoRoot, filterPaths := collectTransitiveDeps(absolutePath)
+	if err := executor.Run(ctx, historyService, lastEntry.Command, absolutePath, repoRoot, filterPaths); err != nil {
+		return err
+	}
 	if lastEntry.Command == "plan" && viper.GetBool("plan.summary_enabled") {
-		repoRoot, filterPaths := collectTransitiveDeps(absolutePath)
-		if err := executor.RunForSummary(ctx, historyService, lastEntry.Command, absolutePath, repoRoot, filterPaths); err != nil {
-			return err
-		}
 		if err := runPlanSummary(ctx, absolutePath, repoRoot); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: plan summary failed: %v\n", err)
-		}
-	} else {
-		err = executor.Run(ctx, historyService, lastEntry.Command, absolutePath)
-		if err != nil {
-			return err
 		}
 	}
 	if lastEntry.Command == "plan" && viper.GetBool("plan.review_enabled") {
@@ -363,18 +353,13 @@ func runHistoryViewer(ctx context.Context, historyService *history.Service) erro
 				return runForceUnlock(ctx, historyService, absolutePath)
 			}
 
+			repoRoot, filterPaths := collectTransitiveDeps(absolutePath)
+			if err := executor.Run(ctx, historyService, entry.Command, absolutePath, repoRoot, filterPaths); err != nil {
+				return err
+			}
 			if entry.Command == "plan" && viper.GetBool("plan.summary_enabled") {
-				repoRoot, filterPaths := collectTransitiveDeps(absolutePath)
-				if err := executor.RunForSummary(ctx, historyService, entry.Command, absolutePath, repoRoot, filterPaths); err != nil {
-					return err
-				}
 				if err := runPlanSummary(ctx, absolutePath, repoRoot); err != nil {
 					fmt.Fprintf(os.Stderr, "Warning: plan summary failed: %v\n", err)
-				}
-			} else {
-				err := executor.Run(ctx, historyService, entry.Command, absolutePath)
-				if err != nil {
-					return err
 				}
 			}
 			if entry.Command == "plan" && viper.GetBool("plan.review_enabled") {

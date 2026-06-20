@@ -48,5 +48,6 @@ func runCommand(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to initialize history service: %w", err)
 	}
 
-	return executor.Run(ctx, historyService, command, workDir)
+	repoRoot, filterPaths := collectTransitiveDeps(workDir)
+	return executor.Run(ctx, historyService, command, workDir, repoRoot, filterPaths)
 }
