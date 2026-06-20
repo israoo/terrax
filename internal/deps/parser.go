@@ -34,9 +34,11 @@ func FindRepoRoot(startDir, rootConfigFile string) string {
 
 // ParseDependencies reads a terragrunt.hcl file and returns the absolute paths of its direct dependencies.
 // It sorts and deduplicates them. It follows include blocks with statically resolvable paths to envcommon files.
-// Returns an empty slice if the file does not exist or cannot be read.
+// Relative config_path values inside included files are resolved against the leaf file's directory, matching
+// how Terragrunt resolves them at runtime. Returns an empty slice if the file does not exist or cannot be read.
 func ParseDependencies(hclFilePath, repoRoot string) []string {
-	raw := parseDepsFromFile(hclFilePath, repoRoot, 0)
+	callerDir := filepath.Dir(hclFilePath)
+	raw := parseDepsFromFile(hclFilePath, repoRoot, callerDir, 0)
 	seen := make(map[string]bool, len(raw))
 	result := make([]string, 0, len(raw))
 	for _, p := range raw {
@@ -49,9 +51,11 @@ func ParseDependencies(hclFilePath, repoRoot string) []string {
 	return result
 }
 
-// parseDepsFromFile extracts dependency paths from a single HCL file and follows statically resolvable include blocks recursively.
-// depth prevents infinite loops.
-func parseDepsFromFile(filePath, repoRoot string, depth int) []string {
+// parseDepsFromFile extracts dependency paths from a single HCL file and follows statically resolvable include
+// blocks recursively. callerDir is the directory of the original leaf terragrunt.hcl — relative config_path
+// values in included files are resolved against it, which matches Terragrunt's runtime behavior. depth prevents
+// infinite loops.
+func parseDepsFromFile(filePath, repoRoot, callerDir string, depth int) []string {
 	if depth > 5 {
 		return nil
 	}
@@ -63,18 +67,20 @@ func parseDepsFromFile(filePath, repoRoot string, depth int) []string {
 	fileDir := filepath.Dir(filePath)
 	var result []string
 
+	// config_path values are always relative to the leaf file (callerDir), not to the file that declares them.
 	for _, match := range configPathRe.FindAllStringSubmatch(string(content), -1) {
-		if resolved := resolvePath(match[1], fileDir, repoRoot); resolved != "" {
+		if resolved := resolvePath(match[1], callerDir, repoRoot); resolved != "" {
 			result = append(result, resolved)
 		}
 	}
 
+	// Include path attributes are relative to the file that declares the include (fileDir).
 	for _, rawPath := range extractIncludePaths(string(content)) {
 		includePath := resolvePath(rawPath, fileDir, repoRoot)
 		if includePath == "" {
 			continue
 		}
-		result = append(result, parseDepsFromFile(includePath, repoRoot, depth+1)...)
+		result = append(result, parseDepsFromFile(includePath, repoRoot, callerDir, depth+1)...)
 	}
 
 	return result

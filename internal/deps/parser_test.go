@@ -65,8 +65,8 @@ include "envcommon" {
 `), 0644))
 
 	got := ParseDependencies(leafPath, dir)
-	// ../vpc resolved relative to _envcommon/ means one level up from _envcommon, giving dir/vpc.
-	assert.Equal(t, []string{filepath.Join(dir, "vpc")}, got)
+	// ../vpc resolved relative to the leaf dir (dev/app/) gives dev/vpc, matching Terragrunt runtime behavior.
+	assert.Equal(t, []string{filepath.Join(dir, "dev", "vpc")}, got)
 }
 
 func TestParseDependencies_SkipsFindInParentFolders(t *testing.T) {
