@@ -17,8 +17,8 @@ var (
 	includePathRe = regexp.MustCompile(`include\s+"[^"]+"\s*\{[^}]*\bpath\s*=\s*"([^"]+)"`)
 )
 
-// FindRepoRoot walks up from startDir until it finds a directory containing
-// rootConfigFile, then returns that directory. Returns startDir if not found.
+// FindRepoRoot walks up from startDir until it finds a directory containing rootConfigFile.
+// Returns startDir if not found.
 func FindRepoRoot(startDir, rootConfigFile string) string {
 	current := startDir
 	for {
@@ -33,10 +33,9 @@ func FindRepoRoot(startDir, rootConfigFile string) string {
 	}
 }
 
-// ParseDependencies reads a terragrunt.hcl file and returns the absolute paths
-// of its direct dependencies, sorted and deduplicated. It follows include blocks
-// with statically resolvable paths to envcommon files. Returns an empty slice if
-// the file does not exist or cannot be read.
+// ParseDependencies reads a terragrunt.hcl file and returns the absolute paths of its direct dependencies.
+// It sorts and deduplicates them. It follows include blocks with statically resolvable paths to envcommon files.
+// Returns an empty slice if the file does not exist or cannot be read.
 func ParseDependencies(hclFilePath, repoRoot string) ([]string, error) {
 	raw := parseDepsFromFile(hclFilePath, repoRoot, 0, false)
 	seen := make(map[string]bool, len(raw))
@@ -51,9 +50,8 @@ func ParseDependencies(hclFilePath, repoRoot string) ([]string, error) {
 	return result, nil
 }
 
-// parseDepsFromFile extracts dependency paths from a single HCL file and follows
-// statically resolvable include blocks recursively. depth prevents infinite loops.
-// fromInclude tracks whether this file was reached via an include block.
+// parseDepsFromFile extracts dependency paths from a single HCL file and follows statically resolvable include blocks recursively.
+// depth prevents infinite loops. fromInclude tracks whether this file was reached via an include block.
 func parseDepsFromFile(filePath, repoRoot string, depth int, fromInclude bool) []string {
 	if depth > 5 {
 		return nil
