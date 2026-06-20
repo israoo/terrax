@@ -84,6 +84,7 @@ export class TerraXTreeProvider implements vscode.TreeDataProvider<StackNode> {
   getTreeItem(node: StackNode): vscode.TreeItem {
     if (!node.path) {
       const item = new vscode.TreeItem(node.name, vscode.TreeItemCollapsibleState.None);
+      item.id = '__terrax_error__';
       item.iconPath = new vscode.ThemeIcon('warning');
       return item;
     }
@@ -94,6 +95,7 @@ export class TerraXTreeProvider implements vscode.TreeDataProvider<StackNode> {
         ? vscode.TreeItemCollapsibleState.Collapsed
         : vscode.TreeItemCollapsibleState.None,
     );
+    item.id = node.path;
     if (node.isStack) {
       item.iconPath = new vscode.ThemeIcon('package');
     }
