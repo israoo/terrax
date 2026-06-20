@@ -413,12 +413,13 @@ func runForceUnlock(ctx context.Context, historyService *history.Service, absolu
 
 // runPlanSummary reads JSON plan files and prints a terminal count summary per stack from the stack working directory.
 // stackPath is the working directory Terragrunt used, which is where --json-out-dir is resolved relative to.
-// When plan.cleanup_enabled is true, the generated plan directory is removed after the summary.
+// When plan.cleanup_enabled is true, the entire .terrax/ output directory is removed after the summary.
 func runPlanSummary(ctx context.Context, stackPath string) error {
 	dir := filepath.Join(stackPath, config.DefaultJSONOutDir)
 	_, err := plan.Summarize(ctx, dir)
 	if viper.GetBool("plan.cleanup_enabled") {
-		if removeErr := os.RemoveAll(dir); removeErr != nil {
+		outputDir := filepath.Join(stackPath, config.DefaultOutputDir)
+		if removeErr := os.RemoveAll(outputDir); removeErr != nil {
 			fmt.Fprintf(os.Stderr, "Warning: failed to clean up plan files: %v\n", removeErr)
 		}
 	}

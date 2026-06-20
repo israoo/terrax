@@ -34,6 +34,9 @@ const (
 	// DefaultNoColor controls whether to disable colored output.
 	DefaultNoColor = false
 
+	// DefaultOutputDir is the root directory for all TerraX-generated files.
+	DefaultOutputDir = ".terrax"
+
 	// DefaultReportFile is the default path for the Terragrunt report file.
 	DefaultReportFile = ".terrax/report.json"
 
