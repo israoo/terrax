@@ -1,0 +1,52 @@
+{
+  "name": "terrax-vscode",
+  "displayName": "TerraX",
+  "description": "Open TerraX from the VS Code file explorer",
+  "version": "0.1.0",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/israoo/terrax"
+  },
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "terrax.openHere",
+        "title": "TerraX: Open here"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "terrax.openHere",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "TerraX",
+      "properties": {
+        "terrax.binaryPath": {
+          "type": "string",
+          "default": "terrax",
+          "description": "Path to the terrax binary. Defaults to 'terrax' (assumes it's on PATH)."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "vscode:prepublish": "pnpm run compile"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.9.1",
+    "typescript": "^5.3.0"
+  }
+}

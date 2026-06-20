@@ -124,6 +124,24 @@ tasks:
       - rm -rf {{.BUILD_DIR}} {{.DIST_DIR}} coverage.out
       - 'echo "✅ Files cleaned"'
 
+  ext:install:
+    desc: Install VS Code extension dependencies
+    dir: extensions/vscode
+    cmds:
+      - pnpm install
+
+  ext:build:
+    desc: Compile VS Code extension TypeScript
+    dir: extensions/vscode
+    cmds:
+      - pnpm compile
+
+  ext:package:
+    desc: Package VS Code extension as .vsix
+    dir: extensions/vscode
+    cmds:
+      - pnpm vsce package
+
   init:
     desc: Initialize project (install + build)
     cmds:

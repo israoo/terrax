@@ -29,3 +29,8 @@ Thumbs.db
 # Build artifacts
 dist/
 build/
+
+# VS Code extension
+extensions/vscode/node_modules/
+extensions/vscode/out/
+extensions/vscode/*.vsix
