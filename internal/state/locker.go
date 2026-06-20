@@ -59,8 +59,12 @@ func GetLockID(ctx context.Context, bucket, project, stackRelPath, region, profi
 	output, err := cmd.Output()
 	if err != nil {
 		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) && strings.Contains(string(exitErr.Stderr), "NoSuchKey") {
-			return "", nil
+		if errors.As(err, &exitErr) {
+			stderr := strings.TrimSpace(string(exitErr.Stderr))
+			if strings.Contains(stderr, "NoSuchKey") {
+				return "", nil
+			}
+			return "", fmt.Errorf("aws s3 cp failed: %w\n%s", err, stderr)
 		}
 		return "", fmt.Errorf("aws s3 cp failed: %w", err)
 	}
