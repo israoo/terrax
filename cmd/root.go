@@ -456,17 +456,18 @@ func runForceUnlock(ctx context.Context, historyService *history.Service, absolu
 	return nil
 }
 
-// collectTransitiveDeps computes the selected stack and all its transitive dependencies
-// using static HCL parsing. Returns the repo root and a slice of relative paths suitable
-// for use as --filter arguments to Terragrunt.
-// When stackPath is a non-leaf directory (no terragrunt.hcl at its root), all leaf stacks
-// within it are discovered via CollectStackPaths and each is resolved transitively.
+// collectTransitiveDeps computes the filter list for summary mode.
+// When terragrunt.queue_include_external is true, transitive dependencies are resolved
+// via static HCL parsing and included in the filter list.
+// When false, only the selected stack(s) are included — no dependency traversal.
+// Non-leaf directories are expanded to all leaf stacks they contain via CollectStackPaths.
 func collectTransitiveDeps(stackPath string) (repoRoot string, filterPaths []string) {
 	rootConfigFile := viper.GetString("root_config_file")
 	if rootConfigFile == "" {
 		rootConfigFile = config.DefaultRootConfigFile
 	}
 	repoRoot = deps.FindRepoRoot(stackPath, rootConfigFile)
+	includeExternal := viper.GetBool("terragrunt.queue_include_external")
 
 	// Seed the queue: if the path is a leaf stack, start with it alone.
 	// If it is a directory containing multiple stacks, seed with all of them.
@@ -500,10 +501,13 @@ func collectTransitiveDeps(stackPath string) (repoRoot string, filterPaths []str
 			filterPaths = append(filterPaths, filepath.ToSlash(rel))
 		}
 
-		depHCL := filepath.Join(current, "terragrunt.hcl")
-		for _, dep := range deps.ParseDependencies(depHCL, repoRoot) {
-			if !visited[dep] {
-				queue = append(queue, dep)
+		// Only resolve transitive dependencies when queue_include_external is enabled.
+		if includeExternal {
+			depHCL := filepath.Join(current, "terragrunt.hcl")
+			for _, dep := range deps.ParseDependencies(depHCL, repoRoot) {
+				if !visited[dep] {
+					queue = append(queue, dep)
+				}
 			}
 		}
 	}
