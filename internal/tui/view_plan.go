@@ -127,7 +127,7 @@ func (m Model) renderPlanMasterView() string {
 
 	b.WriteString(planHeaderStyle.Render("Execution plan:"))
 	b.WriteString("\n")
-	b.WriteString(fmt.Sprintf("Target: %s | Deps: %s\n\n", targetStr, depStr))
+	fmt.Fprintf(&b, "Target: %s | Deps: %s\n\n", targetStr, depStr)
 
 	// Render Tree
 	if len(m.planFlatItems) == 0 {
@@ -240,8 +240,8 @@ func (m Model) getPlanDetailLines() []string {
 
 	b.WriteString(planHeaderStyle.Render(fmt.Sprintf("Plan: %s", node.Path)))
 	b.WriteString("\n")
-	b.WriteString(fmt.Sprintf("Add: %d, Change: %d, Destroy: %d\n\n",
-		node.Stats.Add, node.Stats.Change, node.Stats.Destroy))
+	fmt.Fprintf(&b, "Add: %d, Change: %d, Destroy: %d\n\n",
+		node.Stats.Add, node.Stats.Change, node.Stats.Destroy)
 
 	if !node.HasChanges {
 		b.WriteString("No changes.")
