@@ -12,9 +12,10 @@ import (
 	"os/exec"
 	"time"
 
+	"github.com/spf13/viper"
+
 	"github.com/israoo/terrax/internal/config"
 	"github.com/israoo/terrax/internal/history"
-	"github.com/spf13/viper"
 )
 
 // HistoryLogger defines the interface for logging execution history.
