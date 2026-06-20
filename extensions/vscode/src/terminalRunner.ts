@@ -40,8 +40,10 @@ export function runInTerminal(binaryPath: string, itemPath: string): void {
   if (existing.exitStatus !== undefined) {
     existing.sendText(command);
   } else {
-    // terrax TUI is running — send Escape to exit cleanly, then launch with new path.
-    existing.sendText('\x1b');
+    // terrax TUI is running — send bare Escape (no trailing \r) to exit cleanly,
+    // then launch with new path. sendText adds \r by default which Bubble Tea
+    // interprets as Enter after the Escape, confirming the selection unintentionally.
+    existing.sendText('\x1b', false);
     setTimeout(() => existing.sendText(command), 300);
   }
 }
