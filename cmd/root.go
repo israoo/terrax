@@ -410,7 +410,7 @@ func runForceUnlock(ctx context.Context, historyService *history.Service, absolu
 	return executor.RunForceUnlock(ctx, historyService, lockID, absoluteStackPath)
 }
 
-// runPlanSummary reads JSON plan files and prints a terminal count summary per stack via tf-summarize.
+// runPlanSummary reads JSON plan files and prints a terminal count summary per stack from the stack working directory.
 // stackPath is the working directory Terragrunt used, which is where --json-out-dir is resolved relative to.
 func runPlanSummary(ctx context.Context, stackPath string) error {
 	dir := filepath.Join(stackPath, config.DefaultJSONOutDir)

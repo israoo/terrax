@@ -131,10 +131,10 @@ plan:
   # Default: true
   # review_enabled: false
 
-  # Enable terminal summary mode via tf-summarize after plan execution.
+  # Enable terminal summary mode after plan execution.
   # When enabled, --json-out-dir=./tmp/json-plans is automatically injected and
-  # tf-summarize prints a count line per stack.
-  # Requires tf-summarize: https://github.com/dineshba/tf-summarize
+  # TerraX prints a count line per stack (+add ~update -delete ♻recreate).
+  # No external tools required.
   # Default: false
   # summary_enabled: true
 
