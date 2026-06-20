@@ -39,9 +39,6 @@ const (
 
 	// DefaultReportFormat is the default format for the Terragrunt report file.
 	DefaultReportFormat = "json"
-
-	// DefaultJSONOutDir is the default directory for Terragrunt JSON plan output files.
-	DefaultJSONOutDir = "./tmp/json-plans"
 )
 
 // DefaultCommands is the default list of Terragrunt commands shown in the TUI.

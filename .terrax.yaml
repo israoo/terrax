@@ -95,11 +95,11 @@ terragrunt:
 
   # Per-command extra Terragrunt flags (added before the -- separator)
   # Use this for flags only relevant to specific commands
+  # Note: do NOT use --json-out-dir here — use plan.json_out_dir instead (see below)
   # Example:
   # command_flags:
   #   plan:
   #     - "--out-dir=./tmp/plans"
-  #     - "--json-out-dir=./tmp/json-plans"
 
 # TerraX feature shortcuts
 # These enable high-level Terragrunt behaviors with simple boolean toggles
@@ -123,6 +123,13 @@ features:
     # file: "./tmp/report.json"
     # Default: "json"
     # format: "json"
+
+# Plan JSON output directory
+# When set, --json-out-dir=<value> is injected for plan commands and the -out= binary
+# flag is skipped (mutually exclusive: Terragrunt manages the binary when json-out-dir is active)
+# Unset by default: TerraX uses its own binary plan files for plan review
+# plan:
+#   json_out_dir: "./tmp/json-plans"
 
 # Extra Terraform flags (added after the -- separator, passed directly to Terraform)
 # terraform:

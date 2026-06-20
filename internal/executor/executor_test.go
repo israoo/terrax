@@ -30,7 +30,7 @@ func TestBuildTerragruntArgs(t *testing.T) {
 			name:      "basic command without logging config",
 			stackPath: "/path/to/stack",
 			command:   "plan",
-			expected:  []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--json-out-dir=./tmp/json-plans", "--", "plan", "-out=terrax-tfplan-0.binary"},
+			expected:  []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--", "plan", "-out=terrax-tfplan-0.binary"},
 		},
 		{
 			name:      "command with log level",
@@ -117,7 +117,7 @@ func TestBuildTerragruntArgs_DynamicFlags(t *testing.T) {
 			stackPath:   "/path/to/stack",
 			command:     "plan",
 			parallelism: 4,
-			expected:    []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--terragrunt-parallelism", "4", "--json-out-dir=./tmp/json-plans", "--", "plan", "-out=terrax-tfplan-0.binary"},
+			expected:    []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--terragrunt-parallelism", "4", "--", "plan", "-out=terrax-tfplan-0.binary"},
 		},
 		{
 			name:      "no-color flag",
@@ -159,14 +159,14 @@ func TestBuildTerragruntArgs_DynamicFlags(t *testing.T) {
 			stackPath:            "/path/to/stack",
 			command:              "plan",
 			queueIncludeExternal: true,
-			expected:             []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--queue-include-external", "--json-out-dir=./tmp/json-plans", "--", "plan", "-out=terrax-tfplan-0.binary"},
+			expected:             []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--queue-include-external", "--", "plan", "-out=terrax-tfplan-0.binary"},
 		},
 		{
 			name:       "extra flags",
 			stackPath:  "/path/to/stack",
 			command:    "plan",
 			extraFlags: []string{"--terragrunt-download-dir=/tmp/tg", "--terragrunt-source-update"},
-			expected:   []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--terragrunt-download-dir=/tmp/tg", "--terragrunt-source-update", "--json-out-dir=./tmp/json-plans", "--", "plan", "-out=terrax-tfplan-0.binary"},
+			expected:   []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--terragrunt-download-dir=/tmp/tg", "--terragrunt-source-update", "--", "plan", "-out=terrax-tfplan-0.binary"},
 		},
 		{
 			name:                        "multiple flags combined",
@@ -184,14 +184,14 @@ func TestBuildTerragruntArgs_DynamicFlags(t *testing.T) {
 			stackPath:   "/path/to/stack",
 			command:     "plan",
 			parallelism: 0,
-			expected:    []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--json-out-dir=./tmp/json-plans", "--", "plan", "-out=terrax-tfplan-0.binary"},
+			expected:    []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--", "plan", "-out=terrax-tfplan-0.binary"},
 		},
 		{
 			name:      "false boolean flags not added",
 			stackPath: "/path/to/stack",
 			command:   "plan",
 			noColor:   false,
-			expected:  []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--json-out-dir=./tmp/json-plans", "--", "plan", "-out=terrax-tfplan-0.binary"},
+			expected:  []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--", "plan", "-out=terrax-tfplan-0.binary"},
 		},
 	}
 
@@ -398,7 +398,7 @@ func TestBuildTerragruntArgs_FeatureFlags(t *testing.T) {
 			tfForwardStdout: true,
 			summaryPerUnit:  true,
 			reportEnabled:   true,
-			expected:        []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--tf-forward-stdout", "--summary-per-unit", "--report-file", "./tmp/report.json", "--report-format", "json", "--json-out-dir=./tmp/json-plans", "--", "plan", "-out=terrax-tfplan-0.binary"},
+			expected:        []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--tf-forward-stdout", "--summary-per-unit", "--report-file", "./tmp/report.json", "--report-format", "json", "--", "plan", "-out=terrax-tfplan-0.binary"},
 		},
 		{
 			name:      "no features enabled produces no extra flags",
@@ -452,7 +452,7 @@ func TestBuildTerragruntArgs_CommandTerragruntFlags(t *testing.T) {
 			commandFlags: map[string][]string{
 				"plan": {"--out-dir=./plans", "--json-out-dir=./json-plans"},
 			},
-			expected: []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--out-dir=./plans", "--json-out-dir=./json-plans", "--json-out-dir=./tmp/json-plans", "--", "plan", "-out=terrax-tfplan-0.binary"},
+			expected: []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--out-dir=./plans", "--json-out-dir=./json-plans", "--", "plan", "-out=terrax-tfplan-0.binary"},
 		},
 		{
 			name:      "apply-specific flags are appended for apply command",
@@ -476,7 +476,7 @@ func TestBuildTerragruntArgs_CommandTerragruntFlags(t *testing.T) {
 			name:      "no command flags set produces no extra args",
 			stackPath: "/path/to/stack",
 			command:   "plan",
-			expected:  []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--json-out-dir=./tmp/json-plans", "--", "plan", "-out=terrax-tfplan-0.binary"},
+			expected:  []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--", "plan", "-out=terrax-tfplan-0.binary"},
 		},
 	}
 
@@ -520,7 +520,7 @@ func TestBuildTerragruntArgs_TerraformFlags(t *testing.T) {
 			terraformCommand: map[string][]string{
 				"plan": {"-detailed-exitcode"},
 			},
-			expected: []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--json-out-dir=./tmp/json-plans", "--", "plan", "-detailed-exitcode", "-out=terrax-tfplan-0.binary"},
+			expected: []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--", "plan", "-detailed-exitcode", "-out=terrax-tfplan-0.binary"},
 		},
 		{
 			name:      "plan command flags not applied to apply",
@@ -539,7 +539,7 @@ func TestBuildTerragruntArgs_TerraformFlags(t *testing.T) {
 			terraformCommand: map[string][]string{
 				"plan": {"-detailed-exitcode"},
 			},
-			expected: []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--json-out-dir=./tmp/json-plans", "--", "plan", "-input=false", "-detailed-exitcode", "-out=terrax-tfplan-0.binary"},
+			expected: []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--", "plan", "-input=false", "-detailed-exitcode", "-out=terrax-tfplan-0.binary"},
 		},
 		{
 			name:      "no terraform flags produces no extra args",
@@ -559,6 +559,53 @@ func TestBuildTerragruntArgs_TerraformFlags(t *testing.T) {
 			}
 			for cmd, flags := range tt.terraformCommand {
 				viper.Set(fmt.Sprintf("terraform.command_flags.%s", cmd), flags)
+			}
+
+			args := buildTerragruntArgs(tt.stackPath, tt.command)
+
+			assert.Equal(t, tt.expected, args, "Arguments should match expected output.")
+		})
+	}
+}
+
+// TestBuildTerragruntArgs_PlanJSONOutDir tests plan.json_out_dir behaviour via buildTerragruntArgs.
+func TestBuildTerragruntArgs_PlanJSONOutDir(t *testing.T) {
+	tests := []struct {
+		name       string
+		stackPath  string
+		command    string
+		jsonOutDir string
+		expected   []string
+	}{
+		{
+			name:       "json_out_dir set adds --json-out-dir and skips -out=",
+			stackPath:  "/path/to/stack",
+			command:    "plan",
+			jsonOutDir: "./tmp/json-plans",
+			expected:   []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--json-out-dir=./tmp/json-plans", "--", "plan"},
+		},
+		{
+			name:      "json_out_dir not set uses -out= binary path",
+			stackPath: "/path/to/stack",
+			command:   "plan",
+			expected:  []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--", "plan", "-out=terrax-tfplan-0.binary"},
+		},
+		{
+			name:       "json_out_dir ignored for non-plan commands",
+			stackPath:  "/path/to/stack",
+			command:    "apply",
+			jsonOutDir: "./tmp/json-plans",
+			expected:   []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--", "apply"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			viper.Reset()
+			viper.Set("log_format", "pretty")
+
+			if tt.jsonOutDir != "" {
+				viper.Set("plan.json_out_dir", tt.jsonOutDir)
 			}
 
 			args := buildTerragruntArgs(tt.stackPath, tt.command)
