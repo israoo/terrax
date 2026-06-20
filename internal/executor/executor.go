@@ -81,6 +81,7 @@ func buildTerragruntArgs(absoluteStackPath, command string) []string {
 	args = appendFeatureFlags(args)
 	args = appendExtraTerragruntFlags(args)
 	args = appendCommandTerragruntFlags(args, command)
+	args = appendPlanTerragruntOutputFlags(args, command)
 
 	args = append(args, "--", command)
 
@@ -130,6 +131,18 @@ func appendExtraTerragruntFlags(args []string) []string {
 // terragrunt.command_flags.<command>. Only the flags for the active command are added.
 func appendCommandTerragruntFlags(args []string, command string) []string {
 	return append(args, viper.GetStringSlice(fmt.Sprintf("terragrunt.command_flags.%s", command))...)
+}
+
+// appendPlanTerragruntOutputFlags injects --json-out-dir for plan commands when summary mode is enabled.
+// This flag must appear before the -- separator so Terragrunt processes it.
+func appendPlanTerragruntOutputFlags(args []string, command string) []string {
+	if command != "plan" {
+		return args
+	}
+	if viper.GetBool("plan.summary_enabled") {
+		args = append(args, fmt.Sprintf("--json-out-dir=%s", config.DefaultJSONOutDir))
+	}
+	return args
 }
 
 // appendTerraformExtraFlags appends global extra Terraform flags from terraform.extra_flags.

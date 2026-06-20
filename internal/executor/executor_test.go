@@ -621,6 +621,52 @@ func TestBuildTerragruntArgs_PlanReviewEnabled(t *testing.T) {
 	}
 }
 
+// TestBuildTerragruntArgs_PlanSummaryEnabled tests plan.summary_enabled via buildTerragruntArgs.
+func TestBuildTerragruntArgs_PlanSummaryEnabled(t *testing.T) {
+	tests := []struct {
+		name           string
+		stackPath      string
+		command        string
+		summaryEnabled bool
+		expected       []string
+	}{
+		{
+			name:           "summary enabled injects --json-out-dir before separator",
+			stackPath:      "/path/to/stack",
+			command:        "plan",
+			summaryEnabled: true,
+			expected:       []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--json-out-dir=./tmp/json-plans", "--", "plan"},
+		},
+		{
+			name:           "summary disabled produces no --json-out-dir",
+			stackPath:      "/path/to/stack",
+			command:        "plan",
+			summaryEnabled: false,
+			expected:       []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--", "plan"},
+		},
+		{
+			name:           "summary enabled ignored for non-plan commands",
+			stackPath:      "/path/to/stack",
+			command:        "apply",
+			summaryEnabled: true,
+			expected:       []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--", "apply"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resetViper()
+			viper.Set("log_format", "pretty")
+			viper.Set("plan.summary_enabled", tt.summaryEnabled)
+			viper.Set("plan.review_enabled", false) // isolate from binary -out= injection
+
+			args := buildTerragruntArgs(tt.stackPath, tt.command)
+
+			assert.Equal(t, tt.expected, args, "Arguments should match expected output.")
+		})
+	}
+}
+
 // TestRunForceUnlock_Args tests that RunForceUnlock builds the correct terragrunt args.
 func TestRunForceUnlock_Args(t *testing.T) {
 	// Capture stdout/stderr to suppress output during test.
