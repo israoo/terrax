@@ -141,27 +141,17 @@ func appendCommandTerraformFlags(args []string, command string) []string {
 
 // appendPlanTerragruntOutputFlags appends Terragrunt-side output flags for plan commands.
 // These must appear before the -- separator so Terragrunt processes them.
-// When plan.json_out_dir is set, --json-out-dir is injected and -out= is skipped,
-// because Terragrunt manages the binary internally when json-out-dir is active.
 func appendPlanTerragruntOutputFlags(args []string, command string) []string {
 	if command != "plan" {
 		return args
 	}
-	jsonOutDir := viper.GetString("plan.json_out_dir")
-	if jsonOutDir != "" {
-		args = append(args, fmt.Sprintf("--json-out-dir=%s", jsonOutDir))
-	}
-	return args
+	return append(args, fmt.Sprintf("--json-out-dir=%s", config.DefaultJSONOutDir))
 }
 
 // appendPlanTerraformOutputFlags appends Terraform-side output flags for plan commands.
 // These appear after the -- separator and are passed directly to Terraform.
-// Skipped when plan.json_out_dir is set, as --json-out-dir conflicts with a custom -out=.
 func appendPlanTerraformOutputFlags(args []string, command string) []string {
 	if command != "plan" {
-		return args
-	}
-	if viper.GetString("plan.json_out_dir") != "" {
 		return args
 	}
 	timestamp := viper.GetInt64("terrax.session_timestamp")
