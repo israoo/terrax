@@ -171,7 +171,7 @@ func runTUI(cmd *cobra.Command, args []string) error {
 		}
 
 		if command == "plan" && viper.GetBool("plan.summary_enabled") {
-			if err := runPlanSummary(ctx); err != nil {
+			if err := runPlanSummary(ctx, stackPath); err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: plan summary failed: %v\n", err)
 			}
 		}
@@ -288,7 +288,7 @@ func executeLastCommand(ctx context.Context, historyService *history.Service) er
 	}
 
 	if lastEntry.Command == "plan" && viper.GetBool("plan.summary_enabled") {
-		if err := runPlanSummary(ctx); err != nil {
+		if err := runPlanSummary(ctx, absolutePath); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: plan summary failed: %v\n", err)
 		}
 	}
@@ -358,7 +358,7 @@ func runHistoryViewer(ctx context.Context, historyService *history.Service) erro
 			}
 
 			if entry.Command == "plan" && viper.GetBool("plan.summary_enabled") {
-				if err := runPlanSummary(ctx); err != nil {
+				if err := runPlanSummary(ctx, absolutePath); err != nil {
 					fmt.Fprintf(os.Stderr, "Warning: plan summary failed: %v\n", err)
 				}
 			}
@@ -411,13 +411,9 @@ func runForceUnlock(ctx context.Context, historyService *history.Service, absolu
 }
 
 // runPlanSummary reads JSON plan files and prints a terminal count summary per stack via tf-summarize.
-func runPlanSummary(ctx context.Context) error {
-	dir := config.DefaultJSONOutDir
-	if !filepath.IsAbs(dir) {
-		if abs, err := filepath.Abs(dir); err == nil {
-			dir = abs
-		}
-	}
+// stackPath is the working directory Terragrunt used, which is where --json-out-dir is resolved relative to.
+func runPlanSummary(ctx context.Context, stackPath string) error {
+	dir := filepath.Join(stackPath, config.DefaultJSONOutDir)
 	_, err := plan.Summarize(ctx, dir)
 	return err
 }
