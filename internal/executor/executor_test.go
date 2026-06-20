@@ -388,7 +388,7 @@ func TestBuildTerragruntArgs_FeatureFlags(t *testing.T) {
 			stackPath:     "/path/to/stack",
 			command:       "apply",
 			reportEnabled: true,
-			expected:      []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--report-file", "./tmp/report.json", "--report-format", "json", "--", "apply"},
+			expected:      []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--report-file", ".terrax/report.json", "--report-format", "json", "--", "apply"},
 		},
 		{
 			name:          "report enabled with custom file and format",
@@ -406,7 +406,7 @@ func TestBuildTerragruntArgs_FeatureFlags(t *testing.T) {
 			tfForwardStdout: true,
 			summaryPerUnit:  true,
 			reportEnabled:   true,
-			expected:        []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--tf-forward-stdout", "--summary-per-unit", "--report-file", "./tmp/report.json", "--report-format", "json", "--", "plan", "-out=terrax-tfplan-0.binary"},
+			expected:        []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--tf-forward-stdout", "--summary-per-unit", "--report-file", ".terrax/report.json", "--report-format", "json", "--", "plan", "-out=terrax-tfplan-0.binary"},
 		},
 		{
 			name:      "no features enabled produces no extra flags",
@@ -635,7 +635,7 @@ func TestBuildTerragruntArgs_PlanSummaryEnabled(t *testing.T) {
 			stackPath:      "/path/to/stack",
 			command:        "plan",
 			summaryEnabled: true,
-			expected:       []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--json-out-dir=./tmp/json-plans", "--", "plan"},
+			expected:       []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--json-out-dir=.terrax/plans", "--", "plan"},
 		},
 		{
 			name:           "summary disabled produces no --json-out-dir",

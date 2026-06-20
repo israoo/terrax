@@ -37,8 +37,8 @@ features:
   # Equivalent to --report-file <file> --report-format <format>.
   report:
     enabled: true
-    # Default: "./tmp/report.json"
-    file: "./tmp/report.json"
+    # Default: ".terrax/report.json"
+    file: ".terrax/report.json"
     # Default: "json"
     format: "json"
 
@@ -47,8 +47,8 @@ features:
 # terragrunt:
 #   command_flags:
 #     plan:
-#       - "--out-dir=./tmp/plans"
-#       - "--json-out-dir=./tmp/json-plans"
+#       - "--out-dir=.terrax/plans"
+#       - "--json-out-dir=.terrax/plans"
 
 # Extra Terraform flags (added after the -- separator, passed directly to Terraform).
 # terraform:

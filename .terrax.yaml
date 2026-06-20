@@ -98,8 +98,8 @@ terragrunt:
   # Example:
   # command_flags:
   #   plan:
-  #     - "--out-dir=./tmp/plans"
-  #     - "--json-out-dir=./tmp/json-plans"
+  #     - "--out-dir=.terrax/plans"
+  #     - "--json-out-dir=.terrax/plans"
 
 # TerraX feature shortcuts
 # These enable high-level Terragrunt behaviors with simple boolean toggles
@@ -119,8 +119,8 @@ features:
   report:
     # Default: false
     # enabled: true
-    # Default: "./tmp/report.json"
-    # file: "./tmp/report.json"
+    # Default: ".terrax/report.json"
+    # file: ".terrax/report.json"
     # Default: "json"
     # format: "json"
 
@@ -132,11 +132,15 @@ plan:
   # review_enabled: false
 
   # Enable terminal summary mode after plan execution.
-  # When enabled, --json-out-dir=./tmp/json-plans is automatically injected and
+  # When enabled, --json-out-dir=.terrax/plans is automatically injected and
   # TerraX prints a count line per stack (+add ~update -delete ♻recreate).
   # No external tools required.
   # Default: false
   # summary_enabled: true
+
+  # Delete generated plan files (.terrax/plans/) after summary completes.
+  # Default: false
+  # cleanup_enabled: true
 
 # Extra Terraform flags (added after the -- separator, passed directly to Terraform)
 # terraform:

@@ -35,7 +35,7 @@ const (
 	DefaultNoColor = false
 
 	// DefaultReportFile is the default path for the Terragrunt report file.
-	DefaultReportFile = "./tmp/report.json"
+	DefaultReportFile = ".terrax/report.json"
 
 	// DefaultReportFormat is the default format for the Terragrunt report file.
 	DefaultReportFormat = "json"
@@ -47,10 +47,13 @@ const (
 	DefaultPlanReviewEnabled = true
 
 	// DefaultJSONOutDir is the default output directory for Terragrunt JSON plan files.
-	DefaultJSONOutDir = "./tmp/json-plans"
+	DefaultJSONOutDir = ".terrax/plans"
 
 	// DefaultPlanSummaryEnabled controls whether the terminal plan summary is shown after plan execution.
 	DefaultPlanSummaryEnabled = false
+
+	// DefaultPlanCleanupEnabled controls whether generated plan files are deleted after summary.
+	DefaultPlanCleanupEnabled = false
 )
 
 // DefaultCommands is the default list of Terragrunt commands shown in the TUI.
