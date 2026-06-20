@@ -3,6 +3,7 @@ package executor
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"testing"
@@ -426,6 +427,66 @@ func TestBuildTerragruntArgs_FeatureFlags(t *testing.T) {
 				if tt.reportFormat != "" {
 					viper.Set("features.report.format", tt.reportFormat)
 				}
+			}
+
+			args := buildTerragruntArgs(tt.stackPath, tt.command)
+
+			assert.Equal(t, tt.expected, args, "Arguments should match expected output.")
+		})
+	}
+}
+
+// TestBuildTerragruntArgs_CommandTerragruntFlags tests per-command Terragrunt flags via buildTerragruntArgs.
+func TestBuildTerragruntArgs_CommandTerragruntFlags(t *testing.T) {
+	tests := []struct {
+		name         string
+		stackPath    string
+		command      string
+		commandFlags map[string][]string
+		expected     []string
+	}{
+		{
+			name:      "plan-specific flags are appended before separator",
+			stackPath: "/path/to/stack",
+			command:   "plan",
+			commandFlags: map[string][]string{
+				"plan": {"--out-dir=./plans", "--json-out-dir=./json-plans"},
+			},
+			expected: []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--out-dir=./plans", "--json-out-dir=./json-plans", "--", "plan", "-out=terrax-tfplan-0.binary"},
+		},
+		{
+			name:      "apply-specific flags are appended for apply command",
+			stackPath: "/path/to/stack",
+			command:   "apply",
+			commandFlags: map[string][]string{
+				"apply": {"--custom-flag"},
+			},
+			expected: []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--custom-flag", "--", "apply"},
+		},
+		{
+			name:      "plan flags not applied when running apply",
+			stackPath: "/path/to/stack",
+			command:   "apply",
+			commandFlags: map[string][]string{
+				"plan": {"--out-dir=./plans"},
+			},
+			expected: []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--", "apply"},
+		},
+		{
+			name:      "no command flags set produces no extra args",
+			stackPath: "/path/to/stack",
+			command:   "plan",
+			expected:  []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--", "plan", "-out=terrax-tfplan-0.binary"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			viper.Reset()
+			viper.Set("log_format", "pretty")
+
+			for cmd, flags := range tt.commandFlags {
+				viper.Set(fmt.Sprintf("terragrunt.command_flags.%s", cmd), flags)
 			}
 
 			args := buildTerragruntArgs(tt.stackPath, tt.command)

@@ -79,6 +79,7 @@ func buildTerragruntArgs(absoluteStackPath, command string) []string {
 	args = appendTerragruntFlags(args)
 	args = appendFeatureFlags(args)
 	args = appendExtraTerragruntFlags(args)
+	args = appendCommandTerragruntFlags(args, command)
 
 	args = append(args, "--", command)
 
@@ -119,6 +120,12 @@ func appendFeatureFlags(args []string) []string {
 // appendExtraTerragruntFlags appends global extra Terragrunt flags from terragrunt.extra_flags.
 func appendExtraTerragruntFlags(args []string) []string {
 	return append(args, viper.GetStringSlice("terragrunt.extra_flags")...)
+}
+
+// appendCommandTerragruntFlags appends per-command Terragrunt flags from
+// terragrunt.command_flags.<command>. Only the flags for the active command are added.
+func appendCommandTerragruntFlags(args []string, command string) []string {
+	return append(args, viper.GetStringSlice(fmt.Sprintf("terragrunt.command_flags.%s", command))...)
 }
 
 func appendLoggingFlags(args []string) []string {
