@@ -105,6 +105,7 @@ export class TerraXTreeProvider implements vscode.TreeDataProvider<StackNode> {
       item.contextValue = 'terraxDirectory';
     }
     if (node.isStack) {
+      item.contextValue = 'terraxStack';
       item.iconPath = new vscode.ThemeIcon('package');
     }
     return item;

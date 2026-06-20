@@ -63,6 +63,11 @@
           "command": "terrax.runPlan",
           "when": "view == terrax.stackTree && viewItem == terraxDirectory",
           "group": "inline"
+        },
+        {
+          "command": "terrax.runPlan",
+          "when": "view == terrax.stackTree && viewItem == terraxStack",
+          "group": "inline"
         }
       ],
       "view/title": [
