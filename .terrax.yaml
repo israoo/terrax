@@ -138,3 +138,15 @@ plan:
 #   command_flags:
 #     plan:
 #       - "-detailed-exitcode"
+
+# State backend configuration (required for force-unlock command)
+# state:
+#   bucket: "my-terraform-state-bucket"   # S3 bucket holding Terraform state
+#   project: "caas-workloads"             # Key prefix inside the bucket (e.g., project name)
+#   region: "us-east-1"                   # AWS region (default: us-east-1)
+#
+# To use force-unlock, add it to the commands list:
+# commands:
+#   - plan
+#   - apply
+#   - force-unlock

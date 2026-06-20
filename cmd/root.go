@@ -20,6 +20,7 @@ import (
 	"github.com/israoo/terrax/internal/history"
 	"github.com/israoo/terrax/internal/plan"
 	"github.com/israoo/terrax/internal/stack"
+	"github.com/israoo/terrax/internal/state"
 	"github.com/israoo/terrax/internal/tui"
 )
 
@@ -158,6 +159,10 @@ func runTUI(cmd *cobra.Command, args []string) error {
 		command := model.GetSelectedCommand()
 		stackPath := model.GetSelectedStackPath()
 
+		if command == "force-unlock" {
+			return runForceUnlock(ctx, historyService, stackPath)
+		}
+
 		err := executor.Run(ctx, historyService, command, stackPath)
 		if err != nil {
 			return err
@@ -266,6 +271,10 @@ func executeLastCommand(ctx context.Context, historyService *history.Service) er
 		absolutePath = lastEntry.StackPath
 	}
 
+	if lastEntry.Command == "force-unlock" {
+		return runForceUnlock(ctx, historyService, absolutePath)
+	}
+
 	err = executor.Run(ctx, historyService, lastEntry.Command, absolutePath)
 	if err != nil {
 		return err
@@ -327,6 +336,10 @@ func runHistoryViewer(ctx context.Context, historyService *history.Service) erro
 				absolutePath = entry.StackPath
 			}
 
+			if entry.Command == "force-unlock" {
+				return runForceUnlock(ctx, historyService, absolutePath)
+			}
+
 			err := executor.Run(ctx, historyService, entry.Command, absolutePath)
 			if err != nil {
 				return err
@@ -341,6 +354,41 @@ func runHistoryViewer(ctx context.Context, historyService *history.Service) erro
 	}
 
 	return nil
+}
+
+// runForceUnlock discovers the state lock ID from S3 and executes force-unlock.
+// It returns nil if no lock is found for the given stack.
+func runForceUnlock(ctx context.Context, historyService *history.Service, absoluteStackPath string) error {
+	bucket := viper.GetString("state.bucket")
+	project := viper.GetString("state.project")
+	region := viper.GetString("state.region")
+
+	if bucket == "" || project == "" {
+		return fmt.Errorf("state.bucket and state.project must be set in .terrax.yaml to use force-unlock")
+	}
+
+	rootConfigFile := viper.GetString("root_config_file")
+	if rootConfigFile == "" {
+		rootConfigFile = config.DefaultRootConfigFile
+	}
+
+	stackRelPath, err := history.GetRelativeStackPath(absoluteStackPath, rootConfigFile)
+	if err != nil {
+		return fmt.Errorf("failed to determine stack relative path: %w", err)
+	}
+
+	lockID, err := state.GetLockID(ctx, bucket, project, stackRelPath, region)
+	if err != nil {
+		return fmt.Errorf("failed to get lock ID: %w", err)
+	}
+
+	if lockID == "" {
+		fmt.Printf("No lock found for %s\n", stackRelPath)
+		return nil
+	}
+
+	fmt.Printf("🔓 Unlocking %s (lock: %s)\n", stackRelPath, lockID)
+	return executor.RunForceUnlock(ctx, historyService, lockID, absoluteStackPath)
 }
 
 // PlanReviewRunner is a function type that runs the Plan Review TUI.
