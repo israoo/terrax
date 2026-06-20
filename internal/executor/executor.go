@@ -81,13 +81,23 @@ func buildTerragruntArgs(absoluteStackPath, command string) []string {
 	args = appendFeatureFlags(args)
 	args = appendExtraTerragruntFlags(args)
 	args = appendCommandTerragruntFlags(args, command)
-	args = appendPlanTerragruntOutputFlags(args, command)
+
+	// If command is "plan", inject plan output flags before the separator.
+	if command == "plan" {
+		args = append(args, fmt.Sprintf("--json-out-dir=%s", config.DefaultJSONOutDir))
+	}
 
 	args = append(args, "--", command)
 
 	args = appendTerraformExtraFlags(args)
 	args = appendCommandTerraformFlags(args, command)
-	args = appendPlanTerraformOutputFlags(args, command)
+
+	// If command is "plan", output to a binary file for later analysis.
+	if command == "plan" {
+		timestamp := viper.GetInt64("terrax.session_timestamp")
+		planFile := fmt.Sprintf("terrax-tfplan-%d.binary", timestamp)
+		args = append(args, fmt.Sprintf("-out=%s", planFile))
+	}
 
 	return args
 }
@@ -137,26 +147,6 @@ func appendTerraformExtraFlags(args []string) []string {
 // terraform.command_flags.<command>. Only the flags for the active command are added.
 func appendCommandTerraformFlags(args []string, command string) []string {
 	return append(args, viper.GetStringSlice(fmt.Sprintf("terraform.command_flags.%s", command))...)
-}
-
-// appendPlanTerragruntOutputFlags appends Terragrunt-side output flags for plan commands.
-// These must appear before the -- separator so Terragrunt processes them.
-func appendPlanTerragruntOutputFlags(args []string, command string) []string {
-	if command != "plan" {
-		return args
-	}
-	return append(args, fmt.Sprintf("--json-out-dir=%s", config.DefaultJSONOutDir))
-}
-
-// appendPlanTerraformOutputFlags appends Terraform-side output flags for plan commands.
-// These appear after the -- separator and are passed directly to Terraform.
-func appendPlanTerraformOutputFlags(args []string, command string) []string {
-	if command != "plan" {
-		return args
-	}
-	timestamp := viper.GetInt64("terrax.session_timestamp")
-	planFile := fmt.Sprintf("terrax-tfplan-%d.binary", timestamp)
-	return append(args, fmt.Sprintf("-out=%s", planFile))
 }
 
 func appendLoggingFlags(args []string) []string {
