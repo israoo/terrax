@@ -131,6 +131,13 @@ plan:
   # Default: true
   # review_enabled: false
 
+  # Enable terminal summary mode via tf-summarize after plan execution.
+  # When enabled, --json-out-dir=./tmp/json-plans is automatically injected and
+  # tf-summarize prints a count line per stack.
+  # Requires tf-summarize: https://github.com/dineshba/tf-summarize
+  # Default: false
+  # summary_enabled: true
+
 # Extra Terraform flags (added after the -- separator, passed directly to Terraform)
 # terraform:
 #   extra_flags:

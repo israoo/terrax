@@ -74,6 +74,7 @@ func initConfig() {
 	viper.SetDefault("terragrunt.parallelism", config.DefaultParallelism)
 	viper.SetDefault("terragrunt.no_color", config.DefaultNoColor)
 	viper.SetDefault("plan.review_enabled", config.DefaultPlanReviewEnabled)
+	viper.SetDefault("plan.summary_enabled", config.DefaultPlanSummaryEnabled)
 
 	viper.SetConfigName(".terrax")
 	viper.SetConfigType("yaml")
@@ -168,6 +169,11 @@ func runTUI(cmd *cobra.Command, args []string) error {
 			return err
 		}
 
+		if command == "plan" && viper.GetBool("plan.summary_enabled") {
+			if err := runPlanSummary(ctx); err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: plan summary failed: %v\n", err)
+			}
+		}
 		if command == "plan" && viper.GetBool("plan.review_enabled") {
 			return runPlanReview(ctx, stackPath)
 		}
@@ -280,6 +286,11 @@ func executeLastCommand(ctx context.Context, historyService *history.Service) er
 		return err
 	}
 
+	if lastEntry.Command == "plan" && viper.GetBool("plan.summary_enabled") {
+		if err := runPlanSummary(ctx); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: plan summary failed: %v\n", err)
+		}
+	}
 	if lastEntry.Command == "plan" && viper.GetBool("plan.review_enabled") {
 		return runPlanReview(ctx, absolutePath)
 	}
@@ -345,6 +356,11 @@ func runHistoryViewer(ctx context.Context, historyService *history.Service) erro
 				return err
 			}
 
+			if entry.Command == "plan" && viper.GetBool("plan.summary_enabled") {
+				if err := runPlanSummary(ctx); err != nil {
+					fmt.Fprintf(os.Stderr, "Warning: plan summary failed: %v\n", err)
+				}
+			}
 			if entry.Command == "plan" && viper.GetBool("plan.review_enabled") {
 				return runPlanReview(ctx, absolutePath)
 			}
@@ -391,6 +407,14 @@ func runForceUnlock(ctx context.Context, historyService *history.Service, absolu
 
 	fmt.Printf("🔓 Unlocking %s (lock: %s)\n", stackRelPath, lockID)
 	return executor.RunForceUnlock(ctx, historyService, lockID, absoluteStackPath)
+}
+
+// runPlanSummary reads JSON plan files from the default output directory and
+// prints a one-line count summary per stack via tf-summarize.
+func runPlanSummary(ctx context.Context) error {
+	fmt.Println()
+	_, err := plan.Summarize(ctx, config.DefaultJSONOutDir)
+	return err
 }
 
 // PlanReviewRunner is a function type that runs the Plan Review TUI.
