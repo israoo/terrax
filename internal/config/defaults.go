@@ -45,6 +45,12 @@ const (
 
 	// DefaultPlanReviewEnabled controls whether plan file scanning and review TUI are active.
 	DefaultPlanReviewEnabled = true
+
+	// DefaultJSONOutDir is the default output directory for Terragrunt JSON plan files.
+	DefaultJSONOutDir = "./tmp/json-plans"
+
+	// DefaultPlanSummaryEnabled controls whether the terminal plan summary is shown after plan execution.
+	DefaultPlanSummaryEnabled = false
 )
 
 // DefaultCommands is the default list of Terragrunt commands shown in the TUI.
