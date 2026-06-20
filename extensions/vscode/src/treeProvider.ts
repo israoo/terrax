@@ -91,11 +91,6 @@ export class TerraXTreeProvider implements vscode.TreeDataProvider<StackNode> {
         ? vscode.TreeItemCollapsibleState.Collapsed
         : vscode.TreeItemCollapsibleState.None,
     );
-    item.command = {
-      command: 'terrax.openHere',
-      title: 'Open in TerraX',
-      arguments: [vscode.Uri.file(node.path)],
-    };
     if (node.isStack) {
       item.iconPath = new vscode.ThemeIcon('package');
     }
