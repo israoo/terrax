@@ -92,3 +92,42 @@ terragrunt:
   # extra_flags:
   #   - "--terragrunt-download-dir=/tmp/terragrunt"
   #   - "--terragrunt-source-update"
+
+  # Per-command extra Terragrunt flags (added before the -- separator)
+  # Use this for flags only relevant to specific commands
+  # Example:
+  # command_flags:
+  #   plan:
+  #     - "--out-dir=./tmp/plans"
+  #     - "--json-out-dir=./tmp/json-plans"
+
+# TerraX feature shortcuts
+# These enable high-level Terragrunt behaviors with simple boolean toggles
+features:
+  # Forward Terraform stdout directly without Terragrunt prefixes
+  # Equivalent to --tf-forward-stdout
+  # Default: false
+  # tf_forward_stdout: true
+
+  # Print a summary per stack unit after execution
+  # Equivalent to --summary-per-unit
+  # Default: false
+  # summary_per_unit: true
+
+  # Generate a structured JSON report file after execution
+  # Equivalent to --report-file <file> --report-format <format>
+  report:
+    # Default: false
+    # enabled: true
+    # Default: "./tmp/report.json"
+    # file: "./tmp/report.json"
+    # Default: "json"
+    # format: "json"
+
+# Extra Terraform flags (added after the -- separator, passed directly to Terraform)
+# terraform:
+#   extra_flags:
+#     - "-input=false"
+#   command_flags:
+#     plan:
+#       - "-detailed-exitcode"
