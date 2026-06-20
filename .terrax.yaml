@@ -144,6 +144,8 @@ plan:
 #   bucket: "my-terraform-state-bucket"   # S3 bucket holding Terraform state
 #   project: "caas-workloads"             # Key prefix inside the bucket (e.g., project name)
 #   region: "us-east-1"                   # AWS region (default: us-east-1)
+#   aws_profile: "my-profile"             # AWS CLI named profile (optional, uses default chain if omitted)
+#   aws_config_file: "/path/to/.aws/config" # AWS config file path via AWS_CONFIG_FILE (optional)
 #
 # To use force-unlock, add it to the commands list:
 # commands:

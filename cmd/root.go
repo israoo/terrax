@@ -362,6 +362,8 @@ func runForceUnlock(ctx context.Context, historyService *history.Service, absolu
 	bucket := viper.GetString("state.bucket")
 	project := viper.GetString("state.project")
 	region := viper.GetString("state.region")
+	profile := viper.GetString("state.aws_profile")
+	configFile := viper.GetString("state.aws_config_file")
 
 	if bucket == "" || project == "" {
 		return fmt.Errorf("state.bucket and state.project must be set in .terrax.yaml to use force-unlock")
@@ -377,7 +379,7 @@ func runForceUnlock(ctx context.Context, historyService *history.Service, absolu
 		return fmt.Errorf("failed to determine stack relative path: %w", err)
 	}
 
-	lockID, err := state.GetLockID(ctx, bucket, project, stackRelPath, region)
+	lockID, err := state.GetLockID(ctx, bucket, project, stackRelPath, region, profile, configFile)
 	if err != nil {
 		return fmt.Errorf("failed to get lock ID: %w", err)
 	}

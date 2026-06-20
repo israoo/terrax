@@ -59,6 +59,8 @@ func TestGetLockID(t *testing.T) {
 		project      string
 		stackRelPath string
 		region       string
+		profile      string
+		configFile   string
 		mockStdout   string
 		mockStderr   string
 		mockExit     int
@@ -115,6 +117,18 @@ func TestGetLockID(t *testing.T) {
 			mockExit:     0,
 			wantErr:      true,
 		},
+		{
+			name:         "profile and config file accepted without error",
+			bucket:       "my-bucket",
+			project:      "caas",
+			stackRelPath: "workloads/dev/us-east-1/core/acm",
+			region:       "us-east-1",
+			profile:      "my-profile",
+			configFile:   "/home/user/.aws/config",
+			mockStdout:   `{"ID":"ghi-789","Who":"user@host","Operation":"OperationTypePlan","Created":"2026-06-20T00:00:00Z"}`,
+			mockExit:     0,
+			wantID:       "ghi-789",
+		},
 	}
 
 	for _, tt := range tests {
@@ -123,7 +137,7 @@ func TestGetLockID(t *testing.T) {
 			lockerMockStderr = tt.mockStderr
 			lockerMockExit = tt.mockExit
 
-			id, err := GetLockID(context.Background(), tt.bucket, tt.project, tt.stackRelPath, tt.region)
+			id, err := GetLockID(context.Background(), tt.bucket, tt.project, tt.stackRelPath, tt.region, tt.profile, tt.configFile)
 
 			if tt.wantErr {
 				require.Error(t, err)
