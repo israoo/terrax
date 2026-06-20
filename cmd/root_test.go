@@ -47,9 +47,10 @@ func captureStdout(t *testing.T) (restore func() string) {
 }
 
 func TestGetWorkingDirectory_WithExplicitDir(t *testing.T) {
-	got, err := getWorkingDirectory("/tmp/custom-path")
+	dir := t.TempDir()
+	got, err := getWorkingDirectory(dir)
 	require.NoError(t, err)
-	assert.Equal(t, "/tmp/custom-path", got)
+	assert.Equal(t, dir, got)
 }
 
 func TestGetWorkingDirectory_DefaultsToCwd(t *testing.T) {
@@ -59,13 +60,6 @@ func TestGetWorkingDirectory_DefaultsToCwd(t *testing.T) {
 	got, err := getWorkingDirectory("")
 	require.NoError(t, err)
 	assert.Equal(t, expected, got)
-}
-
-func TestGetWorkingDirectory(t *testing.T) {
-	workDir, err := getWorkingDirectory("")
-
-	assert.NoError(t, err, "should get working directory without error")
-	assert.NotEmpty(t, workDir, "working directory should not be empty")
 }
 
 // TestBuildStackTree tests the buildStackTree function with real filesystem.
