@@ -204,6 +204,8 @@ Columns appear/disappear based on navigation context:
 
 All comments must end with periods.
 
+> 📖 **Complete guidelines**: See [Comment Guidelines](docs/standards/comment-guidelines.md)
+
 ### Comment Preservation (MANDATORY)
 
 **NEVER delete existing comments without a very strong reason.** Comments document why/how/what/where.
@@ -215,6 +217,8 @@ All comments must end with periods.
 ### Import Organization (MANDATORY)
 
 Three groups separated by blank lines, sorted alphabetically:
+
+> 📖 **Complete guidelines**: See [Go Coding Standards](docs/standards/go-coding-standards.md#import-organization-mandatory)
 
 1. Go stdlib
 2. Third-party packages
@@ -561,3 +565,21 @@ go test -cover ./...    # With coverage
 8. **Error Context** - Wrap errors with meaningful messages
 9. **Cross-Platform** - Work on Linux, macOS, Windows
 10. **Clean Commits** - Atomic, well-described changes
+
+## Documentation Quick Links
+
+For detailed guidance, see the comprehensive knowledge base:
+
+- **📋 Architecture Decisions**: [ADRs](docs/adr/) - Why we made key technical decisions
+- **📐 Coding Standards**: [Standards](docs/standards/) - How to write consistent, quality code
+- **⚠️ Common Mistakes**: [Pitfalls](docs/pitfalls/) - What to avoid and why
+- **📚 Knowledge Base Index**: [docs/README.md](docs/README.md) - Full documentation overview
+
+**Key Standards**:
+
+- [Go Coding Standards](docs/standards/go-coding-standards.md)
+- [Comment Guidelines](docs/standards/comment-guidelines.md)
+- [Error Handling](docs/standards/error-handling.md)
+- [Testing Strategy](docs/standards/testing-strategy.md)
+- [Git Workflow](docs/standards/git-workflow.md)
+- [Build and Release](docs/standards/build-and-release.md)

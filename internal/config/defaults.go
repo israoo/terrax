@@ -1,3 +1,8 @@
+// Package config defines default configuration values and constants for TerraX.
+//
+// It centralizes all hardcoded defaults used across the application, including
+// UI settings, history limits, and Terragrunt flags. This ensures consistency
+// and provides a single source of truth for fallback values.
 package config
 
 // Default configuration values for TerraX.
@@ -18,6 +23,16 @@ const (
 	// DefaultRootConfigFile is the default name of the root configuration file
 	// used to determine the project root directory.
 	DefaultRootConfigFile = "root.hcl"
+
+	// DefaultLogFormat is the default terragrunt log format.
+	DefaultLogFormat = "pretty"
+
+	// DefaultParallelism is the default number of modules to run in parallel.
+	// 0 means use terragrunt's default.
+	DefaultParallelism = 0
+
+	// DefaultNoColor controls whether to disable colored output.
+	DefaultNoColor = false
 )
 
 // DefaultCommands is the default list of Terragrunt commands shown in the TUI.

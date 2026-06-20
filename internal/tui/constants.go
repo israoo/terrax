@@ -25,6 +25,13 @@ const (
 	EllipsisWidth       = 3  // Width of truncation ellipsis "..."
 	MinItemTextWidth    = 10 // Minimum width for item text
 	BreadcrumbLineCount = 1  // Number of lines for breadcrumb bar
+
+	// Plan Review Layout
+	PlanMasterWidthRatio = 3  // 1/3 of screen width
+	PlanDetailMargin     = 7  // Overhead for detail view width calculation
+	PlanMinDetailWidth   = 10 // Minimum width for detail view
+	PlanVerticalFrame    = 2  // Vertical border overhead
+	PlanContentFrame     = 8  // Vertical overhead: Header(1)+Footer(1) + Border(2) + PanelHeader(3) + 1 (Safety)
 )
 
 // Column types
@@ -51,7 +58,8 @@ const (
 	AppTitle       = "TerraX - Terragrunt eXecutor"
 	CommandsTitle  = "Commands"
 	StacksTitle    = "Stacks"
-	HelpText       = "↑↓: navigate | ←→: change column | enter: select/confirm | q: quit"
+	HelpText       = "↑↓: navigate | ←→: change column | enter: select/confirm | q/esc: quit"
+	PlanHelpText   = "↑↓: navigate | ←→: change column | PgUp/PgDn: scroll | q/esc: quit"
 	NoItemSelected = "None"
 	Initializing   = "Initializing..."
 	ScanningStacks = "Scanning stacks..."
