@@ -40,6 +40,9 @@ const (
 	// DefaultReportFormat is the default format for the Terragrunt report file.
 	DefaultReportFormat = "json"
 
+	// DefaultStateRegion is the default AWS region for Terraform state operations.
+	DefaultStateRegion = "us-east-1"
+
 	// DefaultPlanReviewEnabled controls whether plan file scanning and review TUI are active.
 	DefaultPlanReviewEnabled = true
 )
