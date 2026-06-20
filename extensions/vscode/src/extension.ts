@@ -38,10 +38,17 @@ export function activate(context: vscode.ExtensionContext): void {
 
   const treeView = vscode.window.createTreeView('terrax.stackTree', {
     treeDataProvider: treeProvider,
+    showCollapseAll: true,
   });
 
   const refreshCommand = vscode.commands.registerCommand('terrax.refresh', () => {
     treeProvider.refresh();
+  });
+
+  const expandAllCommand = vscode.commands.registerCommand('terrax.expandAll', async () => {
+    for (const node of treeProvider.getRootChildren()) {
+      await treeView.reveal(node, { expand: 5 });
+    }
   });
 
   const folderChangeListener = vscode.workspace.onDidChangeWorkspaceFolders(() => {
@@ -50,7 +57,7 @@ export function activate(context: vscode.ExtensionContext): void {
     treeProvider.refresh();
   });
 
-  context.subscriptions.push(openHereCommand, treeView, refreshCommand, folderChangeListener);
+  context.subscriptions.push(openHereCommand, treeView, refreshCommand, expandAllCommand, folderChangeListener);
 
   treeProvider.refresh();
 }

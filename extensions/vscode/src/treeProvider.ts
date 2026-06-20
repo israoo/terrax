@@ -106,4 +106,8 @@ export class TerraXTreeProvider implements vscode.TreeDataProvider<StackNode> {
     }
     return element ? element.children : this.tree.children;
   }
+
+  getRootChildren(): StackNode[] {
+    return this.tree?.children ?? [];
+  }
 }

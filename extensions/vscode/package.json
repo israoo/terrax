@@ -39,6 +39,11 @@
         "command": "terrax.refresh",
         "title": "TerraX: Refresh",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "terrax.expandAll",
+        "title": "TerraX: Expand All",
+        "icon": "$(expand-all)"
       }
     ],
     "menus": {
@@ -50,9 +55,14 @@
       ],
       "view/title": [
         {
+          "command": "terrax.expandAll",
+          "when": "view == terrax.stackTree",
+          "group": "navigation@1"
+        },
+        {
           "command": "terrax.refresh",
           "when": "view == terrax.stackTree",
-          "group": "navigation"
+          "group": "navigation@2"
         }
       ]
     },
