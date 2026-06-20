@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -34,8 +35,9 @@ func TestHelperProcessLocker(t *testing.T) {
 	if s := os.Getenv("GO_LOCKER_STDERR"); s != "" {
 		fmt.Fprint(os.Stderr, s)
 	}
-	if os.Getenv("GO_LOCKER_EXIT") == "1" {
-		os.Exit(1)
+	if code := os.Getenv("GO_LOCKER_EXIT"); code != "" && code != "0" {
+		exitCode, _ := strconv.Atoi(code)
+		os.Exit(exitCode)
 	}
 	os.Exit(0)
 }

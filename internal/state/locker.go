@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"path"
 	"strings"
 
 	"github.com/israoo/terrax/internal/config"
@@ -34,7 +35,7 @@ func GetLockID(ctx context.Context, bucket, project, stackRelPath, region string
 		region = config.DefaultStateRegion
 	}
 
-	lockKey := fmt.Sprintf("%s/%s/terraform.tfstate.tflock", project, stackRelPath)
+	lockKey := path.Join(project, stackRelPath, "terraform.tfstate.tflock")
 	s3URI := fmt.Sprintf("s3://%s/%s", bucket, lockKey)
 
 	cmd := execCommandContext(ctx, "aws", "s3", "cp", s3URI, "-", "--region", region)

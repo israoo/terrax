@@ -626,8 +626,8 @@ func TestRunForceUnlock_Args(t *testing.T) {
 	// Capture stdout/stderr to suppress output during test.
 	oldStdout := os.Stdout
 	oldStderr := os.Stderr
-	_, wOut, _ := os.Pipe()
-	_, wErr, _ := os.Pipe()
+	rOut, wOut, _ := os.Pipe()
+	rErr, wErr, _ := os.Pipe()
 	os.Stdout = wOut
 	os.Stderr = wErr
 	defer func() {
@@ -635,6 +635,8 @@ func TestRunForceUnlock_Args(t *testing.T) {
 		os.Stderr = oldStderr
 		_ = wOut.Close()
 		_ = wErr.Close()
+		_ = rOut.Close()
+		_ = rErr.Close()
 	}()
 
 	logger := &mockHistoryLogger{}
