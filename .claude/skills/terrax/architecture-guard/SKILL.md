@@ -1,6 +1,6 @@
 ---
 name: terrax-architecture-guard
-description: Use when adding, moving, or refactoring code in the TerraX repo (github.com/israoo/terrax). Triggers on any structural change: new functions in model.go or view.go, new packages, cross-package calls, adding imports, or touching internal/stack, internal/tui, internal/executor, internal/plan. Do NOT use for config-only or docs-only changes.
+description: Use when writing, modifying, or reviewing code in internal/stack, internal/tui, internal/executor, internal/plan, or cmd/root.go. Use before adding imports, creating new functions, or moving logic between packages. Do NOT use for config-only (.terrax.yaml) or docs-only changes.
 ---
 
 # TerraX Architecture Guard
