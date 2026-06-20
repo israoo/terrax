@@ -24,6 +24,7 @@ export class TerraXTreeProvider implements vscode.TreeDataProvider<StackNode> {
 
   private tree: StackNode | null = null;
   private hasError = false;
+  private parentMap = new Map<StackNode, StackNode>();
 
   constructor(private workspaceRoot: string) {}
 
@@ -34,6 +35,7 @@ export class TerraXTreeProvider implements vscode.TreeDataProvider<StackNode> {
   refresh(): void {
     this.tree = null;
     this.hasError = false;
+    this.parentMap.clear();
 
     if (!this.workspaceRoot) {
       this.hasError = true;
@@ -69,6 +71,7 @@ export class TerraXTreeProvider implements vscode.TreeDataProvider<StackNode> {
     } else {
       try {
         this.tree = JSON.parse(result.stdout) as StackNode;
+        this.buildParentMap(this.tree);
       } catch {
         this.hasError = true;
         vscode.window.showErrorMessage('TerraX: Failed to parse tree output.');
@@ -107,7 +110,18 @@ export class TerraXTreeProvider implements vscode.TreeDataProvider<StackNode> {
     return element ? element.children : this.tree.children;
   }
 
+  getParent(node: StackNode): StackNode | undefined {
+    return this.parentMap.get(node);
+  }
+
   getRootChildren(): StackNode[] {
     return this.tree?.children ?? [];
+  }
+
+  private buildParentMap(node: StackNode): void {
+    for (const child of node.children) {
+      this.parentMap.set(child, node);
+      this.buildParentMap(child);
+    }
   }
 }
