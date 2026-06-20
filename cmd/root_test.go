@@ -46,8 +46,23 @@ func captureStdout(t *testing.T) (restore func() string) {
 	}
 }
 
+func TestGetWorkingDirectory_WithExplicitDir(t *testing.T) {
+	got, err := getWorkingDirectory("/tmp/custom-path")
+	require.NoError(t, err)
+	assert.Equal(t, "/tmp/custom-path", got)
+}
+
+func TestGetWorkingDirectory_DefaultsToCwd(t *testing.T) {
+	expected, err := os.Getwd()
+	require.NoError(t, err)
+
+	got, err := getWorkingDirectory("")
+	require.NoError(t, err)
+	assert.Equal(t, expected, got)
+}
+
 func TestGetWorkingDirectory(t *testing.T) {
-	workDir, err := getWorkingDirectory()
+	workDir, err := getWorkingDirectory("")
 
 	assert.NoError(t, err, "should get working directory without error")
 	assert.NotEmpty(t, workDir, "working directory should not be empty")

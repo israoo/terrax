@@ -54,6 +54,7 @@ func init() {
 
 	rootCmd.Flags().BoolP("last", "l", false, "Execute the last command from history")
 	rootCmd.Flags().Bool("history", false, "View execution history interactively")
+	rootCmd.Flags().String("dir", "", "Working directory (overrides current directory)")
 }
 
 // Execute runs the root command.
@@ -122,7 +123,8 @@ func runTUI(cmd *cobra.Command, args []string) error {
 		return runHistoryViewer(ctx, historyService)
 	}
 
-	workDir, err := getWorkingDirectory()
+	dirFlag, _ := cmd.Flags().GetString("dir")
+	workDir, err := getWorkingDirectory(dirFlag)
 	if err != nil {
 		return fmt.Errorf("failed to get working directory: %w", err)
 	}
@@ -169,8 +171,11 @@ func runTUI(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// getWorkingDirectory returns the current working directory.
-func getWorkingDirectory() (string, error) {
+// getWorkingDirectory returns dir if non-empty, otherwise the current working directory.
+func getWorkingDirectory(dir string) (string, error) {
+	if dir != "" {
+		return dir, nil
+	}
 	workDir, err := os.Getwd()
 	if err != nil {
 		return "", err
