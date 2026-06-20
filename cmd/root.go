@@ -12,14 +12,15 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+
 	"github.com/israoo/terrax/internal/config"
 	"github.com/israoo/terrax/internal/executor"
 	"github.com/israoo/terrax/internal/history"
 	"github.com/israoo/terrax/internal/plan"
 	"github.com/israoo/terrax/internal/stack"
 	"github.com/israoo/terrax/internal/tui"
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 // This variable is injected by GoReleaser during builds via ldflags.
