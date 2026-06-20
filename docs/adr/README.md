@@ -139,3 +139,4 @@ Create an ADR for decisions that:
 - [ADR-0012: Force Unlock via AWS CLI Lock Discovery](0012-force-unlock-via-aws-cli.md) - Automatic lock ID discovery from S3 using AWS CLI subprocess
 - [ADR-0013: VS Code Extension Integration](0013-vscode-extension-integration.md) - Monorepo extension with tree JSON API, direct run subcommand, and single terminal reuse
 - [ADR-0014: Plan Summary Mode](0014-plan-summary-mode.md) - Native Go JSON parsing for terminal plan summary with .terrax/ output directory
+- [ADR-0015: Static HCL Dependency Graph](0015-static-hcl-dependency-graph.md) - Regex-based static parsing of Terragrunt dependency blocks with callerDir propagation for envcommon include chains
