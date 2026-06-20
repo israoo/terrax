@@ -123,7 +123,7 @@ jobs:
 
       - name: Upload Trivy artifact
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: trivy-report
           path: ${{ env.TRIVY_SARIF_FILE }}
@@ -150,7 +150,7 @@ jobs:
           -race
 
       - name: Upload coverage artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-report
           path: ${{ env.COVERAGE_FILE }}
