@@ -118,6 +118,21 @@ export class TerraXTreeProvider implements vscode.TreeDataProvider<StackNode> {
     return this.tree?.children ?? [];
   }
 
+  getAllNodes(): StackNode[] {
+    const nodes: StackNode[] = [];
+    if (this.tree) {
+      this.collectNodes(this.tree, nodes);
+    }
+    return nodes;
+  }
+
+  private collectNodes(node: StackNode, result: StackNode[]): void {
+    result.push(node);
+    for (const child of node.children) {
+      this.collectNodes(child, result);
+    }
+  }
+
   private buildParentMap(node: StackNode): void {
     for (const child of node.children) {
       this.parentMap.set(child, node);

@@ -46,8 +46,8 @@ export function activate(context: vscode.ExtensionContext): void {
   });
 
   const expandAllCommand = vscode.commands.registerCommand('terrax.expandAll', async () => {
-    for (const node of treeProvider.getRootChildren()) {
-      await treeView.reveal(node, { expand: 5 });
+    for (const node of treeProvider.getAllNodes()) {
+      await treeView.reveal(node, { expand: true });
     }
   });
 
