@@ -136,3 +136,4 @@ Create an ADR for decisions that:
 - [ADR-0009: Executor Isolation Pattern](0009-executor-isolation-pattern.md) - Command execution with dependency injection
 - [ADR-0010: Plan Analysis Workflow](0010-plan-analysis-workflow.md) - Binary plan files and structured TUI presentation
 - [ADR-0011: Extensible Flags Configuration](0011-extensible-flags-configuration.md) - Three-layer flag model for pipeline-grade Terragrunt execution
+- [ADR-0012: Force Unlock via AWS CLI Lock Discovery](0012-force-unlock-via-aws-cli.md) - Automatic lock ID discovery from S3 using AWS CLI subprocess
