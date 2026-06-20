@@ -18,6 +18,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/israoo/terrax/internal/config"
+	"github.com/israoo/terrax/internal/deps"
 	"github.com/israoo/terrax/internal/executor"
 	"github.com/israoo/terrax/internal/history"
 	"github.com/israoo/terrax/internal/plan"
@@ -167,14 +168,18 @@ func runTUI(cmd *cobra.Command, args []string) error {
 			return runForceUnlock(ctx, historyService, stackPath)
 		}
 
-		err := executor.Run(ctx, historyService, command, stackPath)
-		if err != nil {
-			return err
-		}
-
 		if command == "plan" && viper.GetBool("plan.summary_enabled") {
-			if err := runPlanSummary(ctx, stackPath); err != nil {
+			repoRoot, filterPaths := collectTransitiveDeps(stackPath)
+			if err := executor.RunForSummary(ctx, historyService, command, stackPath, repoRoot, filterPaths); err != nil {
+				return err
+			}
+			if err := runPlanSummary(ctx, stackPath, repoRoot); err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: plan summary failed: %v\n", err)
+			}
+		} else {
+			err := executor.Run(ctx, historyService, command, stackPath)
+			if err != nil {
+				return err
 			}
 		}
 		if command == "plan" && viper.GetBool("plan.review_enabled") {
@@ -284,14 +289,18 @@ func executeLastCommand(ctx context.Context, historyService *history.Service) er
 		return runForceUnlock(ctx, historyService, absolutePath)
 	}
 
-	err = executor.Run(ctx, historyService, lastEntry.Command, absolutePath)
-	if err != nil {
-		return err
-	}
-
 	if lastEntry.Command == "plan" && viper.GetBool("plan.summary_enabled") {
-		if err := runPlanSummary(ctx, absolutePath); err != nil {
+		repoRoot, filterPaths := collectTransitiveDeps(absolutePath)
+		if err := executor.RunForSummary(ctx, historyService, lastEntry.Command, absolutePath, repoRoot, filterPaths); err != nil {
+			return err
+		}
+		if err := runPlanSummary(ctx, absolutePath, repoRoot); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: plan summary failed: %v\n", err)
+		}
+	} else {
+		err = executor.Run(ctx, historyService, lastEntry.Command, absolutePath)
+		if err != nil {
+			return err
 		}
 	}
 	if lastEntry.Command == "plan" && viper.GetBool("plan.review_enabled") {
@@ -354,14 +363,18 @@ func runHistoryViewer(ctx context.Context, historyService *history.Service) erro
 				return runForceUnlock(ctx, historyService, absolutePath)
 			}
 
-			err := executor.Run(ctx, historyService, entry.Command, absolutePath)
-			if err != nil {
-				return err
-			}
-
 			if entry.Command == "plan" && viper.GetBool("plan.summary_enabled") {
-				if err := runPlanSummary(ctx, absolutePath); err != nil {
+				repoRoot, filterPaths := collectTransitiveDeps(absolutePath)
+				if err := executor.RunForSummary(ctx, historyService, entry.Command, absolutePath, repoRoot, filterPaths); err != nil {
+					return err
+				}
+				if err := runPlanSummary(ctx, absolutePath, repoRoot); err != nil {
 					fmt.Fprintf(os.Stderr, "Warning: plan summary failed: %v\n", err)
+				}
+			} else {
+				err := executor.Run(ctx, historyService, entry.Command, absolutePath)
+				if err != nil {
+					return err
 				}
 			}
 			if entry.Command == "plan" && viper.GetBool("plan.review_enabled") {
@@ -443,21 +456,52 @@ func runForceUnlock(ctx context.Context, historyService *history.Service, absolu
 	return nil
 }
 
-// runPlanSummary reads JSON plan files and prints a terminal count summary per stack from the stack working directory.
-// stackPath is the working directory Terragrunt used, which is where --json-out-dir is resolved relative to.
-// When plan.cleanup_enabled is true, the entire .terrax/ output directory is removed after the summary.
-func runPlanSummary(ctx context.Context, stackPath string) error {
-	dir := filepath.Join(stackPath, config.DefaultJSONOutDir)
-
+// collectTransitiveDeps computes the selected stack and all its transitive dependencies
+// using static HCL parsing. Returns the repo root and a slice of relative paths suitable
+// for use as --filter arguments to Terragrunt.
+func collectTransitiveDeps(stackPath string) (repoRoot string, filterPaths []string) {
 	rootConfigFile := viper.GetString("root_config_file")
 	if rootConfigFile == "" {
 		rootConfigFile = config.DefaultRootConfigFile
 	}
-	projectRoot, _ := history.FindProjectRoot(stackPath, rootConfigFile)
+	repoRoot = deps.FindRepoRoot(stackPath, rootConfigFile)
 
-	_, err := plan.Summarize(ctx, dir, projectRoot)
+	visited := map[string]bool{}
+	queue := []string{stackPath}
+
+	for len(queue) > 0 {
+		current := queue[0]
+		queue = queue[1:]
+
+		if visited[current] {
+			continue
+		}
+		visited[current] = true
+
+		rel, err := filepath.Rel(repoRoot, current)
+		if err == nil {
+			filterPaths = append(filterPaths, filepath.ToSlash(rel))
+		}
+
+		hclFile := filepath.Join(current, "terragrunt.hcl")
+		for _, dep := range deps.ParseDependencies(hclFile, repoRoot) {
+			if !visited[dep] {
+				queue = append(queue, dep)
+			}
+		}
+	}
+
+	return repoRoot, filterPaths
+}
+
+// runPlanSummary reads JSON plan files from repoRoot/.terrax/plans and prints a terminal count summary.
+// When plan.cleanup_enabled is true, the entire .terrax/ output directory is removed after the summary.
+func runPlanSummary(ctx context.Context, stackPath, repoRoot string) error {
+	dir := filepath.Join(repoRoot, config.DefaultJSONOutDir)
+
+	_, err := plan.Summarize(ctx, dir, repoRoot)
 	if viper.GetBool("plan.cleanup_enabled") {
-		outputDir := filepath.Join(stackPath, config.DefaultOutputDir)
+		outputDir := filepath.Join(repoRoot, config.DefaultOutputDir)
 		if removeErr := os.RemoveAll(outputDir); removeErr != nil {
 			fmt.Fprintf(os.Stderr, "Warning: failed to clean up plan files: %v\n", removeErr)
 		}

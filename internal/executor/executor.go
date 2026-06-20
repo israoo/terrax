@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"time"
 
 	"github.com/spf13/viper"
@@ -70,6 +71,78 @@ func Run(ctx context.Context, historyLogger HistoryLogger, command, absoluteStac
 	logExecutionToHistory(ctx, historyLogger, nextID, startTime, command, absoluteStackPath, exitCode, duration, summary)
 
 	return execErr
+}
+
+// RunForSummary executes a plan using explicit --filter flags computed from the dependency graph.
+// filterPaths contains the selected stack and all transitive dependencies as paths relative to repoRoot.
+// Running from repoRoot ensures --json-out-dir paths are stable and match the full stack path structure.
+func RunForSummary(ctx context.Context, historyLogger HistoryLogger, command, absoluteStackPath, repoRoot string, filterPaths []string) error {
+	nextID, err := historyLogger.GetNextID(ctx)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: Failed to get history ID: %v\n", err)
+		nextID = 0
+	}
+
+	startTime := time.Now()
+	args := buildSummaryArgs(repoRoot, command, filterPaths)
+
+	fmt.Printf("🚀 Executing: terragrunt %v\n\n", args)
+
+	cmd := exec.CommandContext(ctx, "terragrunt", args...)
+	cmd.Dir = repoRoot // Run from repo root so --filter paths and --json-out-dir resolve correctly.
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+
+	execErr := cmd.Run()
+	exitCode := 0
+	summary := "Command completed successfully."
+
+	if execErr != nil {
+		fmt.Fprintf(os.Stderr, "\n❌ Command execution failed: %v\n", execErr)
+		if exitErr, ok := execErr.(*exec.ExitError); ok {
+			exitCode = exitErr.ExitCode()
+		} else {
+			exitCode = 1
+		}
+		summary = fmt.Sprintf("Command failed: %v", execErr)
+	} else {
+		fmt.Println("\n✅ Command execution completed")
+	}
+
+	duration := time.Since(startTime)
+	displayExecutionSummary(command, absoluteStackPath, duration, exitCode, startTime)
+	logExecutionToHistory(ctx, historyLogger, nextID, startTime, command, absoluteStackPath, exitCode, duration, summary)
+
+	return execErr
+}
+
+// buildSummaryArgs constructs args for summary mode: one --filter per stack path,
+// no --all or --working-dir, runs from repoRoot.
+func buildSummaryArgs(repoRoot, command string, filterPaths []string) []string {
+	args := []string{"run"}
+
+	for _, p := range filterPaths {
+		args = append(args, "--filter", filepath.ToSlash(p))
+	}
+
+	args = appendLoggingFlags(args)
+	args = appendTerragruntFlags(args)
+	args = appendFeatureFlags(args)
+	args = appendExtraTerragruntFlags(args)
+	args = appendCommandTerragruntFlags(args, command)
+
+	if command == "plan" {
+		absJSONOutDir := filepath.Join(repoRoot, config.DefaultJSONOutDir)
+		args = append(args, fmt.Sprintf("--json-out-dir=%s", absJSONOutDir))
+	}
+
+	args = append(args, "--", command)
+
+	args = appendTerraformExtraFlags(args)
+	args = appendCommandTerraformFlags(args, command)
+
+	return args
 }
 
 // buildTerragruntArgs constructs the full Terragrunt command arguments.
