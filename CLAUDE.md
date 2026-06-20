@@ -41,19 +41,31 @@ Strict Separation of Concerns — business logic, UI state, and rendering never 
 ```
 terrax/
 ├── cmd/
-│   └── root.go         # CLI orchestration only (Cobra/Viper)
+│   └── root.go              # CLI orchestration only (Cobra/Viper)
 ├── internal/
 │   ├── config/
-│   │   └── defaults.go # Configuration defaults (commands, limits)
+│   │   └── defaults.go      # Configuration defaults (commands, limits)
+│   ├── executor/
+│   │   └── executor.go      # Builds and runs Terragrunt CLI commands
 │   ├── history/
-│   │   └── history.go  # Execution history (JSONL, XDG Base Directory)
+│   │   └── history.go       # Execution history (JSONL, XDG Base Directory)
+│   ├── plan/
+│   │   ├── collector.go     # Runs `terragrunt plan -json`, parses output
+│   │   ├── models.go        # PlanReport, StackResult, ChangeType types
+│   │   └── tree.go          # Builds display tree from plan results
 │   ├── stack/
-│   │   ├── tree.go     # Filesystem scanning, tree construction
-│   │   └── navigator.go # Navigation logic — ZERO Bubble Tea dependencies
+│   │   ├── tree.go          # Filesystem scanning, tree construction
+│   │   └── navigator.go     # Navigation logic — ZERO Bubble Tea dependencies
 │   └── tui/
-│       ├── model.go    # UI state only; delegates navigation to Navigator
-│       ├── view.go     # Rendering: LayoutCalculator + Renderer (Lipgloss)
-│       └── constants.go # Colors, key bindings, UI dimensions
+│       ├── model.go         # UI state only; delegates navigation to Navigator
+│       ├── update.go        # Bubble Tea Update: keyboard/mouse event handling
+│       ├── update_plan.go   # Update logic specific to StatePlanReview
+│       ├── view.go          # View entry point; dispatches to sub-renderers
+│       ├── view_common.go   # Shared rendering helpers (headers, footers)
+│       ├── view_history.go  # Renders StateHistory mode
+│       ├── view_navigation.go # Renders StateNavigation mode (sliding window)
+│       ├── view_plan.go     # Renders StatePlanReview mode
+│       └── styles.go        # Lipgloss styles, colors, UI dimensions
 └── main.go
 ```
 
@@ -66,13 +78,14 @@ terrax/
 
 ## Architectural Patterns (MANDATORY)
 
-### AppState Dual Mode
+### AppState Tri Mode
 
-Model has two modes via `AppState`:
+Model has three modes via `AppState`:
 - `StateNavigation` — normal TUI tree navigation (`NewModel()`)
 - `StateHistory` — history viewer, activated via `--history` (`NewHistoryModel()`)
+- `StatePlanReview` — plan analysis view, activated after running `plan` command
 
-Never add navigation logic to history mode or vice versa.
+Never mix logic between modes; each has its own `update_*.go` and `view_*.go` counterpart.
 
 ### Sliding Window
 
@@ -131,7 +144,7 @@ root_config_file: "root.hcl"
 
 ## Common Task Guides
 
-**Modify TUI layout:** `LayoutCalculator` in `view.go` → layout math; `constants.go` → dimensions/colors.
+**Modify TUI layout:** `LayoutCalculator` in `view.go` → layout math; `styles.go` → dimensions/colors.
 
 **Add navigation feature:** Business logic in `navigator.go` → wire in `model.go` → render in `view.go`.
 
