@@ -13,16 +13,45 @@
   "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "terrax",
+          "title": "TerraX",
+          "icon": "icons/terrax.svg"
+        }
+      ]
+    },
+    "views": {
+      "terrax": [
+        {
+          "id": "terrax.stackTree",
+          "name": "Stacks"
+        }
+      ]
+    },
     "commands": [
       {
         "command": "terrax.openHere",
         "title": "TerraX: Open here"
+      },
+      {
+        "command": "terrax.refresh",
+        "title": "TerraX: Refresh",
+        "icon": "$(refresh)"
       }
     ],
     "menus": {
       "explorer/context": [
         {
           "command": "terrax.openHere",
+          "group": "navigation"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "terrax.refresh",
+          "when": "view == terrax.stackTree",
           "group": "navigation"
         }
       ]

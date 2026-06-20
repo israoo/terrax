@@ -1,8 +1,9 @@
 import * as vscode from 'vscode';
 import { runInTerminal } from './terminalRunner';
+import { TerraXTreeProvider } from './treeProvider';
 
 export function activate(context: vscode.ExtensionContext): void {
-  const command = vscode.commands.registerCommand(
+  const openHereCommand = vscode.commands.registerCommand(
     'terrax.openHere',
     async (uri?: vscode.Uri) => {
       const workspaceFolders = vscode.workspace.workspaceFolders;
@@ -25,14 +26,27 @@ export function activate(context: vscode.ExtensionContext): void {
         }
         targetPath = picked.uri.fsPath;
       }
+
       const config = vscode.workspace.getConfiguration('terrax');
       const binaryPath = config.get<string>('binaryPath', 'terrax');
-
       runInTerminal(binaryPath, targetPath);
-    }
+    },
   );
 
-  context.subscriptions.push(command);
+  const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+  const treeProvider = new TerraXTreeProvider(workspaceRoot);
+
+  const treeView = vscode.window.createTreeView('terrax.stackTree', {
+    treeDataProvider: treeProvider,
+  });
+
+  const refreshCommand = vscode.commands.registerCommand('terrax.refresh', () => {
+    treeProvider.refresh();
+  });
+
+  context.subscriptions.push(openHereCommand, treeView, refreshCommand);
+
+  treeProvider.refresh();
 }
 
 export function deactivate(): void {}
