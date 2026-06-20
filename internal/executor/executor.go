@@ -82,11 +82,6 @@ func buildTerragruntArgs(absoluteStackPath, command string) []string {
 	args = appendExtraTerragruntFlags(args)
 	args = appendCommandTerragruntFlags(args, command)
 
-	// If command is "plan", inject plan output flags before the separator.
-	if command == "plan" {
-		args = append(args, fmt.Sprintf("--json-out-dir=%s", config.DefaultJSONOutDir))
-	}
-
 	args = append(args, "--", command)
 
 	args = appendTerraformExtraFlags(args)
