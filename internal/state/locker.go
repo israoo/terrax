@@ -61,7 +61,8 @@ func GetLockID(ctx context.Context, bucket, project, stackRelPath, region, profi
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
 			stderr := strings.TrimSpace(string(exitErr.Stderr))
-			if strings.Contains(stderr, "NoSuchKey") {
+			// Treat both NoSuchKey and 404 (HeadObject) as "no lock exists".
+			if strings.Contains(stderr, "NoSuchKey") || strings.Contains(stderr, "(404)") {
 				return "", nil
 			}
 			return "", fmt.Errorf("aws s3 cp failed: %w\n%s", err, stderr)
