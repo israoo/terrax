@@ -6,33 +6,56 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
 )
 
-// execSummarizerContext allows mocking exec.CommandContext in tests.
-// Named separately from execCommandContext (used by collector.go) to avoid collision.
-var execSummarizerContext = exec.CommandContext
-
-// tfSummarizeJSON represents the output of tf-summarize -json-sum.
-type tfSummarizeJSON struct {
-	Changes struct {
-		Add      int `json:"add"`
-		Update   int `json:"update"`
-		Delete   int `json:"delete"`
-		Recreate int `json:"recreate"`
-		Import   int `json:"import"`
-		Moved    int `json:"moved"`
-	} `json:"changes"`
+// planSummaryStats holds the change counts for a single plan file.
+type planSummaryStats struct {
+	Add      int
+	Update   int
+	Delete   int
+	Recreate int
+	Import   int
 }
 
-// Summarize scans dir for JSON plan files, prints a count line per stack via
-// tf-summarize -json-sum, and returns the number of stacks with changes.
+func (s planSummaryStats) total() int {
+	return s.Add + s.Update + s.Delete + s.Recreate + s.Import
+}
+
+// countChanges parses a TerraformPlanJSON and returns change counts by type.
+func countChanges(p TerraformPlanJSON) planSummaryStats {
+	var stats planSummaryStats
+	for _, rc := range p.ResourceChanges {
+		actions := rc.Change.Actions
+		hasCreate := contains(actions, "create")
+		hasDelete := contains(actions, "delete")
+		hasUpdate := contains(actions, "update")
+
+		switch {
+		case hasCreate && hasDelete:
+			stats.Recreate++
+		case hasCreate:
+			if rc.Change.Importing != nil {
+				stats.Import++
+			} else {
+				stats.Add++
+			}
+		case hasUpdate:
+			stats.Update++
+		case hasDelete:
+			stats.Delete++
+		}
+	}
+	return stats
+}
+
+// Summarize scans dir for JSON plan files, prints a count line per stack, and
+// returns the number of stacks with changes.
 // Returns (0, nil) when dir does not exist or contains no JSON files.
-// Returns (0, error) when tf-summarize is not installed.
-func Summarize(ctx context.Context, dir string) (int, error) {
+// No external tools required — parses Terraform plan JSON directly.
+func Summarize(_ context.Context, dir string) (int, error) {
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		return 0, nil
 	}
@@ -55,11 +78,6 @@ func Summarize(ctx context.Context, dir string) (int, error) {
 		return 0, nil
 	}
 
-	// Check if tf-summarize is installed before scanning files.
-	if _, err := exec.LookPath("tf-summarize"); err != nil {
-		return 0, fmt.Errorf("tf-summarize not found: install from https://github.com/dineshba/tf-summarize")
-	}
-
 	sort.Strings(jsonFiles)
 	fmt.Printf("🔍 Scanning %d JSON plan(s)...\n\n", len(jsonFiles))
 
@@ -68,29 +86,22 @@ func Summarize(ctx context.Context, dir string) (int, error) {
 		rel, _ := filepath.Rel(dir, planFile)
 		stackName := filepath.ToSlash(filepath.Dir(rel))
 
-		cmd := execSummarizerContext(ctx, "tf-summarize", "-json-sum", planFile)
-		output, err := cmd.Output()
+		data, err := os.ReadFile(planFile)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: could not summarize %s.\n", stackName)
+			fmt.Fprintf(os.Stderr, "Warning: could not read %s.\n", stackName)
 			continue
 		}
 
-		if len(output) == 0 {
-			fmt.Fprintf(os.Stderr, "Warning: could not summarize %s.\n", stackName)
+		var planJSON TerraformPlanJSON
+		if err := json.Unmarshal(data, &planJSON); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: could not parse %s.\n", stackName)
 			continue
 		}
 
-		var summary tfSummarizeJSON
-		if err := json.Unmarshal(output, &summary); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: could not summarize %s.\n", stackName)
-			continue
-		}
+		stats := countChanges(planJSON)
+		fmt.Printf("  %s: +%d ~%d -%d ♻%d\n", stackName, stats.Add, stats.Update, stats.Delete, stats.Recreate)
 
-		c := summary.Changes
-		fmt.Printf("  %s: +%d ~%d -%d ♻%d\n", stackName, c.Add, c.Update, c.Delete, c.Recreate)
-
-		total := c.Add + c.Update + c.Delete + c.Recreate + c.Import + c.Moved
-		if total > 0 {
+		if stats.total() > 0 {
 			changedCount++
 		}
 	}

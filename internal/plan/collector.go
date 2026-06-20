@@ -51,10 +51,11 @@ type TerraformPlanJSON struct {
 		Type    string `json:"type"`
 		Name    string `json:"name"`
 		Change  struct {
-			Actions []string    `json:"actions"`
-			Before  interface{} `json:"before"`
-			After   interface{} `json:"after"`
-			Unknown interface{} `json:"after_unknown"`
+			Actions   []string    `json:"actions"`
+			Before    interface{} `json:"before"`
+			After     interface{} `json:"after"`
+			Unknown   interface{} `json:"after_unknown"`
+			Importing interface{} `json:"importing"` // non-nil when resource is being imported
 		} `json:"change"`
 	} `json:"resource_changes"`
 }
