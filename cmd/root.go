@@ -459,6 +459,8 @@ func runForceUnlock(ctx context.Context, historyService *history.Service, absolu
 // collectTransitiveDeps computes the selected stack and all its transitive dependencies
 // using static HCL parsing. Returns the repo root and a slice of relative paths suitable
 // for use as --filter arguments to Terragrunt.
+// When stackPath is a non-leaf directory (no terragrunt.hcl at its root), all leaf stacks
+// within it are discovered via CollectStackPaths and each is resolved transitively.
 func collectTransitiveDeps(stackPath string) (repoRoot string, filterPaths []string) {
 	rootConfigFile := viper.GetString("root_config_file")
 	if rootConfigFile == "" {
@@ -466,8 +468,23 @@ func collectTransitiveDeps(stackPath string) (repoRoot string, filterPaths []str
 	}
 	repoRoot = deps.FindRepoRoot(stackPath, rootConfigFile)
 
+	// Seed the queue: if the path is a leaf stack, start with it alone.
+	// If it is a directory containing multiple stacks, seed with all of them.
+	var seeds []string
+	hclFile := filepath.Join(stackPath, "terragrunt.hcl")
+	if _, err := os.Stat(hclFile); err == nil {
+		seeds = []string{stackPath}
+	} else {
+		leafPaths, err := stack.CollectStackPaths(stackPath)
+		if err != nil || len(leafPaths) == 0 {
+			seeds = []string{stackPath} // fallback
+		} else {
+			seeds = leafPaths
+		}
+	}
+
 	visited := map[string]bool{}
-	queue := []string{stackPath}
+	queue := seeds
 
 	for len(queue) > 0 {
 		current := queue[0]
@@ -483,8 +500,8 @@ func collectTransitiveDeps(stackPath string) (repoRoot string, filterPaths []str
 			filterPaths = append(filterPaths, filepath.ToSlash(rel))
 		}
 
-		hclFile := filepath.Join(current, "terragrunt.hcl")
-		for _, dep := range deps.ParseDependencies(hclFile, repoRoot) {
+		depHCL := filepath.Join(current, "terragrunt.hcl")
+		for _, dep := range deps.ParseDependencies(depHCL, repoRoot) {
 			if !visited[dep] {
 				queue = append(queue, dep)
 			}
