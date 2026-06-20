@@ -87,8 +87,8 @@ func buildTerragruntArgs(absoluteStackPath, command string) []string {
 	args = appendTerraformExtraFlags(args)
 	args = appendCommandTerraformFlags(args, command)
 
-	// If command is "plan", output to a binary file for later analysis.
-	if command == "plan" {
+	// If command is "plan" and plan review is enabled, output to a binary file for later analysis.
+	if command == "plan" && viper.GetBool("plan.review_enabled") {
 		timestamp := viper.GetInt64("terrax.session_timestamp")
 		planFile := fmt.Sprintf("terrax-tfplan-%d.binary", timestamp)
 		args = append(args, fmt.Sprintf("-out=%s", planFile))

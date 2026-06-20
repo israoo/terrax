@@ -72,6 +72,7 @@ func initConfig() {
 	viper.SetDefault("log_format", config.DefaultLogFormat)
 	viper.SetDefault("terragrunt.parallelism", config.DefaultParallelism)
 	viper.SetDefault("terragrunt.no_color", config.DefaultNoColor)
+	viper.SetDefault("plan.review_enabled", config.DefaultPlanReviewEnabled)
 
 	viper.SetConfigName(".terrax")
 	viper.SetConfigType("yaml")
@@ -331,7 +332,7 @@ func runHistoryViewer(ctx context.Context, historyService *history.Service) erro
 				return err
 			}
 
-			if entry.Command == "plan" {
+			if entry.Command == "plan" && viper.GetBool("plan.review_enabled") {
 				return runPlanReview(ctx, absolutePath)
 			}
 

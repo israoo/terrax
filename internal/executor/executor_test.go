@@ -9,11 +9,19 @@ import (
 	"testing"
 	"time"
 
-	"github.com/israoo/terrax/internal/history"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/israoo/terrax/internal/history"
 )
+
+// resetViper resets viper state and restores defaults required by the executor.
+// plan.review_enabled defaults to true so existing plan tests keep -out= in their expected args.
+func resetViper() {
+	viper.Reset()
+	viper.SetDefault("plan.review_enabled", true)
+}
 
 // TestBuildTerragruntArgs tests the buildTerragruntArgs function with different configurations.
 func TestBuildTerragruntArgs(t *testing.T) {
@@ -74,7 +82,7 @@ func TestBuildTerragruntArgs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			viper.Reset()
+			resetViper()
 
 			if tt.logLevel != "" {
 				viper.Set("log_level", tt.logLevel)
@@ -197,7 +205,7 @@ func TestBuildTerragruntArgs_DynamicFlags(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			viper.Reset()
+			resetViper()
 			viper.Set("log_format", "pretty")
 
 			if tt.parallelism > 0 {
@@ -296,7 +304,7 @@ func TestLogExecutionToHistory(t *testing.T) {
 		{
 			name: "successful logging",
 			setupViper: func() {
-				viper.Reset()
+				resetViper()
 				viper.Set("history.max_entries", 100)
 			},
 			logger: &mockHistoryLogger{
@@ -308,7 +316,7 @@ func TestLogExecutionToHistory(t *testing.T) {
 		{
 			name: "with default max entries",
 			setupViper: func() {
-				viper.Reset()
+				resetViper()
 				// Don't set max_entries, should use default
 			},
 			logger: &mockHistoryLogger{
@@ -410,7 +418,7 @@ func TestBuildTerragruntArgs_FeatureFlags(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			viper.Reset()
+			resetViper()
 			viper.Set("log_format", "pretty")
 
 			if tt.tfForwardStdout {
@@ -482,7 +490,7 @@ func TestBuildTerragruntArgs_CommandTerragruntFlags(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			viper.Reset()
+			resetViper()
 			viper.Set("log_format", "pretty")
 
 			for cmd, flags := range tt.commandFlags {
@@ -551,7 +559,7 @@ func TestBuildTerragruntArgs_TerraformFlags(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			viper.Reset()
+			resetViper()
 			viper.Set("log_format", "pretty")
 
 			if len(tt.terraformExtra) > 0 {
@@ -560,6 +568,51 @@ func TestBuildTerragruntArgs_TerraformFlags(t *testing.T) {
 			for cmd, flags := range tt.terraformCommand {
 				viper.Set(fmt.Sprintf("terraform.command_flags.%s", cmd), flags)
 			}
+
+			args := buildTerragruntArgs(tt.stackPath, tt.command)
+
+			assert.Equal(t, tt.expected, args, "Arguments should match expected output.")
+		})
+	}
+}
+
+// TestBuildTerragruntArgs_PlanReviewEnabled tests plan.review_enabled behaviour via buildTerragruntArgs.
+func TestBuildTerragruntArgs_PlanReviewEnabled(t *testing.T) {
+	tests := []struct {
+		name          string
+		stackPath     string
+		command       string
+		reviewEnabled bool
+		expected      []string
+	}{
+		{
+			name:          "review enabled injects -out= for plan",
+			stackPath:     "/path/to/stack",
+			command:       "plan",
+			reviewEnabled: true,
+			expected:      []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--", "plan", "-out=terrax-tfplan-0.binary"},
+		},
+		{
+			name:          "review disabled skips -out= for plan",
+			stackPath:     "/path/to/stack",
+			command:       "plan",
+			reviewEnabled: false,
+			expected:      []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--", "plan"},
+		},
+		{
+			name:          "review disabled does not affect other commands",
+			stackPath:     "/path/to/stack",
+			command:       "apply",
+			reviewEnabled: false,
+			expected:      []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--", "apply"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resetViper()
+			viper.Set("log_format", "pretty")
+			viper.Set("plan.review_enabled", tt.reviewEnabled)
 
 			args := buildTerragruntArgs(tt.stackPath, tt.command)
 

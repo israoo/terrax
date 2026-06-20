@@ -39,6 +39,9 @@ const (
 
 	// DefaultReportFormat is the default format for the Terragrunt report file.
 	DefaultReportFormat = "json"
+
+	// DefaultPlanReviewEnabled controls whether plan file scanning and review TUI are active.
+	DefaultPlanReviewEnabled = true
 )
 
 // DefaultCommands is the default list of Terragrunt commands shown in the TUI.

@@ -124,6 +124,13 @@ features:
     # Default: "json"
     # format: "json"
 
+# Plan configuration
+plan:
+  # Enable or disable plan file scanning and review TUI after running plan.
+  # When disabled, -out= is not injected and plan review is skipped entirely.
+  # Default: true
+  # review_enabled: false
+
 # Extra Terraform flags (added after the -- separator, passed directly to Terraform)
 # terraform:
 #   extra_flags:
