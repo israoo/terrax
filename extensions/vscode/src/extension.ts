@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { DependencyTreeProvider } from './dependencyProvider';
 import { runInTerminal } from './terminalRunner';
 import { TerraXTreeProvider, StackNode } from './treeProvider';
 
@@ -33,14 +34,6 @@ export function activate(context: vscode.ExtensionContext): void {
     },
   );
 
-  const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
-  const treeProvider = new TerraXTreeProvider(workspaceRoot);
-
-  const treeView = vscode.window.createTreeView('terrax.stackTree', {
-    treeDataProvider: treeProvider,
-    showCollapseAll: true,
-  });
-
   const runPlanCommand = vscode.commands.registerCommand(
     'terrax.runPlan',
     (node: StackNode) => {
@@ -50,9 +43,29 @@ export function activate(context: vscode.ExtensionContext): void {
     },
   );
 
-  const refreshCommand = vscode.commands.registerCommand('terrax.refresh', () => {
-    treeProvider.refresh();
+  const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+  const treeProvider = new TerraXTreeProvider(workspaceRoot);
+  const depProvider = new DependencyTreeProvider();
+
+  const treeView = vscode.window.createTreeView('terrax.stackTree', {
+    treeDataProvider: treeProvider,
+    showCollapseAll: true,
   });
+
+  vscode.window.createTreeView('terrax.dependencyTree', {
+    treeDataProvider: depProvider,
+  });
+
+  treeView.onDidChangeSelection((e) => {
+    depProvider.setFocus(e.selection[0] ?? null);
+  });
+
+  const doRefresh = (): void => {
+    treeProvider.refresh();
+    depProvider.setTree(treeProvider.getTree());
+  };
+
+  const refreshCommand = vscode.commands.registerCommand('terrax.refresh', doRefresh);
 
   const expandAllCommand = vscode.commands.registerCommand('terrax.expandAll', async () => {
     for (const node of treeProvider.getAllNodes()) {
@@ -63,12 +76,19 @@ export function activate(context: vscode.ExtensionContext): void {
   const folderChangeListener = vscode.workspace.onDidChangeWorkspaceFolders(() => {
     const newRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
     treeProvider.updateWorkspaceRoot(newRoot);
-    treeProvider.refresh();
+    doRefresh();
   });
 
-  context.subscriptions.push(openHereCommand, runPlanCommand, treeView, refreshCommand, expandAllCommand, folderChangeListener);
+  context.subscriptions.push(
+    openHereCommand,
+    runPlanCommand,
+    treeView,
+    refreshCommand,
+    expandAllCommand,
+    folderChangeListener,
+  );
 
-  treeProvider.refresh();
+  doRefresh();
 }
 
 export function deactivate(): void {}

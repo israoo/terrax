@@ -27,6 +27,10 @@
         {
           "id": "terrax.stackTree",
           "name": "Stacks"
+        },
+        {
+          "id": "terrax.dependencyTree",
+          "name": "Dependencies"
         }
       ]
     },

@@ -7,6 +7,7 @@ export interface StackNode {
   isStack: boolean;
   depth: number;
   children: StackNode[];
+  dependencies?: string[];
 }
 
 const ERROR_NODE: StackNode = {
@@ -123,6 +124,10 @@ export class TerraXTreeProvider implements vscode.TreeDataProvider<StackNode> {
 
   getParent(node: StackNode): StackNode | undefined {
     return this.parentMap.get(node);
+  }
+
+  getTree(): StackNode | null {
+    return this.tree;
   }
 
   getRootChildren(): StackNode[] {
