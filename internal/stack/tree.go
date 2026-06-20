@@ -5,13 +5,13 @@
 // designed to be UI-agnostic and testable without any framework dependencies.
 package stack
 
-// Node represents a directory node in the stack tree
+// Node represents a directory node in the stack tree.
 type Node struct {
-	Name     string
-	Path     string
-	IsStack  bool
-	Children []*Node
-	Depth    int
+	Name     string  `json:"name"`
+	Path     string  `json:"path"`
+	IsStack  bool    `json:"isStack"`
+	Children []*Node `json:"children"`
+	Depth    int     `json:"depth"`
 }
 
 func (n *Node) GetChildren() []*Node {
