@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -375,7 +376,8 @@ func runHistoryViewer(ctx context.Context, historyService *history.Service) erro
 }
 
 // runForceUnlock discovers the state lock ID from S3 and executes force-unlock.
-// It returns nil if no lock is found for the given stack.
+// It scans all Terragrunt stacks under absoluteStackPath (recursively), checks each
+// for an active lock, and unlocks every locked stack. Returns nil if no locks are found.
 func runForceUnlock(ctx context.Context, historyService *history.Service, absoluteStackPath string) error {
 	bucket := viper.GetString("state.bucket")
 	project := viper.GetString("state.project")
@@ -392,23 +394,53 @@ func runForceUnlock(ctx context.Context, historyService *history.Service, absolu
 		rootConfigFile = config.DefaultRootConfigFile
 	}
 
-	stackRelPath, err := history.GetRelativeStackPath(absoluteStackPath, rootConfigFile)
+	stackPaths, err := stack.CollectStackPaths(absoluteStackPath)
 	if err != nil {
-		return fmt.Errorf("failed to determine stack relative path: %w", err)
+		return fmt.Errorf("failed to scan stacks: %w", err)
 	}
 
-	lockID, err := state.GetLockID(ctx, bucket, project, stackRelPath, region, profile, configFile)
-	if err != nil {
-		return fmt.Errorf("failed to get lock ID: %w", err)
+	// Fallback: treat the path itself as a single stack when no terragrunt.hcl is found below it.
+	if len(stackPaths) == 0 {
+		stackPaths = []string{absoluteStackPath}
 	}
 
-	if lockID == "" {
-		fmt.Printf("No lock found for %s\n", stackRelPath)
-		return nil
+	var unlockErrs []string
+	locksFound := 0
+
+	for _, stackPath := range stackPaths {
+		stackRelPath, err := history.GetRelativeStackPath(stackPath, rootConfigFile)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to determine relative path for %s: %v\n", stackPath, err)
+			continue
+		}
+
+		lockID, err := state.GetLockID(ctx, bucket, project, stackRelPath, region, profile, configFile)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to get lock ID for %s: %v\n", stackRelPath, err)
+			continue
+		}
+
+		if lockID == "" {
+			fmt.Printf("No lock found for %s\n", stackRelPath)
+			continue
+		}
+
+		locksFound++
+		fmt.Printf("🔓 Unlocking %s (lock: %s)\n", stackRelPath, lockID)
+		if err := executor.RunForceUnlock(ctx, historyService, lockID, stackPath); err != nil {
+			unlockErrs = append(unlockErrs, fmt.Sprintf("%s: %v", stackRelPath, err))
+		}
 	}
 
-	fmt.Printf("🔓 Unlocking %s (lock: %s)\n", stackRelPath, lockID)
-	return executor.RunForceUnlock(ctx, historyService, lockID, absoluteStackPath)
+	if locksFound == 0 {
+		fmt.Println("No locks found.")
+	}
+
+	if len(unlockErrs) > 0 {
+		return fmt.Errorf("force-unlock failed for %d stack(s): %s", len(unlockErrs), strings.Join(unlockErrs, "; "))
+	}
+
+	return nil
 }
 
 // runPlanSummary reads JSON plan files and prints a terminal count summary per stack from the stack working directory.

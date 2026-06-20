@@ -2,6 +2,7 @@ package stack
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -86,6 +87,37 @@ func buildTreeRecursive(node *Node, maxDepth *int) error {
 	}
 
 	return nil
+}
+
+// CollectStackPaths returns the absolute paths of all stack directories (those containing
+// terragrunt.hcl) found under rootDir, including rootDir itself if it is a stack.
+func CollectStackPaths(rootDir string) ([]string, error) {
+	absRoot, err := filepath.Abs(rootDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve absolute path: %w", err)
+	}
+
+	var paths []string
+	err = filepath.WalkDir(absRoot, func(path string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return nil // Skip unreadable entries.
+		}
+		if !d.IsDir() {
+			return nil
+		}
+		// Skip hidden and known non-stack directories, but always descend into the root itself.
+		if path != absRoot {
+			name := d.Name()
+			if strings.HasPrefix(name, ".") || shouldSkipDirectory(name) {
+				return filepath.SkipDir
+			}
+		}
+		if isStackDirectory(path) {
+			paths = append(paths, path)
+		}
+		return nil
+	})
+	return paths, err
 }
 
 // isStackDirectory checks if a directory contains stack definition files
