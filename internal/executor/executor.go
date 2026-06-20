@@ -205,6 +205,53 @@ func displayExecutionSummary(command, path string, duration time.Duration, exitC
 	fmt.Println()
 }
 
+// RunForceUnlock executes a Terraform force-unlock for a specific stack.
+// Unlike Run, it uses --working-dir without --all and passes the lock ID directly.
+// It logs the operation to history the same way Run does.
+func RunForceUnlock(ctx context.Context, historyLogger HistoryLogger, lockID, absoluteStackPath string) error {
+	nextID, err := historyLogger.GetNextID(ctx)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: Failed to get history ID: %v\n", err)
+		nextID = 0
+	}
+
+	startTime := time.Now()
+
+	args := []string{
+		"run", "--working-dir", absoluteStackPath, "--non-interactive",
+		"--", "force-unlock", "-force", lockID,
+	}
+
+	fmt.Printf("🔓 Executing: terragrunt %v\n\n", args)
+
+	cmd := exec.CommandContext(ctx, "terragrunt", args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+
+	execErr := cmd.Run()
+	exitCode := 0
+	summary := "Force unlock completed successfully."
+
+	if execErr != nil {
+		fmt.Fprintf(os.Stderr, "\n❌ Force unlock failed: %v\n", execErr)
+		if exitErr, ok := execErr.(*exec.ExitError); ok {
+			exitCode = exitErr.ExitCode()
+		} else {
+			exitCode = 1
+		}
+		summary = fmt.Sprintf("Force unlock failed: %v", execErr)
+	} else {
+		fmt.Println("\n✅ Force unlock completed")
+	}
+
+	duration := time.Since(startTime)
+	displayExecutionSummary("force-unlock", absoluteStackPath, duration, exitCode, startTime)
+	logExecutionToHistory(ctx, historyLogger, nextID, startTime, "force-unlock", absoluteStackPath, exitCode, duration, summary)
+
+	return execErr
+}
+
 // logExecutionToHistory handles the details of recording the execution to the history file.
 func logExecutionToHistory(ctx context.Context, logger HistoryLogger, id int, timestamp time.Time, command, absoluteStackPath string, exitCode int, duration time.Duration, summary string) {
 	rootConfigFile := viper.GetString("root_config_file")
