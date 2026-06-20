@@ -1,0 +1,29 @@
+pre-commit:
+  parallel: false
+  commands:
+    trailing-whitespace:
+      glob: "*.{go,yaml,yml,md,toml}"
+      run: sed -i '' 's/[[:space:]]*$//' {staged_files} && git add {staged_files}
+
+    check-merge-conflict:
+      glob: "*.{go,yaml,yml,md}"
+      run: grep -rn "^<<<<<<< \|^=======\|^>>>>>>> " {staged_files} && echo "Merge conflict markers found" && exit 1 || true
+
+    go-fmt:
+      glob: "*.go"
+      run: gofmt -l -w {staged_files} && git add {staged_files}
+
+    go-mod-tidy:
+      run: go mod tidy && git add go.mod go.sum
+
+    go-build:
+      run: go build ./...
+
+    go-vet:
+      run: go vet ./...
+
+    golangci-lint:
+      run: golangci-lint run --timeout=5m ./...
+
+    go-test:
+      run: go test -race -timeout=5m ./...

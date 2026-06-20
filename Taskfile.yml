@@ -1,0 +1,154 @@
+version: '3'
+
+vars:
+  BINARY_NAME: terrax
+  BUILD_DIR: ./build
+  DIST_DIR: ./dist
+  LDFLAGS: '-ldflags "-s -w"'
+  VERSION:
+    sh: git describe --tags --always --dirty 2>/dev/null || echo "dev"
+  BUILD_TIME:
+    sh: date -u '+%Y-%m-%d_%H:%M:%S'
+
+tasks:
+  default:
+    desc: Show available tasks
+    cmds:
+      - task --list
+
+  build:
+    desc: Build binary to ./build/terrax
+    cmds:
+      - 'echo "🔨 Building {{.BINARY_NAME}}..."'
+      - go build {{.LDFLAGS}} -o {{.BUILD_DIR}}/{{.BINARY_NAME}} .
+      - 'echo "✅ Binary built: {{.BUILD_DIR}}/{{.BINARY_NAME}}"'
+
+  build-all:
+    desc: Build for all platforms (darwin/linux/windows × amd64/arm64)
+    cmds:
+      - mkdir -p {{.DIST_DIR}}
+      - GOOS=darwin  GOARCH=amd64 go build {{.LDFLAGS}} -o {{.DIST_DIR}}/{{.BINARY_NAME}}-darwin-amd64 .
+      - GOOS=darwin  GOARCH=arm64 go build {{.LDFLAGS}} -o {{.DIST_DIR}}/{{.BINARY_NAME}}-darwin-arm64 .
+      - GOOS=linux   GOARCH=amd64 go build {{.LDFLAGS}} -o {{.DIST_DIR}}/{{.BINARY_NAME}}-linux-amd64 .
+      - GOOS=linux   GOARCH=arm64 go build {{.LDFLAGS}} -o {{.DIST_DIR}}/{{.BINARY_NAME}}-linux-arm64 .
+      - GOOS=windows GOARCH=amd64 go build {{.LDFLAGS}} -o {{.DIST_DIR}}/{{.BINARY_NAME}}-windows-amd64.exe .
+      - GOOS=windows GOARCH=arm64 go build {{.LDFLAGS}} -o {{.DIST_DIR}}/{{.BINARY_NAME}}-windows-arm64.exe .
+      - 'echo "✅ Binaries built in {{.DIST_DIR}}/"'
+
+  run:
+    desc: Build and run
+    deps: [build]
+    cmds:
+      - 'echo "🚀 Running {{.BUILD_DIR}}/{{.BINARY_NAME}}..."'
+      - "{{.BUILD_DIR}}/{{.BINARY_NAME}}"
+
+  dev:
+    desc: Run with hot reload (air)
+    cmds:
+      - 'echo "🔥 Starting dev mode with air..."'
+      - air
+
+  test:
+    desc: Run tests with -race and coverage
+    cmds:
+      - 'echo "🧪 Running tests..."'
+      - go test -v -race -coverprofile=coverage.out ./...
+      - 'echo "✅ Tests completed"'
+
+  test-coverage:
+    desc: Run tests and show per-file coverage breakdown
+    cmds:
+      - go test -race -coverprofile=coverage.out ./... > /dev/null 2>&1
+      - 'echo ""'
+      - 'echo "📊 Coverage by package and file:"'
+      - 'echo "════════════════════════════════════════════════════════════════"'
+      - go tool cover -func=coverage.out
+
+  fmt:
+    desc: Format code
+    cmds:
+      - 'echo "🎨 Formatting code..."'
+      - go fmt ./...
+      - 'echo "✅ Code formatted"'
+
+  vet:
+    desc: Run go vet
+    cmds:
+      - 'echo "🔍 Running go vet..."'
+      - go vet ./...
+      - 'echo "✅ go vet completed"'
+
+  lint:
+    desc: Run golangci-lint
+    cmds:
+      - 'echo "🔍 Running linter..."'
+      - golangci-lint run ./...
+
+  check:
+    desc: Run all checks (fmt + vet + lint + test)
+    cmds:
+      - task: fmt
+      - task: vet
+      - task: lint
+      - task: test
+      - 'echo "✅ All checks passed"'
+
+  install:
+    desc: Download and tidy dependencies
+    cmds:
+      - 'echo "📦 Installing dependencies..."'
+      - go mod download
+      - go mod tidy
+      - 'echo "✅ Dependencies installed"'
+
+  tidy:
+    desc: Run go mod tidy
+    cmds:
+      - 'echo "🧹 Cleaning dependencies..."'
+      - go mod tidy
+      - 'echo "✅ Dependencies updated"'
+
+  upgrade:
+    desc: Upgrade all dependencies
+    cmds:
+      - 'echo "⬆️  Upgrading dependencies..."'
+      - go get -u ./...
+      - go mod tidy
+      - 'echo "✅ Dependencies upgraded"'
+
+  clean:
+    desc: Remove build artifacts
+    cmds:
+      - 'echo "🧹 Cleaning files..."'
+      - go clean
+      - rm -rf {{.BUILD_DIR}} {{.DIST_DIR}} coverage.out
+      - 'echo "✅ Files cleaned"'
+
+  init:
+    desc: Initialize project (install + build)
+    cmds:
+      - task: install
+      - task: build
+      - 'echo "✅ Project initialized"'
+
+  release:
+    desc: Create release (clean + test + build-all)
+    cmds:
+      - task: clean
+      - task: test
+      - task: build-all
+      - 'echo "🎉 Release completed"'
+      - ls -lh {{.DIST_DIR}}/
+
+  info:
+    desc: Show project information
+    vars:
+      MODULE:
+        sh: go list -m
+    cmds:
+      - 'echo "📋 Project Information"'
+      - 'echo "  Name:    {{.BINARY_NAME}}"'
+      - 'echo "  Version: {{.VERSION}}"'
+      - go version
+      - 'echo "  Module:  {{.MODULE}}"'
+      - 'echo "  Build:   {{.BUILD_TIME}}"'

@@ -1,0 +1,16 @@
+min_version = "2026.4.0"
+
+[tools]
+go = "1.25.5"
+task = "3.50.0"
+"go:github.com/golangci/golangci-lint/v2/cmd/golangci-lint" = "2.12.2"
+"go:github.com/air-verse/air" = "1.65.3"
+goreleaser = "2.16.0"
+lefthook = "2.1.9"
+
+[settings]
+lockfile = true
+experimental = true
+
+[hooks]
+enter = "command -v lefthook >/dev/null && lefthook install -f || echo '⚠️  Tools not installed. Run: mise install'"
