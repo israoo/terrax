@@ -61,13 +61,13 @@ func TestCountChanges(t *testing.T) {
 }
 
 func TestSummarize_DirectoryNotExist(t *testing.T) {
-	count, err := Summarize(context.Background(), "/nonexistent/path/xyz")
+	count, err := Summarize(context.Background(), "/nonexistent/path/xyz", "")
 	require.NoError(t, err)
 	assert.Equal(t, 0, count)
 }
 
 func TestSummarize_EmptyDirectory(t *testing.T) {
-	count, err := Summarize(context.Background(), t.TempDir())
+	count, err := Summarize(context.Background(), t.TempDir(), "")
 	require.NoError(t, err)
 	assert.Equal(t, 0, count)
 }
@@ -80,7 +80,7 @@ func TestSummarize_StackWithChanges(t *testing.T) {
 	planJSON := `{"resource_changes":[{"address":"r","type":"r","name":"r","change":{"actions":["create"],"before":null,"after":{}}}]}`
 	require.NoError(t, os.WriteFile(filepath.Join(stackDir, "plan.json"), []byte(planJSON), 0644))
 
-	count, err := Summarize(context.Background(), dir)
+	count, err := Summarize(context.Background(), dir, "")
 	require.NoError(t, err)
 	assert.Equal(t, 1, count)
 }
@@ -93,7 +93,7 @@ func TestSummarize_StackNoChanges(t *testing.T) {
 	planJSON := `{"resource_changes":[{"address":"r","type":"r","name":"r","change":{"actions":["no-op"],"before":{},"after":{}}}]}`
 	require.NoError(t, os.WriteFile(filepath.Join(stackDir, "plan.json"), []byte(planJSON), 0644))
 
-	count, err := Summarize(context.Background(), dir)
+	count, err := Summarize(context.Background(), dir, "")
 	require.NoError(t, err)
 	assert.Equal(t, 0, count)
 }
@@ -113,7 +113,7 @@ func TestSummarize_MultipleStacksPartialChanges(t *testing.T) {
 		require.NoError(t, os.WriteFile(filepath.Join(d, "plan.json"), []byte(s.content), 0644))
 	}
 
-	count, err := Summarize(context.Background(), dir)
+	count, err := Summarize(context.Background(), dir, "")
 	require.NoError(t, err)
 	assert.Equal(t, 2, count)
 }
@@ -131,7 +131,7 @@ func TestSummarize_InvalidJSON_WarnsAndContinues(t *testing.T) {
 		require.NoError(t, os.WriteFile(filepath.Join(d, "plan.json"), []byte(s.content), 0644))
 	}
 
-	count, err := Summarize(context.Background(), dir)
+	count, err := Summarize(context.Background(), dir, "")
 	require.NoError(t, err)
 	assert.Equal(t, 1, count)
 }

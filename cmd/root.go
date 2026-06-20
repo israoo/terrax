@@ -448,7 +448,14 @@ func runForceUnlock(ctx context.Context, historyService *history.Service, absolu
 // When plan.cleanup_enabled is true, the entire .terrax/ output directory is removed after the summary.
 func runPlanSummary(ctx context.Context, stackPath string) error {
 	dir := filepath.Join(stackPath, config.DefaultJSONOutDir)
-	_, err := plan.Summarize(ctx, dir)
+
+	rootConfigFile := viper.GetString("root_config_file")
+	if rootConfigFile == "" {
+		rootConfigFile = config.DefaultRootConfigFile
+	}
+	projectRoot, _ := history.FindProjectRoot(stackPath, rootConfigFile)
+
+	_, err := plan.Summarize(ctx, dir, projectRoot)
 	if viper.GetBool("plan.cleanup_enabled") {
 		outputDir := filepath.Join(stackPath, config.DefaultOutputDir)
 		if removeErr := os.RemoveAll(outputDir); removeErr != nil {

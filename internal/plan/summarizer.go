@@ -53,9 +53,10 @@ func countChanges(p TerraformPlanJSON) planSummaryStats {
 
 // Summarize scans dir for JSON plan files, prints a count line per stack, and
 // returns the number of stacks with changes.
+// projectRoot is used to display full relative paths instead of basenames.
 // Returns (0, nil) when dir does not exist or contains no JSON files.
 // No external tools required — parses Terraform plan JSON directly.
-func Summarize(_ context.Context, dir string) (int, error) {
+func Summarize(_ context.Context, dir, projectRoot string) (int, error) {
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		return 0, nil
 	}
@@ -81,10 +82,28 @@ func Summarize(_ context.Context, dir string) (int, error) {
 	sort.Strings(jsonFiles)
 	fmt.Printf("🔍 Scanning %d JSON plan(s)...\n\n", len(jsonFiles))
 
+	// stackBase is the working directory Terragrunt used (parent of <dir>/<.terrax>/plans).
+	// dir = <stackBase>/.terrax/plans
+	stackBase := filepath.Dir(filepath.Dir(dir))
+
 	changedCount := 0
 	for _, planFile := range jsonFiles {
 		rel, _ := filepath.Rel(dir, planFile)
-		stackName := filepath.ToSlash(filepath.Dir(rel))
+		unitDir := filepath.ToSlash(filepath.Dir(rel))
+
+		// Construct the full display path relative to the project root.
+		var unitAbsPath string
+		if unitDir == "." {
+			unitAbsPath = stackBase
+		} else {
+			unitAbsPath = filepath.Join(stackBase, filepath.FromSlash(unitDir))
+		}
+		stackName := unitDir // fallback to basename if project root is unknown
+		if projectRoot != "" {
+			if fullRel, err := filepath.Rel(projectRoot, unitAbsPath); err == nil {
+				stackName = filepath.ToSlash(fullRel)
+			}
+		}
 
 		data, err := os.ReadFile(planFile)
 		if err != nil {
