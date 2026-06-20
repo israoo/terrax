@@ -163,7 +163,7 @@ func runTUI(cmd *cobra.Command, args []string) error {
 			return err
 		}
 
-		if command == "plan" {
+		if command == "plan" && viper.GetBool("plan.review_enabled") {
 			return runPlanReview(ctx, stackPath)
 		}
 
@@ -271,7 +271,7 @@ func executeLastCommand(ctx context.Context, historyService *history.Service) er
 		return err
 	}
 
-	if lastEntry.Command == "plan" {
+	if lastEntry.Command == "plan" && viper.GetBool("plan.review_enabled") {
 		return runPlanReview(ctx, absolutePath)
 	}
 
