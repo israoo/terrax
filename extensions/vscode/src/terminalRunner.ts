@@ -40,8 +40,8 @@ export function runInTerminal(binaryPath: string, itemPath: string): void {
   if (existing.exitStatus !== undefined) {
     existing.sendText(command);
   } else {
-    // terrax TUI is running — send Ctrl+C to exit it, then launch with new path.
-    existing.sendText('\x03');
+    // terrax TUI is running — send Escape to exit cleanly, then launch with new path.
+    existing.sendText('\x1b');
     setTimeout(() => existing.sendText(command), 300);
   }
 }
