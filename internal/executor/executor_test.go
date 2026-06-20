@@ -495,3 +495,75 @@ func TestBuildTerragruntArgs_CommandTerragruntFlags(t *testing.T) {
 		})
 	}
 }
+
+// TestBuildTerragruntArgs_TerraformFlags tests Terraform flags (after --) via buildTerragruntArgs.
+func TestBuildTerragruntArgs_TerraformFlags(t *testing.T) {
+	tests := []struct {
+		name             string
+		stackPath        string
+		command          string
+		terraformExtra   []string
+		terraformCommand map[string][]string
+		expected         []string
+	}{
+		{
+			name:           "global terraform flags appended after command",
+			stackPath:      "/path/to/stack",
+			command:        "apply",
+			terraformExtra: []string{"-no-color"},
+			expected:       []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--", "apply", "-no-color"},
+		},
+		{
+			name:      "plan-specific terraform flag appended before binary out flag",
+			stackPath: "/path/to/stack",
+			command:   "plan",
+			terraformCommand: map[string][]string{
+				"plan": {"-detailed-exitcode"},
+			},
+			expected: []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--", "plan", "-detailed-exitcode", "-out=terrax-tfplan-0.binary"},
+		},
+		{
+			name:      "plan command flags not applied to apply",
+			stackPath: "/path/to/stack",
+			command:   "apply",
+			terraformCommand: map[string][]string{
+				"plan": {"-detailed-exitcode"},
+			},
+			expected: []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--", "apply"},
+		},
+		{
+			name:           "global and per-command terraform flags combined for plan",
+			stackPath:      "/path/to/stack",
+			command:        "plan",
+			terraformExtra: []string{"-input=false"},
+			terraformCommand: map[string][]string{
+				"plan": {"-detailed-exitcode"},
+			},
+			expected: []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--", "plan", "-input=false", "-detailed-exitcode", "-out=terrax-tfplan-0.binary"},
+		},
+		{
+			name:      "no terraform flags produces no extra args",
+			stackPath: "/path/to/stack",
+			command:   "apply",
+			expected:  []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--", "apply"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			viper.Reset()
+			viper.Set("log_format", "pretty")
+
+			if len(tt.terraformExtra) > 0 {
+				viper.Set("terraform.extra_flags", tt.terraformExtra)
+			}
+			for cmd, flags := range tt.terraformCommand {
+				viper.Set(fmt.Sprintf("terraform.command_flags.%s", cmd), flags)
+			}
+
+			args := buildTerragruntArgs(tt.stackPath, tt.command)
+
+			assert.Equal(t, tt.expected, args, "Arguments should match expected output.")
+		})
+	}
+}

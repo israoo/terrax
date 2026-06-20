@@ -83,6 +83,9 @@ func buildTerragruntArgs(absoluteStackPath, command string) []string {
 
 	args = append(args, "--", command)
 
+	args = appendTerraformExtraFlags(args)
+	args = appendCommandTerraformFlags(args, command)
+
 	// If command is "plan", output to a binary file for later analysis.
 	if command == "plan" {
 		timestamp := viper.GetInt64("terrax.session_timestamp")
@@ -126,6 +129,18 @@ func appendExtraTerragruntFlags(args []string) []string {
 // terragrunt.command_flags.<command>. Only the flags for the active command are added.
 func appendCommandTerragruntFlags(args []string, command string) []string {
 	return append(args, viper.GetStringSlice(fmt.Sprintf("terragrunt.command_flags.%s", command))...)
+}
+
+// appendTerraformExtraFlags appends global extra Terraform flags from terraform.extra_flags.
+// These flags are passed to Terraform directly, after the -- separator.
+func appendTerraformExtraFlags(args []string) []string {
+	return append(args, viper.GetStringSlice("terraform.extra_flags")...)
+}
+
+// appendCommandTerraformFlags appends per-command Terraform flags from
+// terraform.command_flags.<command>. Only the flags for the active command are added.
+func appendCommandTerraformFlags(args []string, command string) []string {
+	return append(args, viper.GetStringSlice(fmt.Sprintf("terraform.command_flags.%s", command))...)
 }
 
 func appendLoggingFlags(args []string) []string {
