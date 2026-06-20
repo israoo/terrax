@@ -145,8 +145,7 @@ plan:
 
 **Potential Improvements**:
 
-1. **`moved` change type** — Terraform plan JSON represents moved resources as `no-op` with additional context that is non-trivial to detect reliably. Adding `moved` count would require deeper inspection of the plan JSON structure.
-2. **Report-driven summary** — When `features.report.enabled` is true, `report.json` already contains per-unit result data. A future optimization could read from `report.json` instead of per-stack JSON files to avoid scanning `.terrax/plans/`.
+1. **Report-driven summary** — When `features.report.enabled` is true, `report.json` already contains per-unit result data. A future optimization could read from `report.json` instead of per-stack JSON files to avoid scanning `.terrax/plans/`.
 3. **Standalone `cleanup` command** — A dedicated `terrax cleanup` command to remove `.terrax/` regardless of whether summary ran, useful for manual housekeeping.
 4. **`cleanup_enabled` independent of `summary_enabled`** — Currently cleanup only runs inside `runPlanSummary`. A future refactor could run cleanup as a separate post-plan hook, activated independently.
 
