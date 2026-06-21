@@ -56,6 +56,7 @@ func init() {
 	rootCmd.Version = Version
 
 	rootCmd.SilenceUsage = true
+	rootCmd.SilenceErrors = true // main.go handles error printing to avoid duplicates.
 
 	rootCmd.Flags().BoolP("last", "l", false, "Execute the last command from history")
 	rootCmd.Flags().Bool("history", false, "View execution history interactively")
