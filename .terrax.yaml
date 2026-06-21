@@ -145,6 +145,23 @@ plan:
   # Default: false
   # summary_enabled: true
 
+# Stack group classification
+# Stacks matching a group's detect string in their stack.hcl are assigned to that group.
+# Each group runs as a separate terragrunt run, in depends_on order.
+# The default group captures all stacks not matching any other group.
+# Use `terrax groups --json` to see the computed groups for a given directory.
+#
+# stack_groups:
+#   default:
+#     depends_on: []
+#
+#   private_connection:
+#     detect: "require_private_connection = true"
+#     depends_on: [default]
+#     env:
+#       TF_VAR_host: "localhost"
+#       TF_VAR_port: "15432"
+
 # Extra Terraform flags (added after the -- separator, passed directly to Terraform)
 # terraform:
 #   extra_flags:
