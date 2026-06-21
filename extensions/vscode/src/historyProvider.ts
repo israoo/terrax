@@ -90,7 +90,7 @@ export class HistoryTreeProvider implements vscode.TreeDataProvider<HistoryEntry
       vscode.TreeItemCollapsibleState.None,
     );
     item.id = `history-${entry.id}`;
-    item.description = `${formatRelativeTime(entry.timestamp)} · ${formatDuration(entry.duration_s)} · ${entry.exit_code === 0 ? '✓' : '✗'}`;
+    item.description = `${formatRelativeTime(entry.timestamp)} · ${formatDuration(entry.duration_s)}`;
     item.iconPath = entry.exit_code === 0 ? new vscode.ThemeIcon('check') : new vscode.ThemeIcon('error');
     item.contextValue = 'terraxHistoryEntry';
     item.command = {
