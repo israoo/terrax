@@ -142,3 +142,4 @@ Create an ADR for decisions that:
 - [ADR-0015: Static HCL Dependency Graph](0015-static-hcl-dependency-graph.md) - Regex-based static parsing of Terragrunt dependency blocks with callerDir propagation for envcommon include chains
 - [ADR-0016: Cycle Detection and Reverse Dependency Graph](0016-cycle-detection-and-reverse-dependency-graph.md) - DFS-based cycle detection and reverse graph embedded in FindAndBuildTree, surfaced in VS Code Dependents panel
 - [ADR-0017: Filter-Based Execution Strategy](0017-filter-based-execution-strategy.md) - Pre-computed --filter list from static HCL analysis replaces --all --working-dir and --queue-include-external
+- [ADR-0018: Plan Analysis via --json-out-dir](0018-plan-analysis-via-json-out-dir.md) - CollectFromJSONDir replaces binary Collector; --json-out-dir shared by review TUI and terminal summary

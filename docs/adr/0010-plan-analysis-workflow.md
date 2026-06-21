@@ -1,6 +1,6 @@
 # ADR-0010: Plan Analysis Mode via Binary Plan Generation
 
-**Status**: Accepted
+**Status**: Superseded by [ADR-0018: Plan Analysis via --json-out-dir](0018-plan-analysis-via-json-out-dir.md)
 
 **Date**: 2025-12-28
 
