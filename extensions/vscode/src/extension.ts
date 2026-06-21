@@ -53,11 +53,11 @@ export function activate(context: vscode.ExtensionContext): void {
     showCollapseAll: true,
   });
 
-  vscode.window.createTreeView('terrax.dependencyTree', {
+  const depTreeView = vscode.window.createTreeView('terrax.dependencyTree', {
     treeDataProvider: depProvider,
   });
 
-  vscode.window.createTreeView('terrax.dependentsTree', {
+  const dependentsTreeView = vscode.window.createTreeView('terrax.dependentsTree', {
     treeDataProvider: dependentsProvider,
   });
 
@@ -92,6 +92,8 @@ export function activate(context: vscode.ExtensionContext): void {
     openHereCommand,
     runPlanCommand,
     treeView,
+    depTreeView,
+    dependentsTreeView,
     refreshCommand,
     expandAllCommand,
     folderChangeListener,
