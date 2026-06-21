@@ -13,6 +13,8 @@ type Node struct {
 	Children     []*Node  `json:"children"`
 	Depth        int      `json:"depth"`
 	Dependencies []string `json:"dependencies"`
+	Dependents   []string `json:"dependents"`
+	InCycle      bool     `json:"inCycle"`
 }
 
 func (n *Node) GetChildren() []*Node {

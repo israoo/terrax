@@ -44,6 +44,7 @@ func FindAndBuildTree(rootDir, rootConfigFile string) (*Node, int, error) {
 		IsStack:      isStackDirectory(absPath),
 		Children:     make([]*Node, 0),
 		Dependencies: []string{},
+		Dependents:   []string{},
 		Depth:        0,
 	}
 	if root.IsStack {
@@ -56,6 +57,7 @@ func FindAndBuildTree(rootDir, rootConfigFile string) (*Node, int, error) {
 		return nil, 0, fmt.Errorf("failed to build tree: %w", err)
 	}
 
+	AnalyzeGraph(root)
 	return root, maxDepth, nil
 }
 
@@ -83,6 +85,7 @@ func buildTreeRecursive(node *Node, maxDepth *int, repoRoot string) error {
 			IsStack:      isStackDirectory(childPath),
 			Children:     make([]*Node, 0),
 			Dependencies: []string{},
+			Dependents:   []string{},
 			Depth:        node.Depth + 1,
 		}
 
