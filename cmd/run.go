@@ -50,5 +50,17 @@ func runCommand(cmd *cobra.Command, args []string) error {
 	}
 
 	repoRoot, filterPaths := collectTransitiveDeps(workDir)
-	return executor.Run(ctx, historyService, command, workDir, repoRoot, filterPaths)
+	if err := executor.Run(ctx, historyService, command, workDir, repoRoot, filterPaths); err != nil {
+		return err
+	}
+
+	if command == "plan" && viper.GetBool("plan.summary_enabled") {
+		if err := runPlanSummary(ctx, workDir, repoRoot); err != nil {
+			return err
+		}
+	}
+	if command == "plan" && viper.GetBool("plan.review_enabled") {
+		return runPlanReview(ctx, workDir)
+	}
+	return nil
 }
