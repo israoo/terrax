@@ -47,7 +47,7 @@
       },
       {
         "command": "terrax.runPlan",
-        "title": "TerraX: Run Plan",
+        "title": "Run Plan",
         "shortTitle": "Plan",
         "icon": "$(play)"
       },
