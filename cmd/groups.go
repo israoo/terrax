@@ -32,6 +32,7 @@ type groupEntry struct {
 	DependsOn []string          `json:"depends_on"`
 	Filters   []string          `json:"filters"`
 	Env       map[string]string `json:"env"`
+	Skip      bool              `json:"skip"` // When true, this group is excluded from local execution.
 }
 
 func runGroupsCmd(cmd *cobra.Command, args []string) error {
@@ -59,6 +60,7 @@ func runGroupsCmd(cmd *cobra.Command, args []string) error {
 			DependsOn: g.DependsOn,
 			Filters:   g.Paths,
 			Env:       g.EnvVars,
+			Skip:      g.Skip,
 		})
 	}
 

@@ -161,6 +161,12 @@ plan:
 #     env:
 #       TF_VAR_host: "localhost"
 #       TF_VAR_port: "15432"
+#
+#   # Groups with skip: true are excluded from local execution.
+#   # They still appear in `terrax groups --json` so CI can decide what to do with them.
+#   deprecated:
+#     detect: "deprecated = true"
+#     skip: true
 
 # Extra Terraform flags (added after the -- separator, passed directly to Terraform)
 # terraform:
@@ -178,8 +184,3 @@ plan:
 #   aws_profile: "my-profile"             # AWS CLI named profile (optional, uses default chain if omitted)
 #   aws_config_file: "/path/to/.aws/config" # AWS config file path via AWS_CONFIG_FILE (optional)
 #
-# To use force-unlock, add it to the commands list:
-# commands:
-#   - plan
-#   - apply
-#   - force-unlock

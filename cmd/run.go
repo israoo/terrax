@@ -62,6 +62,9 @@ func runCommand(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to build group execution plan: %w", err)
 	}
 	for _, group := range groups {
+		if group.Skip {
+			continue
+		}
 		if err := executor.Run(ctx, historyService, command, workDir, repoRoot, group.Paths, group.EnvVars); err != nil {
 			return err
 		}

@@ -206,6 +206,9 @@ func runTUI(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("failed to build group execution plan: %w", err)
 		}
 		for _, group := range groups {
+			if group.Skip {
+				continue
+			}
 			if err := executor.Run(ctx, historyService, command, stackPath, repoRoot, group.Paths, group.EnvVars); err != nil {
 				return err
 			}
@@ -356,6 +359,9 @@ func executeLastCommand(ctx context.Context, historyService *history.Service) er
 		return fmt.Errorf("failed to build group execution plan: %w", err)
 	}
 	for _, group := range groups {
+		if group.Skip {
+			continue
+		}
 		if err := executor.Run(ctx, historyService, lastEntry.Command, absolutePath, repoRoot, group.Paths, group.EnvVars); err != nil {
 			return err
 		}
@@ -436,6 +442,9 @@ func runHistoryViewer(ctx context.Context, historyService *history.Service) erro
 				return fmt.Errorf("failed to build group execution plan: %w", err)
 			}
 			for _, group := range groups {
+				if group.Skip {
+					continue
+				}
 				if err := executor.Run(ctx, historyService, entry.Command, absolutePath, repoRoot, group.Paths, group.EnvVars); err != nil {
 					return err
 				}
@@ -674,6 +683,7 @@ type StackGroupConfig struct {
 	Detect    string            `mapstructure:"detect"`
 	DependsOn []string          `mapstructure:"depends_on"`
 	Env       map[string]string `mapstructure:"env"`
+	Skip      bool              `mapstructure:"skip"` // When true, this group is excluded from local execution.
 }
 
 // GroupExecution is one resolved group ready for sequential execution.
@@ -682,6 +692,7 @@ type GroupExecution struct {
 	DependsOn []string
 	Paths     []string
 	EnvVars   map[string]string
+	Skip      bool // When true, this group was excluded from execution via skip: true in config.
 }
 
 // loadStackGroups reads the stack_groups section from viper config.
@@ -729,11 +740,12 @@ func buildGroupedExecution(filterPaths []string, repoRoot string) ([]GroupExecut
 		if len(paths) == 0 {
 			continue
 		}
-		deps := groups[name].DependsOn
+		cfg := groups[name]
+		deps := cfg.DependsOn
 		if deps == nil {
 			deps = []string{}
 		}
-		env := groups[name].Env
+		env := cfg.Env
 		if env == nil {
 			env = map[string]string{}
 		}
@@ -742,6 +754,7 @@ func buildGroupedExecution(filterPaths []string, repoRoot string) ([]GroupExecut
 			DependsOn: deps,
 			Paths:     paths,
 			EnvVars:   env,
+			Skip:      cfg.Skip,
 		})
 	}
 	return result, nil
