@@ -69,7 +69,8 @@ func Execute() error {
 	return rootCmd.Execute()
 }
 
-// ensureConfigFromWorkDir reloads .terrax.yaml from the project root containing workDir.
+// ensureConfigFromWorkDir reloads .terrax.yaml from the project root containing workDir,
+// then re-applies any .terrax.local.yaml overrides found alongside it.
 // initConfig reads from os.Getwd() at process start, which may differ from the project
 // root when commands are invoked via the VS Code extension with --dir flags.
 func ensureConfigFromWorkDir(workDir string) {
@@ -84,6 +85,7 @@ func ensureConfigFromWorkDir(workDir string) {
 			fmt.Fprintf(os.Stderr, "Warning: error reading config from %s: %v\n", repoRoot, err)
 		}
 	}
+	mergeLocalConfig([]string{repoRoot})
 }
 
 // initConfig initializes the configuration using Viper.
@@ -113,6 +115,35 @@ func initConfig() {
 			// Config file was found but another error was produced
 			fmt.Fprintf(os.Stderr, "Warning: Error reading config file: %v\n", err)
 		}
+	}
+
+	// Merge .terrax.local.yaml on top of the base config. Local config has priority and
+	// is intended for machine-specific overrides (gitignored). Deep-merge is used so only
+	// the keys present in the local file override their counterparts in the base config.
+	mergeLocalConfig([]string{".", func() string {
+		if home, err := os.UserHomeDir(); err == nil {
+			return home
+		}
+		return ""
+	}()})
+}
+
+// mergeLocalConfig loads .terrax.local.yaml from the first path in searchPaths where it exists
+// and merges its values into the global viper config with override semantics.
+func mergeLocalConfig(searchPaths []string) {
+	local := viper.New()
+	local.SetConfigName(".terrax.local")
+	local.SetConfigType("yaml")
+	for _, p := range searchPaths {
+		if p != "" {
+			local.AddConfigPath(p)
+		}
+	}
+	if err := local.ReadInConfig(); err != nil {
+		return // File not found — silently skip.
+	}
+	if err := viper.MergeConfigMap(local.AllSettings()); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: Error merging local config: %v\n", err)
 	}
 }
 

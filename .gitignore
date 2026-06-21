@@ -37,3 +37,6 @@ extensions/vscode/*.vsix
 
 # TerraX generated plan files
 .terrax/
+
+# Local TerraX config overrides (machine-specific, not committed)
+.terrax.local.yaml

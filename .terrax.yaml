@@ -1,5 +1,9 @@
 # TerraX configuration file
-# Save this file as .terrax.yaml in your project root or home directory
+# Save this file as .terrax.yaml in your project root or home directory.
+#
+# Local overrides: create .terrax.local.yaml alongside this file for machine-specific
+# settings that should not be committed (it is gitignored by default). Keys in
+# .terrax.local.yaml take priority and are deep-merged with this file.
 
 # Name of the root configuration file used to determine the project root directory
 # This file is searched upward from the stack path to calculate relative paths in history
