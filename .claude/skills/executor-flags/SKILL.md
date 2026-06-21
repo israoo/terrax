@@ -8,22 +8,23 @@ description: Use when adding, removing, or changing any Terragrunt or Terraform 
 ## Arg Construction Order (never change this sequence)
 
 ```
-buildTerragruntArgs(stackPath, command) → []string
+buildFilterArgs(repoRoot, command, filterPaths) → []string
 
- 1. ["run", "--all", "--working-dir", stackPath]
+ 1. ["run", "--filter", p1, "--filter", p2, ...]   ← pre-computed by collectTransitiveDeps
  2. appendLoggingFlags()              log_level, log_format, log_custom_format
  3. appendTerragruntFlags()           first-class booleans (non_interactive, no_color, parallelism…)
+                                       NOTE: --queue-include-external is NOT emitted here — use include_dependencies
  4. appendFeatureFlags()              features.* shortcuts (tf_forward_stdout, summary_per_unit, report)
  5. appendExtraTerragruntFlags()      terragrunt.extra_flags  (global, arbitrary slice)
  6. appendCommandTerragruntFlags()    terragrunt.command_flags.<cmd>  (per-command slice)
- 7. "--"
- 8. command
- 9. appendTerraformExtraFlags()       terraform.extra_flags  (global, arbitrary slice)
-10. appendCommandTerraformFlags()     terraform.command_flags.<cmd>  (per-command slice)
-11. -out=terrax-tfplan-<ts>.binary    plan only — always last
+ 7. --json-out-dir=<abs>              plan only, when plan.summary_enabled OR plan.review_enabled
+ 8. "--"
+ 9. command
+10. appendTerraformExtraFlags()       terraform.extra_flags  (global, arbitrary slice)
+11. appendCommandTerraformFlags()     terraform.command_flags.<cmd>  (per-command slice)
 ```
 
-Flags before `--` go to Terragrunt. Flags after `--` go to Terraform directly.
+Flags before `--` go to Terragrunt. Flags after `--` go to Terraform directly. There is no `-out=` binary injection — plan files come from `--json-out-dir`.
 
 ## Three Flag Categories
 
@@ -44,7 +45,7 @@ if viper.GetBool("features.my_feature") {
 
 **Constants:** if the feature needs a default value (e.g. a file path), add it to `internal/config/defaults.go`:
 ```go
-DefaultMyFeatureFile = "./tmp/my-output.json"
+DefaultMyFeatureFile = ".terrax/my-output.json"
 ```
 
 ### Category 2 — First-class Terragrunt flags (`terragrunt.*`)
@@ -78,7 +79,7 @@ No new helper functions needed for these; just document in `.terrax.yaml`.
 
 - [ ] Add `DefaultNewFeatureXxx = "..."` to `internal/config/defaults.go` if it needs a default value.
 - [ ] Add a branch to `appendFeatureFlags()` in `executor.go`.
-- [ ] Add `TestBuildTerragruntArgs_FeatureFlags` test case (see test pattern below).
+- [ ] Add a test case to `TestBuildTerragruntArgs_FeatureFlags`.
 - [ ] Document in `examples/terragrunt/.terrax.yaml` under `features:`.
 
 ### B. New first-class Terragrunt bool flag
@@ -98,37 +99,34 @@ File: `internal/executor/executor_test.go` — package `executor` (no `_test` su
 ```go
 func TestBuildTerragruntArgs_MyFeatureFlags(t *testing.T) {
     tests := []struct {
-        name      string
-        stackPath string
-        command   string
-        myFlag    bool
-        expected  []string
+        name    string
+        command string
+        myFlag  bool
+        expected []string
     }{
         {
-            name:      "my flag enabled",
-            stackPath: "/path/to/stack",
-            command:   "apply",
-            myFlag:    true,
-            expected:  []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--my-flag", "--", "apply"},
+            name:     "my flag enabled",
+            command:  "apply",
+            myFlag:   true,
+            expected: []string{"run", "--filter", "/path/to/stack", "--log-format", "pretty", "--my-flag", "--", "apply"},
         },
         {
-            name:      "my flag disabled produces no extra args",
-            stackPath: "/path/to/stack",
-            command:   "apply",
-            expected:  []string{"run", "--all", "--working-dir", "/path/to/stack", "--log-format", "pretty", "--", "apply"},
+            name:     "my flag disabled produces no extra args",
+            command:  "apply",
+            expected: []string{"run", "--filter", "/path/to/stack", "--log-format", "pretty", "--", "apply"},
         },
     }
 
     for _, tt := range tests {
         t.Run(tt.name, func(t *testing.T) {
-            viper.Reset()                        // mandatory — isolates config state
+            resetViper()                         // mandatory — uses resetViper(), NOT viper.Reset()
             viper.Set("log_format", "pretty")    // mandatory — prevents log_format noise
 
             if tt.myFlag {
                 viper.Set("features.my_flag", true)
             }
 
-            args := buildTerragruntArgs(tt.stackPath, tt.command)
+            args := buildFilterArgs("/repo", tt.command, []string{"/path/to/stack"})
 
             assert.Equal(t, tt.expected, args, "Arguments should match expected output.")
         })
@@ -137,9 +135,9 @@ func TestBuildTerragruntArgs_MyFeatureFlags(t *testing.T) {
 ```
 
 **Rules:**
-- `viper.Reset()` at the start of EVERY test case, not just the function.
-- Always set `log_format` to `"pretty"` after reset — otherwise `appendLoggingFlags` adds nothing and expected slices diverge.
-- Test both the enabled case AND the "no flag when disabled" case.
+- Use `resetViper()` (not bare `viper.Reset()`) — the helper exists in executor_test.go.
+- Always set `log_format` to `"pretty"` after reset.
+- Test function: `buildFilterArgs("/repo", tt.command, []string{tt.stackPath})`.
 - Test function name: `TestBuildTerragruntArgs_<Category>Flags`.
 
 ## Existing Viper Keys (quick reference)
@@ -152,7 +150,6 @@ func TestBuildTerragruntArgs_MyFeatureFlags(t *testing.T) {
 | `terragrunt.parallelism` | `--terragrunt-parallelism <n>` | appendTerragruntFlags |
 | `terragrunt.no_color` | `--terragrunt-no-color` | appendTerragruntFlags |
 | `terragrunt.non_interactive` | `--terragrunt-non-interactive` | appendTerragruntFlags |
-| `terragrunt.queue_include_external` | `--queue-include-external` | appendTerragruntFlags |
 | `terragrunt.ignore_dependency_errors` | `--terragrunt-ignore-dependency-errors` | appendTerragruntFlags |
 | `terragrunt.ignore_external_dependencies` | `--terragrunt-ignore-external-dependencies` | appendTerragruntFlags |
 | `terragrunt.include_external_dependencies` | `--terragrunt-include-external-dependencies` | appendTerragruntFlags |
@@ -163,13 +160,17 @@ func TestBuildTerragruntArgs_MyFeatureFlags(t *testing.T) {
 | `terragrunt.command_flags.<cmd>` | (slice, verbatim) | appendCommandTerragruntFlags |
 | `terraform.extra_flags` | (slice, verbatim, after --) | appendTerraformExtraFlags |
 | `terraform.command_flags.<cmd>` | (slice, verbatim, after --) | appendCommandTerraformFlags |
+| `plan.summary_enabled` + `plan.review_enabled` | `--json-out-dir=<abs-repoRoot>/.terrax/plans` | buildFilterArgs (plan only) |
+
+**Removed keys:** `terragrunt.queue_include_external` — replaced by top-level `include_dependencies` which controls TerraX's dependency BFS, not a Terragrunt flag.
 
 ## Common Mistakes
 
 | Mistake | Fix |
 |---|---|
-| Adding a flag after `--` but it's a Terragrunt flag | Move it before `--` — use `appendCommandTerragruntFlags` or `appendTerragruntFlags`. |
-| Forgetting `viper.Reset()` in test | Every test case must start with it — without it, viper state bleeds between cases. |
+| Using `buildTerragruntArgs` | That function no longer exists. Use `buildFilterArgs(repoRoot, command, filterPaths)`. |
+| Using bare `viper.Reset()` in tests | Use `resetViper()` helper defined in executor_test.go. |
+| Adding `--queue-include-external` | Do not add. Dependency discovery is done by TerraX via `collectTransitiveDeps`. |
+| Adding `-out=` for plan binaries | Do not add. Plan data comes from `--json-out-dir`; binary approach was removed in ADR-0018. |
 | Missing "flag disabled" test case | Always test that the flag is absent when the config key is not set. |
-| Adding logic inline in `buildTerragruntArgs` | Extract to a named helper `appendXxxFlags` — keeps the orchestrator readable. |
 | Hardcoding a default inside the helper | Add the constant to `internal/config/defaults.go` and reference it. |
