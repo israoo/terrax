@@ -7,55 +7,76 @@
 
 ## Goal
 
-Allow users to classify stacks using markers in `stack.hcl`, group them into named execution buckets, and configure per-profile behavior (env var injection, exclusion) and inter-group dependencies. Each group executes as a separate `terragrunt run`, in topological order based on `depends_on`.
+Allow users to classify stacks using markers in `stack.hcl`, group them into named execution buckets, and configure per-group env var injection and inter-group dependencies. TerraX exposes the grouped filter lists as JSON for external consumers (CI pipelines). Locally, TerraX executes all groups in order.
 
 ---
 
 ## Configuration Schema
 
 ```yaml
-# Resolves via: --profile flag > CI env var > this key > "local"
-active_profile: local
-
 stack_groups:
   default:
     # No detect — captures all stacks without another marker.
     depends_on: []
-    profiles:
-      local: {}
-      ci: {}
 
   private_connection:
     detect: "require_private_connection = true"
     depends_on: [default]
-    profiles:
-      local:
-        env:
-          TF_VAR_host: "localhost"
-          TF_VAR_port: "15432"
-      ci:
-        exclude: true   # CI runs these on self-hosted runners; TerraX omits them.
+    env:
+      TF_VAR_host: "localhost"
+      TF_VAR_port: "15432"
 
   deprecated:
     detect: "deprecated = true"
-    profiles:
-      local:
-        exclude: true
-      ci:
-        exclude: true
+    # No env, no depends_on needed — these stacks are simply grouped separately.
+    depends_on: []
 ```
 
 **Group assignment rules:**
 - A stack's `stack.hcl` is scanned for each group's `detect` string (exact grep match).
-- First matching group wins. If multiple groups could match, order is YAML definition order.
+- First matching group wins (YAML definition order).
 - Stacks matching no group go to `default`.
-- If `default` is not defined in config, an implicit `default` group is created with no special behavior for any profile.
+- If `default` is not defined in config, an implicit `default` group is created with no env vars.
 
-**Profile resolution (priority):**
-1. `--profile <name>` CLI flag
-2. `CI=true` environment variable → profile `"ci"`
-3. `active_profile:` in `.terrax.yaml`
-4. Default: `"local"`
+---
+
+## Two Modes of Operation
+
+### Local execution (default)
+
+```
+terrax [--dir <path>]
+```
+
+TerraX computes groups, executes each as a separate `terragrunt run` in topological order, injecting the group's `env` into each run. Simple, no configuration needed beyond `.terrax.yaml`.
+
+### JSON endpoint (for CI orchestration)
+
+```
+terrax groups --json [--dir <path>]
+```
+
+Outputs the groups and their filter lists as JSON. The CI pipeline consumes this to orchestrate execution across runners, decide which groups to run where, etc. TerraX has no knowledge of CI — it just computes and exports the data.
+
+```json
+{
+  "groups": [
+    {
+      "name": "default",
+      "depends_on": [],
+      "filters": ["workloads/dev/acm", "workloads/dev/ecr"],
+      "env": {}
+    },
+    {
+      "name": "private_connection",
+      "depends_on": ["default"],
+      "filters": ["workloads/dev/aurora-database"],
+      "env": {"TF_VAR_host": "localhost", "TF_VAR_port": "15432"}
+    }
+  ],
+  "repo_root": "/Users/isra/Repos/npb/hip-iac-cl-aws-caas"
+}
+```
 
 ---
 
@@ -69,63 +90,75 @@ Pure package, no viper, no UI imports.
 // GroupDetectConfig holds the detection pattern and dependencies for a single group.
 type GroupDetectConfig struct {
     Detect    string   // exact string to grep in stack.hcl; empty = default group
-    DependsOn []string // group names this group must wait for
+    DependsOn []string // group names this group must complete before
+    Env       map[string]string
 }
 
-// DetectGroup returns the name of the first group whose detect pattern is found
-// in <stackPath>/stack.hcl. Returns "default" if no pattern matches or if no
-// group has a non-empty detect string for this stack.
+// DetectGroup returns the name of the first group whose detect pattern matches
+// a string in <stackPath>/stack.hcl. Returns "default" if no pattern matches
+// or stack.hcl does not exist.
 func DetectGroup(stackPath string, groups map[string]GroupDetectConfig) string
 
 // TopologicalSort returns group names in a valid execution order respecting
 // all depends_on relationships. Returns an error if a cycle is detected.
-// Groups with no depends_on appear first; the implicit "default" group is
-// always placed before any group that depends_on it.
 func TopologicalSort(groups map[string]GroupDetectConfig) ([]string, error)
 ```
 
 `DetectGroup` implementation:
-1. Build `<stackPath>/stack.hcl` path.
-2. If file does not exist, return `"default"`.
-3. Read file content. For each group with a non-empty `Detect`, check `strings.Contains(content, detect)`.
-4. Return first match's name, or `"default"` if none match.
+1. Read `<stackPath>/stack.hcl`. If file does not exist, return `"default"`.
+2. For each group with a non-empty `Detect`, check `strings.Contains(content, detect)`.
+3. Return first match's name; or `"default"` if none match.
 
-`TopologicalSort` implementation: Kahn's algorithm (BFS). Nodes = group names. Edges = `depends_on` relationships. Returns error on cycle.
+`TopologicalSort` implementation: Kahn's algorithm (BFS). Returns error on cycle.
 
 ### `internal/stack/markers_test.go` — NEW
 
 Table-driven tests:
-- `DetectGroup`: stack.hcl with matching string, no match, missing file, multiple patterns (first wins).
-- `TopologicalSort`: linear chain, diamond dependency, cycle detection.
+- `DetectGroup`: matching, no match, missing file, multiple groups (first wins).
+- `TopologicalSort`: linear chain, diamond, cycle detection.
 
 ### `internal/config/defaults.go`
 
-Add: `DefaultActiveProfile = "local"`
+No new defaults needed (groups section is empty by default = single implicit default group).
+
+### `cmd/groups.go` — NEW
+
+New subcommand `terrax groups --json [--dir <path>]`:
+
+```go
+// GroupOutput is the JSON structure for terrax groups --json.
+type GroupOutput struct {
+    Groups   []GroupEntry `json:"groups"`
+    RepoRoot string       `json:"repo_root"`
+}
+
+type GroupEntry struct {
+    Name      string            `json:"name"`
+    DependsOn []string          `json:"depends_on"`
+    Filters   []string          `json:"filters"`
+    Env       map[string]string `json:"env"`
+}
+```
+
+Logic:
+1. Resolve `workDir` from `--dir` flag or CWD.
+2. Call `collectTransitiveDeps(workDir)` → `repoRoot, allPaths`.
+3. Load group configs from viper (`loadStackGroups()`).
+4. Assign each path to a group via `markers.DetectGroup`.
+5. Topological sort groups.
+6. Marshal `GroupOutput` to JSON, print to stdout.
 
 ### `cmd/root.go`
 
-**New flag:**
-```go
-rootCmd.Flags().String("profile", "", "Execution profile (local, ci, or custom)")
-```
-
-**New types (local to cmd/root.go):**
+**New types:**
 
 ```go
-// GroupProfileConfig holds per-profile behavior.
-type GroupProfileConfig struct {
-    Exclude bool
-    Env     map[string]string
-}
-
-// StackGroupConfig is the full config for one group.
 type StackGroupConfig struct {
     Detect    string
     DependsOn []string
-    Profiles  map[string]GroupProfileConfig
+    Env       map[string]string
 }
 
-// GroupExecution is one resolved group ready for execution.
 type GroupExecution struct {
     Name    string
     Paths   []string
@@ -133,39 +166,24 @@ type GroupExecution struct {
 }
 ```
 
-**`resolveProfile(profileFlag string) string`:**
-```go
-func resolveProfile(profileFlag string) string {
-    if profileFlag != "" { return profileFlag }
-    if os.Getenv("CI") == "true" { return "ci" }
-    if p := viper.GetString("active_profile"); p != "" { return p }
-    return config.DefaultActiveProfile
-}
-```
-
 **`loadStackGroups() map[string]StackGroupConfig`:**
-Reads `stack_groups` from viper. Ensures an implicit `"default"` entry exists even if not configured.
+Reads `stack_groups` from viper. Ensures implicit `"default"` exists.
 
-**`buildGroupedExecution(filterPaths []string, profile string) ([]GroupExecution, error)`:**
-1. Load group configs via `loadStackGroups()`.
-2. Build detect configs: `map[string]markers.GroupDetectConfig`.
-3. Assign each path to a group via `markers.DetectGroup(path, detectConfigs)`.
-4. Apply profile: for each group, look up `profiles[profile]`.
-   - If `Exclude: true` → drop all paths for this group entirely.
-   - Collect `Env` map.
-5. Remove groups with no paths remaining.
-6. Topological sort remaining groups.
-7. Return `[]GroupExecution` in execution order.
+**`buildGroupedExecution(filterPaths []string) ([]GroupExecution, error)`:**
+1. Load group configs.
+2. Assign each path to a group via `markers.DetectGroup`.
+3. Topological sort.
+4. Return `[]GroupExecution` in execution order.
 
-**Updated dispatch in all 3 execution sites (normal TUI, --last, --history):**
+**Updated dispatch in all 3 execution sites:**
 
 ```go
-// Before execution loop — clear output dir once for all groups.
-if command == "plan" {
+// Clear output dir once before all groups (not per-group).
+if command == "plan" && (viper.GetBool("plan.summary_enabled") || viper.GetBool("plan.review_enabled")) {
     _ = os.RemoveAll(filepath.Join(repoRoot, config.DefaultOutputDir))
 }
 
-groups, err := buildGroupedExecution(filterPaths, resolveProfile(profileFlag))
+groups, err := buildGroupedExecution(filterPaths)
 if err != nil {
     return fmt.Errorf("failed to build group execution plan: %w", err)
 }
@@ -176,24 +194,21 @@ for _, group := range groups {
     }
 }
 
-if command == "plan" && viper.GetBool("plan.summary_enabled") {
-    if err := runPlanSummary(ctx, stackPath, repoRoot); err != nil { ... }
-}
-if command == "plan" && viper.GetBool("plan.review_enabled") {
-    return runPlanReview(ctx, stackPath)
-}
+// Plan summary/review runs once after all groups complete.
+if command == "plan" && viper.GetBool("plan.summary_enabled") { ... }
+if command == "plan" && viper.GetBool("plan.review_enabled") { ... }
 ```
-
-Note: the pre-execution `.terrax/` cleanup moves from `executor.Run` to here so it happens once before all groups, not before each group's run.
 
 ### `internal/executor/executor.go`
 
 **`Run` signature change:**
+
 ```go
 func Run(ctx context.Context, historyLogger HistoryLogger, command, absoluteStackPath, repoRoot string, filterPaths []string, envVars map[string]string) error
 ```
 
-**Env var injection (in `Run`, before `cmd.Run()`):**
+**Env var injection (before `cmd.Run()`):**
+
 ```go
 if len(envVars) > 0 {
     env := os.Environ()
@@ -204,39 +219,27 @@ if len(envVars) > 0 {
 }
 ```
 
-**Remove** the `.terrax/` cleanup from `Run` (moved to `cmd/root.go`).
+**Remove** the `.terrax/` cleanup from `Run` — moved to `cmd/root.go`.
 
 ---
 
 ## Pre-execution Cleanup Change
 
-Currently `executor.Run` clears `.terrax/` before each plan run. With grouped execution, clearing before each group would destroy previous groups' JSON files. **Move cleanup to `cmd/root.go`** — once, before the first group run.
+The `.terrax/` cleanup moves from `executor.Run` to `cmd/root.go`, executed once before the first group run. This ensures JSON files from multiple groups accumulate correctly in `.terrax/plans/` for the combined plan summary/review.
 
 ---
 
-## Testing
+## Files Changed
 
-### `internal/stack/markers_test.go`
-
-```go
-func TestDetectGroup(t *testing.T) — table driven:
-  - stack.hcl contains detect string → returns group name
-  - stack.hcl does not contain detect string → returns "default"
-  - stack.hcl does not exist → returns "default"
-  - multiple groups, first defined one matches → returns that group
-
-func TestTopologicalSort(t *testing.T) — table driven:
-  - single group, no deps → [group]
-  - A → [B] (A depends on B) → [B, A]
-  - cycle A→B→A → error
-  - diamond: C→[A,B], B→[A] → [A, B, C]
-```
-
-### `cmd/root.go` — existing tests
-
-`TestInitConfig` already tests viper loading. Add:
-- `TestResolveProfile` — tests all 4 priority levels.
-- `TestBuildGroupedExecution` — tests group assignment, profile exclusion, topological order.
+| File | Change |
+|---|---|
+| `internal/stack/markers.go` | NEW — `DetectGroup`, `TopologicalSort`, `GroupDetectConfig` |
+| `internal/stack/markers_test.go` | NEW |
+| `cmd/groups.go` | NEW — `terrax groups --json` subcommand |
+| `cmd/root.go` | `buildGroupedExecution`, grouped execution loop, remove cleanup from Run |
+| `internal/executor/executor.go` | `Run` + `envVars` param, remove cleanup |
+| `internal/executor/executor_test.go` | update for new signature |
+| `.terrax.yaml` | document `stack_groups` |
 
 ---
 
@@ -244,19 +247,18 @@ func TestTopologicalSort(t *testing.T) — table driven:
 
 | Case | Behavior |
 |---|---|
-| No `stack_groups` configured | Single implicit `default` group; all stacks execute as before |
-| Group has `exclude: true` for active profile | All paths for that group are silently dropped |
-| Group has paths but all excluded | Group not created in execution list |
-| Cycle in `depends_on` | `buildGroupedExecution` returns error; execution aborted with clear message |
-| Stack matches no detect pattern | Assigned to `default` group |
-| `default` group has `exclude: true` | All unclassified stacks are excluded; only explicitly grouped stacks run |
-| Group referenced in `depends_on` does not exist | Treated as already-complete (skip, no error) |
+| No `stack_groups` configured | Single implicit `default` group; all stacks execute as before — zero behavior change |
+| Group with no matching stacks | Group omitted from execution and JSON output |
+| Cycle in `depends_on` | Error returned; execution aborted with clear message |
+| Stack matches no detect pattern | Assigned to `default` |
+| Group referenced in `depends_on` not defined | Treated as already-complete (no error) |
+| `terrax groups --json` with no groups configured | Returns single `default` group with all stacks |
 
 ---
 
 ## Out of Scope
 
-- Parallel group execution (groups with independent `depends_on` could run concurrently — future enhancement).
-- TUI visual markers per group (future enhancement).
-- Per-group Terragrunt parallelism (`--terragrunt-parallelism`) — future enhancement.
-- `RunForSummary` grouped execution — summary/review reads the combined `.terrax/plans/` output from all groups.
+- Per-group Terragrunt parallelism (`--terragrunt-parallelism`).
+- Parallel group execution (groups without mutual dependencies running concurrently).
+- TUI visual markers per group.
+- `exclude` behavior — CI handles exclusion by simply ignoring groups from the JSON output.
