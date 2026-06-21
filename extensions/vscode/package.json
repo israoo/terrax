@@ -141,6 +141,11 @@
           "group": "terrax@1"
         },
         {
+          "command": "terrax.runFmt",
+          "when": "view == terrax.stackTree && (viewItem == terraxDirectory || viewItem == terraxStack)",
+          "group": "terrax@1"
+        },
+        {
           "command": "terrax.runInit",
           "when": "view == terrax.stackTree && (viewItem == terraxDirectory || viewItem == terraxStack)",
           "group": "terrax@1"
@@ -152,11 +157,6 @@
         },
         {
           "command": "terrax.runRefresh",
-          "when": "view == terrax.stackTree && (viewItem == terraxDirectory || viewItem == terraxStack)",
-          "group": "terrax@1"
-        },
-        {
-          "command": "terrax.runFmt",
           "when": "view == terrax.stackTree && (viewItem == terraxDirectory || viewItem == terraxStack)",
           "group": "terrax@1"
         },
