@@ -147,3 +147,4 @@ Create an ADR for decisions that:
 - [ADR-0019: History Panel and Leaf Stack Auto-Navigation](0019-history-panel-and-leaf-stack-navigation.md) - terrax history JSON subcommand, VS Code History panel, and resolveWorkDir for transparent leaf stack redirection
 - [ADR-0020: Stack Groups and Classified Execution](0020-stack-groups-and-classified-execution.md) - Marker-based stack classification, per-group execution with env vars, topological ordering, and terrax groups --json for CI orchestration
 - [ADR-0021: Local Config Override](0021-local-config-override.md) - .terrax.local.yaml gitignored deep-merge override for machine-specific configuration
+- [ADR-0022: VS Code Context Menu Commands](0022-vscode-context-menu-commands.md) - Static right-click context menu with 8 Terragrunt commands and Open terragrunt.hcl on stack nodes
