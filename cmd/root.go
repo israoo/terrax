@@ -532,9 +532,17 @@ func runPlanReview(ctx context.Context, stackPath string) error {
 	}
 	jsonDir := filepath.Join(repoRoot, config.DefaultJSONOutDir)
 
+	if _, err := os.Stat(jsonDir); os.IsNotExist(err) {
+		return fmt.Errorf("no plan results found — run a plan first (terrax with plan.review_enabled: true)")
+	}
+
 	report, err := plan.CollectFromJSONDir(ctx, jsonDir, stackPath)
 	if err != nil {
 		return fmt.Errorf("plan collection failed: %w", err)
+	}
+
+	if report.Summary.TotalStacks == 0 {
+		return fmt.Errorf("no plan results found — run a plan first (terrax with plan.review_enabled: true)")
 	}
 
 	if report.Summary.StacksWithChanges == 0 {
