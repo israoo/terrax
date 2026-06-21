@@ -28,8 +28,9 @@ task check          # fmt + vet + lint + test (full CI check)
 task test-coverage  # Run tests and display per-file coverage
 task clean          # Remove build artifacts
 
-terrax --last       # Re-execute last command from history
-terrax --history    # Open interactive history viewer
+task ext:install    # Install VS Code extension dependencies (pnpm)
+task ext:build      # Compile extension TypeScript
+task ext:package    # Package extension as .vsix
 ```
 
 **Before committing:** `task check`
@@ -41,10 +42,15 @@ Strict Separation of Concerns — business logic, UI state, and rendering never 
 ```
 terrax/
 ├── cmd/
-│   └── root.go              # CLI orchestration only (Cobra/Viper)
+│   ├── root.go              # CLI orchestration only (Cobra/Viper)
+│   ├── tree.go              # terrax tree --json subcommand
+│   ├── run.go               # terrax run <command> --dir subcommand
+│   └── history.go           # terrax history --dir subcommand
 ├── internal/
 │   ├── config/
 │   │   └── defaults.go      # Configuration defaults (commands, limits)
+│   ├── deps/
+│   │   └── parser.go        # Static HCL dependency parser (stdlib only)
 │   ├── executor/
 │   │   └── executor.go      # Builds and runs Terragrunt CLI commands
 │   ├── history/
@@ -54,7 +60,9 @@ terrax/
 │   │   ├── models.go        # PlanReport, StackResult, ChangeType types
 │   │   └── tree.go          # Builds display tree from plan results
 │   ├── stack/
-│   │   ├── tree.go          # Filesystem scanning, tree construction
+│   │   ├── tree.go          # Node struct with Dependencies/Dependents/InCycle fields
+│   │   ├── builder.go       # Filesystem scanning, FindAndBuildTree
+│   │   ├── graph.go         # AnalyzeGraph: cycle detection + reverse dependency graph
 │   │   └── navigator.go     # Navigation logic — ZERO Bubble Tea dependencies
 │   └── tui/
 │       ├── model.go         # UI state only; delegates navigation to Navigator
@@ -66,11 +74,20 @@ terrax/
 │       ├── view_navigation.go # Renders StateNavigation mode (sliding window)
 │       ├── view_plan.go     # Renders StatePlanReview mode
 │       └── styles.go        # Lipgloss styles, colors, UI dimensions
+├── extensions/
+│   └── vscode/              # VS Code companion extension (TypeScript/pnpm)
+│       └── src/
+│           ├── extension.ts         # Activation, command registration
+│           ├── treeProvider.ts      # StackNode interface + Stacks panel
+│           ├── dependencyProvider.ts # Dependencies + Dependents panels
+│           ├── historyProvider.ts   # History panel
+│           └── terminalRunner.ts    # Terminal reuse + q+Ctrl+U pattern
 └── main.go
 ```
 
 ### Layer Rules (MANDATORY)
 
+- **`internal/deps/`** — stdlib only; no viper, cobra, or UI imports
 - **`internal/stack/`** — pure business logic, no UI imports
 - **`internal/tui/model.go`** — UI state only (focus, offsets, dimensions); delegates to Navigator
 - **`internal/tui/view.go`** — pure rendering, never modifies state
@@ -141,6 +158,22 @@ history:
   max_entries: 500
 root_config_file: "root.hcl"
 ```
+
+### CLI as Local API
+
+`terrax tree --json`, `terrax history`, and `terrax run` form a JSON API consumed by the VS Code extension via `spawnSync`. All business logic lives in Go; the extension is a thin client. When adding features visible in VS Code, prefer a new Go subcommand over TypeScript logic.
+
+### stack.Node JSON fields
+
+`Node` (`internal/stack/tree.go`) outputs: `name`, `path`, `isStack`, `children`, `depth`, `dependencies` (direct dep absolute paths), `dependents` (reverse deps), `inCycle` (bool). `AnalyzeGraph` in `graph.go` populates `dependents` and `inCycle` after `FindAndBuildTree`.
+
+### Leaf stack auto-navigation
+
+`resolveWorkDir` in `cmd/root.go` redirects `--dir` to the parent when the target is a leaf stack (has `terragrunt.hcl` but no sub-stacks). Applied in `runTUI` only — `terrax run` targets the exact path given.
+
+### VS Code extension pattern
+
+Extension lives in `extensions/vscode/`. All calls use `spawnSync` with 10s timeout. Terminal reuse uses `q` (bare, no `\r`) + 300ms + `Ctrl+U` to close a live TUI and clear the readline buffer before sending the next command. Build/test cycle: `task ext:build` then `task ext:package` then `code --install-extension extensions/vscode/terrax-vscode-0.1.0.vsix`.
 
 ## Common Task Guides
 

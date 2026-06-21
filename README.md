@@ -247,11 +247,17 @@ terrax --history
 # Re-execute the last command from history
 terrax --last       # or -l
 
+# Execute a command directly without opening the TUI
+terrax run plan --dir ./path/to/stack
+
+# Output stack tree with dependency graph as JSON (used by VS Code extension)
+terrax tree --json --dir .
+
+# Output execution history as JSON (used by VS Code extension)
+terrax history --dir .
+
 # Display version information
 terrax --version
-
-# Show help
-terrax --help
 ```
 
 ### Try with examples
@@ -359,6 +365,39 @@ terrax --last  # or -l
 ```
 
 This executes the last command from your project's history without opening the TUI.
+
+---
+
+## 🧩 VS Code Extension
+
+TerraX includes a companion VS Code extension that exposes the CLI as a visual interface directly in your editor.
+
+### Install
+
+```bash
+# Build and install the extension
+task ext:package
+code --install-extension extensions/vscode/terrax-vscode-0.1.0.vsix
+```
+
+### Configure
+
+Set the binary path in VS Code settings (`terrax.binaryPath`) if `terrax` is not on your PATH:
+
+```json
+{ "terrax.binaryPath": "/usr/local/bin/terrax" }
+```
+
+### Panels
+
+| Panel | Description |
+|---|---|
+| **Stacks** | Directory hierarchy — click to open TUI, `$(play)` button to run plan directly |
+| **Dependencies** | What the selected stack depends on (transitive) |
+| **Dependents** | What depends on the selected stack (impact analysis) |
+| **History** | Recent executions — click to open TUI, `$(run)` button to re-execute |
+
+Stacks in a dependency cycle are shown with a `$(warning)` icon.
 
 ---
 
