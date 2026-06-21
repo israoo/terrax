@@ -58,9 +58,6 @@ const (
 
 	// DefaultPlanSummaryEnabled controls whether the terminal plan summary is shown after plan execution.
 	DefaultPlanSummaryEnabled = false
-
-	// DefaultPlanCleanupEnabled controls whether generated plan files are deleted after summary.
-	DefaultPlanCleanupEnabled = false
 )
 
 // DefaultCommands is the default list of Terragrunt commands shown in the TUI.

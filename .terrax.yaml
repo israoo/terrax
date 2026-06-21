@@ -145,10 +145,6 @@ plan:
   # Default: false
   # summary_enabled: true
 
-  # Delete generated plan files (.terrax/plans/) after summary completes.
-  # Default: false
-  # cleanup_enabled: true
-
 # Extra Terraform flags (added after the -- separator, passed directly to Terraform)
 # terraform:
 #   extra_flags:

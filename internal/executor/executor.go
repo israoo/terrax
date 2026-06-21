@@ -38,6 +38,12 @@ func Run(ctx context.Context, historyLogger HistoryLogger, command, absoluteStac
 
 	startTime := time.Now()
 
+	// Clear the output directory before plan execution so each run starts with a clean slate.
+	// This ensures the TUI and summary always reflect only the current run's results.
+	if command == "plan" && (viper.GetBool("plan.summary_enabled") || viper.GetBool("plan.review_enabled")) {
+		_ = os.RemoveAll(filepath.Join(repoRoot, config.DefaultOutputDir))
+	}
+
 	args := buildFilterArgs(repoRoot, command, filterPaths)
 
 	fmt.Printf("🚀 Executing: terragrunt %v\n\n", args)

@@ -78,7 +78,6 @@ func initConfig() {
 	viper.SetDefault("terragrunt.no_color", config.DefaultNoColor)
 	viper.SetDefault("plan.review_enabled", config.DefaultPlanReviewEnabled)
 	viper.SetDefault("plan.summary_enabled", config.DefaultPlanSummaryEnabled)
-	viper.SetDefault("plan.cleanup_enabled", config.DefaultPlanCleanupEnabled)
 	viper.SetDefault("include_dependencies", config.DefaultIncludeDependencies)
 
 	viper.SetConfigName(".terrax")
@@ -502,17 +501,9 @@ func collectTransitiveDeps(stackPath string) (repoRoot string, filterPaths []str
 }
 
 // runPlanSummary reads JSON plan files from repoRoot/.terrax/plans and prints a terminal count summary.
-// When plan.cleanup_enabled is true, the entire .terrax/ output directory is removed after the summary.
 func runPlanSummary(ctx context.Context, stackPath, repoRoot string) error {
 	dir := filepath.Join(repoRoot, config.DefaultJSONOutDir)
-
 	_, err := plan.Summarize(ctx, dir, repoRoot)
-	if viper.GetBool("plan.cleanup_enabled") {
-		outputDir := filepath.Join(repoRoot, config.DefaultOutputDir)
-		if removeErr := os.RemoveAll(outputDir); removeErr != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to clean up plan files: %v\n", removeErr)
-		}
-	}
 	return err
 }
 
