@@ -589,7 +589,10 @@ func runPlanReview(ctx context.Context, stackPath string) error {
 	}
 
 	if report.Summary.StacksWithChanges == 0 {
-		fmt.Println("✅ No changes found in any stack.")
+		// Only print if summary mode is not active — summary already reported this.
+		if !viper.GetBool("plan.summary_enabled") {
+			fmt.Println("✅ No changes found in any stack.")
+		}
 		return nil
 	}
 
