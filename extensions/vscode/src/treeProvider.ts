@@ -8,6 +8,8 @@ export interface StackNode {
   depth: number;
   children: StackNode[];
   dependencies?: string[];
+  dependents?: string[];
+  inCycle?: boolean;
 }
 
 const ERROR_NODE: StackNode = {
@@ -107,7 +109,9 @@ export class TerraXTreeProvider implements vscode.TreeDataProvider<StackNode> {
     }
     if (node.isStack) {
       item.contextValue = 'terraxStack';
-      item.iconPath = new vscode.ThemeIcon('package');
+      item.iconPath = node.inCycle
+        ? new vscode.ThemeIcon('warning')
+        : new vscode.ThemeIcon('package');
     }
     return item;
   }

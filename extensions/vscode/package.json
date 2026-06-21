@@ -24,14 +24,9 @@
     },
     "views": {
       "terrax": [
-        {
-          "id": "terrax.stackTree",
-          "name": "Stacks"
-        },
-        {
-          "id": "terrax.dependencyTree",
-          "name": "Dependencies"
-        }
+        { "id": "terrax.stackTree",      "name": "Stacks" },
+        { "id": "terrax.dependencyTree", "name": "Dependencies" },
+        { "id": "terrax.dependentsTree", "name": "Dependents" }
       ]
     },
     "commands": [

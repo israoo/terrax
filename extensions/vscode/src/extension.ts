@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { DependencyTreeProvider } from './dependencyProvider';
+import { DependencyTreeProvider, DependentsTreeProvider } from './dependencyProvider';
 import { runInTerminal } from './terminalRunner';
 import { TerraXTreeProvider, StackNode } from './treeProvider';
 
@@ -46,6 +46,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
   const treeProvider = new TerraXTreeProvider(workspaceRoot);
   const depProvider = new DependencyTreeProvider();
+  const dependentsProvider = new DependentsTreeProvider();
 
   const treeView = vscode.window.createTreeView('terrax.stackTree', {
     treeDataProvider: treeProvider,
@@ -56,13 +57,21 @@ export function activate(context: vscode.ExtensionContext): void {
     treeDataProvider: depProvider,
   });
 
+  vscode.window.createTreeView('terrax.dependentsTree', {
+    treeDataProvider: dependentsProvider,
+  });
+
   treeView.onDidChangeSelection((e) => {
-    depProvider.setFocus(e.selection[0] ?? null);
+    const node = e.selection[0] ?? null;
+    depProvider.setFocus(node);
+    dependentsProvider.setFocus(node);
   });
 
   const doRefresh = (): void => {
     treeProvider.refresh();
-    depProvider.setTree(treeProvider.getTree());
+    const tree = treeProvider.getTree();
+    depProvider.setTree(tree);
+    dependentsProvider.setTree(tree);
   };
 
   const refreshCommand = vscode.commands.registerCommand('terrax.refresh', doRefresh);
