@@ -60,7 +60,7 @@ func init() {
 
 	rootCmd.Flags().BoolP("last", "l", false, "Execute the last command from history")
 	rootCmd.Flags().Bool("history", false, "View execution history interactively")
-	rootCmd.Flags().Bool("review", false, "Open the plan review TUI from the last plan execution without re-running")
+	rootCmd.Flags().BoolP("review", "r", false, "Open the plan review TUI from the last plan execution without re-running")
 	rootCmd.Flags().String("dir", "", "Working directory (overrides current directory)")
 }
 
