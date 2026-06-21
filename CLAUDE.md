@@ -31,8 +31,6 @@ task clean          # Remove build artifacts
 task ext:install    # Install VS Code extension dependencies (pnpm)
 task ext:build      # Compile extension TypeScript
 task ext:package    # Package extension as .vsix
-
-terrax --review     # Reopen plan review TUI from last execution (reads .terrax/plans/)
 ```
 
 **Before committing:** `task check`
