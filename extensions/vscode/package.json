@@ -26,7 +26,8 @@
       "terrax": [
         { "id": "terrax.stackTree",      "name": "Stacks" },
         { "id": "terrax.dependencyTree", "name": "Dependencies" },
-        { "id": "terrax.dependentsTree", "name": "Dependents" }
+        { "id": "terrax.dependentsTree", "name": "Dependents" },
+        { "id": "terrax.historyTree",    "name": "History" }
       ]
     },
     "commands": [
@@ -49,6 +50,16 @@
         "title": "TerraX: Run Plan",
         "shortTitle": "Plan",
         "icon": "$(play)"
+      },
+      {
+        "command": "terrax.refreshHistory",
+        "title": "TerraX: Refresh History",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "terrax.reRunHistory",
+        "title": "Re-run",
+        "icon": "$(run)"
       }
     ],
     "menus": {
@@ -68,6 +79,11 @@
           "command": "terrax.runPlan",
           "when": "view == terrax.stackTree && viewItem == terraxStack",
           "group": "inline"
+        },
+        {
+          "command": "terrax.reRunHistory",
+          "when": "view == terrax.historyTree && viewItem == terraxHistoryEntry",
+          "group": "inline"
         }
       ],
       "view/title": [
@@ -80,6 +96,11 @@
           "command": "terrax.refresh",
           "when": "view == terrax.stackTree",
           "group": "navigation@2"
+        },
+        {
+          "command": "terrax.refreshHistory",
+          "when": "view == terrax.historyTree",
+          "group": "navigation"
         }
       ]
     },

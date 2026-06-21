@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { DependencyTreeProvider, DependentsTreeProvider } from './dependencyProvider';
+import { HistoryTreeProvider, HistoryEntry } from './historyProvider';
 import { runInTerminal } from './terminalRunner';
 import { TerraXTreeProvider, StackNode } from './treeProvider';
 
@@ -61,6 +62,11 @@ export function activate(context: vscode.ExtensionContext): void {
     treeDataProvider: dependentsProvider,
   });
 
+  const historyProvider = new HistoryTreeProvider(workspaceRoot);
+  const historyTreeView = vscode.window.createTreeView('terrax.historyTree', {
+    treeDataProvider: historyProvider,
+  });
+
   treeView.onDidChangeSelection((e) => {
     const node = e.selection[0] ?? null;
     depProvider.setFocus(node);
@@ -72,6 +78,7 @@ export function activate(context: vscode.ExtensionContext): void {
     const tree = treeProvider.getTree();
     depProvider.setTree(tree);
     dependentsProvider.setTree(tree);
+    historyProvider.refresh();
   };
 
   const refreshCommand = vscode.commands.registerCommand('terrax.refresh', doRefresh);
@@ -82,9 +89,24 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   });
 
+  const refreshHistoryCommand = vscode.commands.registerCommand(
+    'terrax.refreshHistory',
+    () => historyProvider.refresh(),
+  );
+
+  const reRunHistoryCommand = vscode.commands.registerCommand(
+    'terrax.reRunHistory',
+    (entry: HistoryEntry) => {
+      const config = vscode.workspace.getConfiguration('terrax');
+      const binaryPath = config.get<string>('binaryPath', 'terrax');
+      runInTerminal(binaryPath, entry.absolute_path, entry.command);
+    },
+  );
+
   const folderChangeListener = vscode.workspace.onDidChangeWorkspaceFolders(() => {
     const newRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
     treeProvider.updateWorkspaceRoot(newRoot);
+    historyProvider.updateWorkspaceRoot(newRoot);
     doRefresh();
   });
 
@@ -94,8 +116,11 @@ export function activate(context: vscode.ExtensionContext): void {
     treeView,
     depTreeView,
     dependentsTreeView,
+    historyTreeView,
     refreshCommand,
     expandAllCommand,
+    refreshHistoryCommand,
+    reRunHistoryCommand,
     folderChangeListener,
   );
 
