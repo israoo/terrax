@@ -143,3 +143,5 @@ Create an ADR for decisions that:
 - [ADR-0016: Cycle Detection and Reverse Dependency Graph](0016-cycle-detection-and-reverse-dependency-graph.md) - DFS-based cycle detection and reverse graph embedded in FindAndBuildTree, surfaced in VS Code Dependents panel
 - [ADR-0017: Filter-Based Execution Strategy](0017-filter-based-execution-strategy.md) - Pre-computed --filter list from static HCL analysis replaces --all --working-dir and --queue-include-external
 - [ADR-0018: Plan Analysis via --json-out-dir](0018-plan-analysis-via-json-out-dir.md) - CollectFromJSONDir replaces binary Collector; --json-out-dir shared by review TUI and terminal summary
+
+- [ADR-0019: History Panel and Leaf Stack Auto-Navigation](0019-history-panel-and-leaf-stack-navigation.md) - terrax history JSON subcommand, VS Code History panel, and resolveWorkDir for transparent leaf stack redirection
