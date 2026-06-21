@@ -5,9 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 
+	"github.com/israoo/terrax/internal/config"
+	"github.com/israoo/terrax/internal/deps"
 	"github.com/israoo/terrax/internal/history"
 )
 
@@ -42,21 +46,35 @@ func runHistoryCmd(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to load history: %w", err)
 	}
 
+	rootConfigFile := viper.GetString("root_config_file")
+	if rootConfigFile == "" {
+		rootConfigFile = config.DefaultRootConfigFile
+	}
+
+	repoRoot := deps.FindRepoRoot(workDir, rootConfigFile)
+	if _, err := os.Stat(filepath.Join(repoRoot, rootConfigFile)); err != nil {
+		// Not inside a TerraX project — return empty array.
+		if _, err := fmt.Fprintln(os.Stdout, "[]"); err != nil {
+			return fmt.Errorf("failed to write output: %w", err)
+		}
+		return nil
+	}
+
 	// FilterByCurrentProject detects the project root from os.Getwd().
 	// Change to workDir first so detection uses the --dir argument.
+	originalDir, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get current directory: %w", err)
+	}
+	defer func() { _ = os.Chdir(originalDir) }()
+
 	if err := os.Chdir(workDir); err != nil {
 		return fmt.Errorf("failed to change directory: %w", err)
 	}
 
 	filtered, err := historyService.FilterByCurrentProject(entries)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: failed to filter history: %v\n", err)
-		filtered = entries
-	}
-
-	// Reverse to most-recent-first order.
-	for i, j := 0, len(filtered)-1; i < j; i, j = i+1, j-1 {
-		filtered[i], filtered[j] = filtered[j], filtered[i]
+		return fmt.Errorf("failed to filter history: %w", err)
 	}
 
 	// Ensure empty slice marshals as [] not null.
