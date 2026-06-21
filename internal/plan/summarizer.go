@@ -80,25 +80,30 @@ func Summarize(_ context.Context, dir, projectRoot string) (int, error) {
 	}
 
 	sort.Strings(jsonFiles)
-	fmt.Printf("🔍 Scanning %d JSON plan(s)...\n\n", len(jsonFiles))
+	fmt.Printf("🔍 Scanning %d JSON plan(s)...\n", len(jsonFiles))
 
 	// stackBase is the working directory Terragrunt used (parent of <dir>/<.terrax>/plans).
-	// dir = <stackBase>/.terrax/plans
 	stackBase := filepath.Dir(filepath.Dir(dir))
 
-	changedCount := 0
+	type stackEntry struct {
+		name  string
+		stats planSummaryStats
+	}
+
+	var withChanges []stackEntry
+	var noChanges []string
+
 	for _, planFile := range jsonFiles {
 		rel, _ := filepath.Rel(dir, planFile)
 		unitDir := filepath.ToSlash(filepath.Dir(rel))
 
-		// Construct the full display path relative to the project root.
 		var unitAbsPath string
 		if unitDir == "." {
 			unitAbsPath = stackBase
 		} else {
 			unitAbsPath = filepath.Join(stackBase, filepath.FromSlash(unitDir))
 		}
-		stackName := unitDir // fallback to basename if project root is unknown
+		stackName := unitDir
 		if projectRoot != "" {
 			if fullRel, err := filepath.Rel(projectRoot, unitAbsPath); err == nil {
 				stackName = filepath.ToSlash(fullRel)
@@ -118,14 +123,31 @@ func Summarize(_ context.Context, dir, projectRoot string) (int, error) {
 		}
 
 		stats := countChanges(planJSON)
-		fmt.Printf("  %s: +%d ~%d -%d ♻%d\n", stackName, stats.Add, stats.Update, stats.Delete, stats.Recreate)
-
 		if stats.total() > 0 {
-			changedCount++
+			withChanges = append(withChanges, stackEntry{name: stackName, stats: stats})
+		} else {
+			noChanges = append(noChanges, stackName)
+		}
+	}
+
+	// Print no-changes group.
+	if len(noChanges) > 0 {
+		fmt.Printf("\n✅ No changes (%d):\n", len(noChanges))
+		for _, name := range noChanges {
+			fmt.Printf("  %s\n", name)
+		}
+	}
+
+	// Print pending-changes group.
+	if len(withChanges) > 0 {
+		fmt.Printf("\n⚠️  Pending changes (%d):\n", len(withChanges))
+		for _, e := range withChanges {
+			fmt.Printf("  %s: +%d ~%d -%d ♻%d\n", e.name, e.stats.Add, e.stats.Update, e.stats.Delete, e.stats.Recreate)
 		}
 	}
 
 	fmt.Println()
+	changedCount := len(withChanges)
 	if changedCount > 0 {
 		fmt.Printf("%d stack(s) with pending changes\n", changedCount)
 	} else {
