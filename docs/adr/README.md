@@ -141,3 +141,4 @@ Create an ADR for decisions that:
 - [ADR-0014: Plan Summary Mode](0014-plan-summary-mode.md) - Native Go JSON parsing for terminal plan summary with .terrax/ output directory
 - [ADR-0015: Static HCL Dependency Graph](0015-static-hcl-dependency-graph.md) - Regex-based static parsing of Terragrunt dependency blocks with callerDir propagation for envcommon include chains
 - [ADR-0016: Cycle Detection and Reverse Dependency Graph](0016-cycle-detection-and-reverse-dependency-graph.md) - DFS-based cycle detection and reverse graph embedded in FindAndBuildTree, surfaced in VS Code Dependents panel
+- [ADR-0017: Filter-Based Execution Strategy](0017-filter-based-execution-strategy.md) - Pre-computed --filter list from static HCL analysis replaces --all --working-dir and --queue-include-external
