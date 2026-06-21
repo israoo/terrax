@@ -61,7 +61,19 @@ Complete audit trail of all command executions with persistent history. View, se
 
 ### ✔︎ Quick command re-execution
 
-Re-run the last executed command instantly with `--last` flag, or browse full history interactively with `--history` to select and re-execute any previous command.
+Re-run the last executed command instantly with `--last` flag, browse full history interactively with `--history`, or reopen the plan review TUI without re-running with `--review`.
+
+### ✔︎ Plan summary and interactive review
+
+After running `plan`, TerraX can show a grouped terminal summary (no-changes vs pending-changes) and/or launch an interactive review TUI with resource-level diffs. Enable via `plan.summary_enabled` and `plan.review_enabled` in `.terrax.yaml`.
+
+### ✔︎ Smart dependency resolution
+
+TerraX pre-computes the exact set of stacks to run using static HCL analysis — no subprocess required. Transitive dependencies are discovered and passed as explicit `--filter` targets. Control with `include_dependencies: true/false`.
+
+### ✔︎ Force unlock
+
+Select `force-unlock` from the TUI to automatically discover and release a locked Terraform state. TerraX reads the lock ID from S3 via the AWS CLI — no manual copy-paste. Configure `state.bucket` and `state.project` in `.terrax.yaml`.
 
 ### ✔︎ Keyboard-first design
 
@@ -196,19 +208,33 @@ commands:
   - refresh
   - fmt
 
-# Maximum number of navigation columns visible simultaneously
-# Increase for deeper hierarchies or larger terminals
 max_navigation_columns: 3
+root_config_file: "root.hcl"
+
+# Whether to include transitive dependencies when computing the execution scope
+include_dependencies: true
 
 # History configuration
 history:
-  # Maximum number of history entries to retain
   max_entries: 1000
 
-# Project root detection
-# This file is used to identify the root of your project
-# for proper history filtering and relative path calculation
-root_config_file: "root.hcl"
+# Plan analysis (requires plan in commands list)
+plan:
+  review_enabled: true    # Launch interactive plan review TUI after plan
+  summary_enabled: false  # Print grouped terminal summary after plan
+
+# Feature shortcuts — map to Terragrunt flags
+features:
+  tf_forward_stdout: false
+  summary_per_unit: false
+  report:
+    enabled: false        # Writes .terrax/report.json
+
+# State backend — required for force-unlock command
+# state:
+#   bucket: "my-terraform-state"
+#   project: "my-project"
+#   region: "us-east-1"
 ```
 
 ### Configuration options
@@ -217,8 +243,13 @@ root_config_file: "root.hcl"
 |--------|------|---------|-------------|
 | `max_navigation_columns` | integer | `3` | Maximum navigation columns visible in sliding window |
 | `commands` | list | 8 commands | Terragrunt commands shown in TUI (in order) |
-| `history.max_entries` | integer | `1000` | Maximum number of history entries to keep |
 | `root_config_file` | string | `root.hcl` | Config file name used to detect project root |
+| `include_dependencies` | bool | `true` | Resolve transitive deps via static HCL analysis |
+| `history.max_entries` | integer | `500` | Maximum number of history entries to keep |
+| `plan.review_enabled` | bool | `true` | Launch plan review TUI after running plan |
+| `plan.summary_enabled` | bool | `false` | Print terminal summary after running plan |
+| `state.bucket` | string | — | S3 bucket for Terraform state (force-unlock) |
+| `state.project` | string | — | S3 key prefix for Terraform state (force-unlock) |
 
 **Notes:**
 
