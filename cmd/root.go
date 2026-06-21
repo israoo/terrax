@@ -140,6 +140,7 @@ func runTUI(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to get working directory: %w", err)
 	}
+	workDir = resolveWorkDir(workDir)
 
 	if reviewFlag {
 		return runPlanReview(ctx, workDir)
@@ -205,6 +206,29 @@ func getWorkingDirectory(dir string) (string, error) {
 		return "", err
 	}
 	return workDir, nil
+}
+
+// resolveWorkDir returns the parent directory when dir is a leaf stack — a directory
+// that has a terragrunt.hcl file but no sub-directories that are also stacks.
+// TerraX requires sub-directories to navigate, so pointing it at a leaf stack would
+// fail; using the parent lets the TUI navigate to the stack as a selectable node.
+func resolveWorkDir(dir string) string {
+	if _, err := os.Stat(filepath.Join(dir, "terragrunt.hcl")); err != nil {
+		return dir
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return dir
+	}
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		if _, err := os.Stat(filepath.Join(dir, e.Name(), "terragrunt.hcl")); err == nil {
+			return dir
+		}
+	}
+	return filepath.Dir(dir)
 }
 
 // buildStackTree scans and builds the stack tree structure.
