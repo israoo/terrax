@@ -28,8 +28,9 @@ type HistoryLogger interface {
 
 // Run executes a Terragrunt command using explicit --filter flags.
 // filterPaths are paths relative to repoRoot and represent the exact set of stacks to execute.
+// envVars provides additional environment variables to be injected into the subprocess.
 // Terragrunt runs from repoRoot so that --filter paths and any relative output paths resolve correctly.
-func Run(ctx context.Context, historyLogger HistoryLogger, command, absoluteStackPath, repoRoot string, filterPaths []string) error {
+func Run(ctx context.Context, historyLogger HistoryLogger, command, absoluteStackPath, repoRoot string, filterPaths []string, envVars map[string]string) error {
 	nextID, err := historyLogger.GetNextID(ctx)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: Failed to get history ID: %v\n", err)
@@ -38,18 +39,19 @@ func Run(ctx context.Context, historyLogger HistoryLogger, command, absoluteStac
 
 	startTime := time.Now()
 
-	// Clear the output directory before plan execution so each run starts with a clean slate.
-	// This ensures the TUI and summary always reflect only the current run's results.
-	if command == "plan" && (viper.GetBool("plan.summary_enabled") || viper.GetBool("plan.review_enabled")) {
-		_ = os.RemoveAll(filepath.Join(repoRoot, config.DefaultOutputDir))
-	}
-
 	args := buildFilterArgs(repoRoot, command, filterPaths)
 
 	fmt.Printf("🚀 Executing: terragrunt %v\n\n", args)
 
 	cmd := exec.CommandContext(ctx, "terragrunt", args...)
 	cmd.Dir = repoRoot
+	if len(envVars) > 0 {
+		env := os.Environ()
+		for k, v := range envVars {
+			env = append(env, fmt.Sprintf("%s=%s", k, v))
+		}
+		cmd.Env = env
+	}
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
