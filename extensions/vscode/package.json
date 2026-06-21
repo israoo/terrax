@@ -52,6 +52,46 @@
         "icon": "$(play)"
       },
       {
+        "command": "terrax.runApply",
+        "title": "Run Apply",
+        "icon": "$(play)"
+      },
+      {
+        "command": "terrax.runValidate",
+        "title": "Run Validate",
+        "icon": "$(play)"
+      },
+      {
+        "command": "terrax.runInit",
+        "title": "Run Init",
+        "icon": "$(play)"
+      },
+      {
+        "command": "terrax.runOutput",
+        "title": "Run Output",
+        "icon": "$(play)"
+      },
+      {
+        "command": "terrax.runRefresh",
+        "title": "Run Refresh",
+        "icon": "$(play)"
+      },
+      {
+        "command": "terrax.runFmt",
+        "title": "Run Fmt",
+        "icon": "$(play)"
+      },
+      {
+        "command": "terrax.runDestroy",
+        "title": "Run Destroy",
+        "icon": "$(warning)"
+      },
+      {
+        "command": "terrax.openFile",
+        "title": "Open terragrunt.hcl",
+        "icon": "$(go-to-file)"
+      },
+      {
         "command": "terrax.refreshHistory",
         "title": "TerraX: Refresh History",
         "icon": "$(refresh)"
@@ -84,6 +124,51 @@
           "command": "terrax.reRunHistory",
           "when": "view == terrax.historyTree && viewItem == terraxHistoryEntry",
           "group": "inline"
+        },
+        {
+          "command": "terrax.runPlan",
+          "when": "view == terrax.stackTree && (viewItem == terraxDirectory || viewItem == terraxStack)",
+          "group": "terrax@1"
+        },
+        {
+          "command": "terrax.runApply",
+          "when": "view == terrax.stackTree && (viewItem == terraxDirectory || viewItem == terraxStack)",
+          "group": "terrax@1"
+        },
+        {
+          "command": "terrax.runValidate",
+          "when": "view == terrax.stackTree && (viewItem == terraxDirectory || viewItem == terraxStack)",
+          "group": "terrax@1"
+        },
+        {
+          "command": "terrax.runInit",
+          "when": "view == terrax.stackTree && (viewItem == terraxDirectory || viewItem == terraxStack)",
+          "group": "terrax@1"
+        },
+        {
+          "command": "terrax.runOutput",
+          "when": "view == terrax.stackTree && (viewItem == terraxDirectory || viewItem == terraxStack)",
+          "group": "terrax@1"
+        },
+        {
+          "command": "terrax.runRefresh",
+          "when": "view == terrax.stackTree && (viewItem == terraxDirectory || viewItem == terraxStack)",
+          "group": "terrax@1"
+        },
+        {
+          "command": "terrax.runFmt",
+          "when": "view == terrax.stackTree && (viewItem == terraxDirectory || viewItem == terraxStack)",
+          "group": "terrax@1"
+        },
+        {
+          "command": "terrax.runDestroy",
+          "when": "view == terrax.stackTree && (viewItem == terraxDirectory || viewItem == terraxStack)",
+          "group": "terrax@1"
+        },
+        {
+          "command": "terrax.openFile",
+          "when": "view == terrax.stackTree && viewItem == terraxStack",
+          "group": "terrax@2"
         }
       ],
       "view/title": [

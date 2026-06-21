@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as path from 'node:path';
 import { DependencyTreeProvider, DependentsTreeProvider } from './dependencyProvider';
 import { HistoryTreeProvider, HistoryEntry } from './historyProvider';
 import { runInTerminal } from './terminalRunner';
@@ -41,6 +42,71 @@ export function activate(context: vscode.ExtensionContext): void {
       const config = vscode.workspace.getConfiguration('terrax');
       const binaryPath = config.get<string>('binaryPath', 'terrax');
       runInTerminal(binaryPath, node.path, 'plan');
+    },
+  );
+
+  const runApplyCommand = vscode.commands.registerCommand(
+    'terrax.runApply',
+    (node: StackNode) => {
+      const binaryPath = vscode.workspace.getConfiguration('terrax').get<string>('binaryPath', 'terrax');
+      runInTerminal(binaryPath, node.path, 'apply');
+    },
+  );
+
+  const runValidateCommand = vscode.commands.registerCommand(
+    'terrax.runValidate',
+    (node: StackNode) => {
+      const binaryPath = vscode.workspace.getConfiguration('terrax').get<string>('binaryPath', 'terrax');
+      runInTerminal(binaryPath, node.path, 'validate');
+    },
+  );
+
+  const runInitCommand = vscode.commands.registerCommand(
+    'terrax.runInit',
+    (node: StackNode) => {
+      const binaryPath = vscode.workspace.getConfiguration('terrax').get<string>('binaryPath', 'terrax');
+      runInTerminal(binaryPath, node.path, 'init');
+    },
+  );
+
+  const runOutputCommand = vscode.commands.registerCommand(
+    'terrax.runOutput',
+    (node: StackNode) => {
+      const binaryPath = vscode.workspace.getConfiguration('terrax').get<string>('binaryPath', 'terrax');
+      runInTerminal(binaryPath, node.path, 'output');
+    },
+  );
+
+  const runRefreshCommand = vscode.commands.registerCommand(
+    'terrax.runRefresh',
+    (node: StackNode) => {
+      const binaryPath = vscode.workspace.getConfiguration('terrax').get<string>('binaryPath', 'terrax');
+      runInTerminal(binaryPath, node.path, 'refresh');
+    },
+  );
+
+  const runFmtCommand = vscode.commands.registerCommand(
+    'terrax.runFmt',
+    (node: StackNode) => {
+      const binaryPath = vscode.workspace.getConfiguration('terrax').get<string>('binaryPath', 'terrax');
+      runInTerminal(binaryPath, node.path, 'fmt');
+    },
+  );
+
+  const runDestroyCommand = vscode.commands.registerCommand(
+    'terrax.runDestroy',
+    (node: StackNode) => {
+      const binaryPath = vscode.workspace.getConfiguration('terrax').get<string>('binaryPath', 'terrax');
+      runInTerminal(binaryPath, node.path, 'destroy');
+    },
+  );
+
+  const openFileCommand = vscode.commands.registerCommand(
+    'terrax.openFile',
+    async (node: StackNode) => {
+      const filePath = path.join(node.path, 'terragrunt.hcl');
+      const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(filePath));
+      await vscode.window.showTextDocument(doc);
     },
   );
 
@@ -113,6 +179,14 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     openHereCommand,
     runPlanCommand,
+    runApplyCommand,
+    runValidateCommand,
+    runInitCommand,
+    runOutputCommand,
+    runRefreshCommand,
+    runFmtCommand,
+    runDestroyCommand,
+    openFileCommand,
     treeView,
     depTreeView,
     dependentsTreeView,
