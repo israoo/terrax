@@ -31,6 +31,8 @@ task clean          # Remove build artifacts
 task ext:install    # Install VS Code extension dependencies (pnpm)
 task ext:build      # Compile extension TypeScript
 task ext:package    # Package extension as .vsix
+
+terrax --review     # Reopen plan review TUI from last execution (reads .terrax/plans/)
 ```
 
 **Before committing:** `task check`
@@ -56,9 +58,12 @@ terrax/
 │   ├── history/
 │   │   └── history.go       # Execution history (JSONL, XDG Base Directory)
 │   ├── plan/
-│   │   ├── collector.go     # Runs `terragrunt plan -json`, parses output
+│   │   ├── collector.go     # CollectFromJSONDir reads --json-out-dir JSON files; no subprocess
+│   │   ├── summarizer.go    # Terminal plan summary (grouped no-changes / pending-changes output)
 │   │   ├── models.go        # PlanReport, StackResult, ChangeType types
 │   │   └── tree.go          # Builds display tree from plan results
+│   ├── state/
+│   │   └── locker.go        # AWS S3 lock discovery via AWS CLI for force-unlock
 │   ├── stack/
 │   │   ├── tree.go          # Node struct with Dependencies/Dependents/InCycle fields
 │   │   ├── builder.go       # Filesystem scanning, FindAndBuildTree
@@ -89,11 +94,17 @@ terrax/
 
 - **`internal/deps/`** — stdlib only; no viper, cobra, or UI imports
 - **`internal/stack/`** — pure business logic, no UI imports
+- **`internal/executor/`** — no UI imports; `Run` signature: `(ctx, historyLogger, command, absoluteStackPath, repoRoot string, filterPaths []string)`
+- **`internal/state/`** — no UI imports; AWS CLI subprocess mockable via `execSummarizerContext` pattern
 - **`internal/tui/model.go`** — UI state only (focus, offsets, dimensions); delegates to Navigator
 - **`internal/tui/view.go`** — pure rendering, never modifies state
 - **`cmd/root.go`** — CLI glue only; injects TUI via `TUIRunner` interface (enables unit testing without a terminal)
 
 ## Architectural Patterns (MANDATORY)
+
+### Filter-Based Execution
+
+All commands use explicit `--filter` flags pre-computed by TerraX — never `--all --working-dir` or `--queue-include-external`. Before any execution `cmd/root.go` calls `collectTransitiveDeps(stackPath)` → `(repoRoot, filterPaths)`. `executor.Run` builds `terragrunt run --filter p1 --filter p2 ... -- <command>` with `cmd.Dir = repoRoot`. `include_dependencies: true` (default) resolves transitive deps via `deps.ParseDependencies`; `false` passes only the selected stack(s).
 
 ### AppState Tri Mode
 
@@ -154,9 +165,24 @@ Test files live alongside implementation (`model_test.go` next to `model.go`).
 ```yaml
 commands: [plan, apply, validate, fmt, init, output, refresh, destroy]
 max_navigation_columns: 3
+root_config_file: "root.hcl"
+include_dependencies: true   # BFS over deps via static HCL; false = selected stack only
 history:
   max_entries: 500
-root_config_file: "root.hcl"
+plan:
+  review_enabled: true        # Launches StatePlanReview TUI; reads .terrax/plans/
+  summary_enabled: false      # Prints grouped terminal summary after plan
+features:
+  tf_forward_stdout: false    # --tf-forward-stdout
+  summary_per_unit: false     # --summary-per-unit
+  report:
+    enabled: false            # --report-file .terrax/report.json --report-format json
+state:                        # Required for force-unlock
+  bucket: ""
+  project: ""
+  region: "us-east-1"
+  aws_profile: ""             # Optional --profile for AWS CLI
+  aws_config_file: ""         # Optional AWS_CONFIG_FILE env var
 ```
 
 ### CLI as Local API
@@ -182,3 +208,7 @@ Extension lives in `extensions/vscode/`. All calls use `spawnSync` with 10s time
 **Add navigation feature:** Business logic in `navigator.go` → wire in `model.go` → render in `view.go`.
 
 **Debug TUI issues:** Log to a temp file (never stdout/stderr in TUI). Bubble Tea has a built-in debug mode.
+
+**Add a Terragrunt/Terraform flag:** See `terrax:executor-flags` skill. Use `appendFeatureFlags` for shortcuts, `appendTerragruntFlags` for first-class booleans, or `terragrunt.extra_flags` / `terragrunt.command_flags.<cmd>` in config for arbitrary flags.
+
+**Plan output files:** Written to `<repoRoot>/.terrax/plans/<stack-path>/tfplan.json` via `--json-out-dir`. Auto-reset before each plan run. Read by `runPlanSummary` (terminal) and `runPlanReview` (TUI). Use `terrax --review` to reopen without re-running.
