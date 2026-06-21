@@ -3,6 +3,8 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"slices"
 
 	"github.com/spf13/cobra"
@@ -50,8 +52,19 @@ func runCommand(cmd *cobra.Command, args []string) error {
 	}
 
 	repoRoot, filterPaths := collectTransitiveDeps(workDir)
-	if err := executor.Run(ctx, historyService, command, workDir, repoRoot, filterPaths); err != nil {
-		return err
+
+	if command == "plan" && (viper.GetBool("plan.summary_enabled") || viper.GetBool("plan.review_enabled")) {
+		_ = os.RemoveAll(filepath.Join(repoRoot, config.DefaultOutputDir))
+	}
+
+	groups, err := buildGroupedExecution(filterPaths, repoRoot)
+	if err != nil {
+		return fmt.Errorf("failed to build group execution plan: %w", err)
+	}
+	for _, group := range groups {
+		if err := executor.Run(ctx, historyService, command, workDir, repoRoot, group.Paths, group.EnvVars); err != nil {
+			return err
+		}
 	}
 
 	if command == "plan" && viper.GetBool("plan.summary_enabled") {

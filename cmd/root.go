@@ -196,8 +196,19 @@ func runTUI(cmd *cobra.Command, args []string) error {
 		}
 
 		repoRoot, filterPaths := collectTransitiveDeps(stackPath)
-		if err := executor.Run(ctx, historyService, command, stackPath, repoRoot, filterPaths); err != nil {
-			return err
+
+		if command == "plan" && (viper.GetBool("plan.summary_enabled") || viper.GetBool("plan.review_enabled")) {
+			_ = os.RemoveAll(filepath.Join(repoRoot, config.DefaultOutputDir))
+		}
+
+		groups, err := buildGroupedExecution(filterPaths, repoRoot)
+		if err != nil {
+			return fmt.Errorf("failed to build group execution plan: %w", err)
+		}
+		for _, group := range groups {
+			if err := executor.Run(ctx, historyService, command, stackPath, repoRoot, group.Paths, group.EnvVars); err != nil {
+				return err
+			}
 		}
 		if command == "plan" && viper.GetBool("plan.summary_enabled") {
 			if err := runPlanSummary(ctx, stackPath, repoRoot); err != nil {
@@ -335,8 +346,19 @@ func executeLastCommand(ctx context.Context, historyService *history.Service) er
 	}
 
 	repoRoot, filterPaths := collectTransitiveDeps(absolutePath)
-	if err := executor.Run(ctx, historyService, lastEntry.Command, absolutePath, repoRoot, filterPaths); err != nil {
-		return err
+
+	if lastEntry.Command == "plan" && (viper.GetBool("plan.summary_enabled") || viper.GetBool("plan.review_enabled")) {
+		_ = os.RemoveAll(filepath.Join(repoRoot, config.DefaultOutputDir))
+	}
+
+	groups, err := buildGroupedExecution(filterPaths, repoRoot)
+	if err != nil {
+		return fmt.Errorf("failed to build group execution plan: %w", err)
+	}
+	for _, group := range groups {
+		if err := executor.Run(ctx, historyService, lastEntry.Command, absolutePath, repoRoot, group.Paths, group.EnvVars); err != nil {
+			return err
+		}
 	}
 	if lastEntry.Command == "plan" && viper.GetBool("plan.summary_enabled") {
 		if err := runPlanSummary(ctx, absolutePath, repoRoot); err != nil {
@@ -404,8 +426,19 @@ func runHistoryViewer(ctx context.Context, historyService *history.Service) erro
 			}
 
 			repoRoot, filterPaths := collectTransitiveDeps(absolutePath)
-			if err := executor.Run(ctx, historyService, entry.Command, absolutePath, repoRoot, filterPaths); err != nil {
-				return err
+
+			if entry.Command == "plan" && (viper.GetBool("plan.summary_enabled") || viper.GetBool("plan.review_enabled")) {
+				_ = os.RemoveAll(filepath.Join(repoRoot, config.DefaultOutputDir))
+			}
+
+			groups, err := buildGroupedExecution(filterPaths, repoRoot)
+			if err != nil {
+				return fmt.Errorf("failed to build group execution plan: %w", err)
+			}
+			for _, group := range groups {
+				if err := executor.Run(ctx, historyService, entry.Command, absolutePath, repoRoot, group.Paths, group.EnvVars); err != nil {
+					return err
+				}
 			}
 			if entry.Command == "plan" && viper.GetBool("plan.summary_enabled") {
 				if err := runPlanSummary(ctx, absolutePath, repoRoot); err != nil {
@@ -634,4 +667,82 @@ func runBubbleTeaProgram(model tui.Model) (tui.Model, error) {
 	}
 
 	return resultModel, nil
+}
+
+// StackGroupConfig holds the configuration for one stack group, loaded from stack_groups in .terrax.yaml.
+type StackGroupConfig struct {
+	Detect    string            `mapstructure:"detect"`
+	DependsOn []string          `mapstructure:"depends_on"`
+	Env       map[string]string `mapstructure:"env"`
+}
+
+// GroupExecution is one resolved group ready for sequential execution.
+type GroupExecution struct {
+	Name      string
+	DependsOn []string
+	Paths     []string
+	EnvVars   map[string]string
+}
+
+// loadStackGroups reads the stack_groups section from viper config.
+// Always ensures an implicit "default" group exists.
+func loadStackGroups() map[string]StackGroupConfig {
+	var groups map[string]StackGroupConfig
+	if err := viper.UnmarshalKey("stack_groups", &groups); err != nil || groups == nil {
+		groups = map[string]StackGroupConfig{}
+	}
+	if _, ok := groups["default"]; !ok {
+		groups["default"] = StackGroupConfig{}
+	}
+	return groups
+}
+
+// buildGroupedExecution assigns each filter path to a stack group, applies topological
+// sorting, and returns the groups in execution order.
+func buildGroupedExecution(filterPaths []string, repoRoot string) ([]GroupExecution, error) {
+	groups := loadStackGroups()
+
+	detectConfigs := make(map[string]stack.GroupDetectConfig, len(groups))
+	for name, cfg := range groups {
+		detectConfigs[name] = stack.GroupDetectConfig{
+			Detect:    cfg.Detect,
+			DependsOn: cfg.DependsOn,
+			Env:       cfg.Env,
+		}
+	}
+
+	pathsByGroup := make(map[string][]string)
+	for _, relPath := range filterPaths {
+		absPath := filepath.Join(repoRoot, filepath.FromSlash(relPath))
+		groupName := stack.DetectGroup(absPath, detectConfigs)
+		pathsByGroup[groupName] = append(pathsByGroup[groupName], relPath)
+	}
+
+	order, err := stack.TopologicalSort(detectConfigs)
+	if err != nil {
+		return nil, err
+	}
+
+	var result []GroupExecution
+	for _, name := range order {
+		paths := pathsByGroup[name]
+		if len(paths) == 0 {
+			continue
+		}
+		deps := groups[name].DependsOn
+		if deps == nil {
+			deps = []string{}
+		}
+		env := groups[name].Env
+		if env == nil {
+			env = map[string]string{}
+		}
+		result = append(result, GroupExecution{
+			Name:      name,
+			DependsOn: deps,
+			Paths:     paths,
+			EnvVars:   env,
+		})
+	}
+	return result, nil
 }
