@@ -42,6 +42,7 @@ func runCommand(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to get working directory: %w", err)
 	}
+	ensureConfigFromWorkDir(workDir)
 
 	historyService, err := getHistoryService()
 	if err != nil {

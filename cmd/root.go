@@ -69,6 +69,23 @@ func Execute() error {
 	return rootCmd.Execute()
 }
 
+// ensureConfigFromWorkDir reloads .terrax.yaml from the project root containing workDir.
+// initConfig reads from os.Getwd() at process start, which may differ from the project
+// root when commands are invoked via the VS Code extension with --dir flags.
+func ensureConfigFromWorkDir(workDir string) {
+	rootConfigFile := viper.GetString("root_config_file")
+	if rootConfigFile == "" {
+		rootConfigFile = config.DefaultRootConfigFile
+	}
+	repoRoot := deps.FindRepoRoot(workDir, rootConfigFile)
+	viper.AddConfigPath(repoRoot)
+	if err := viper.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+			fmt.Fprintf(os.Stderr, "Warning: error reading config from %s: %v\n", repoRoot, err)
+		}
+	}
+}
+
 // initConfig initializes the configuration using Viper.
 func initConfig() {
 	viper.SetDefault("commands", config.DefaultCommands)
@@ -141,6 +158,7 @@ func runTUI(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get working directory: %w", err)
 	}
 	workDir = resolveWorkDir(workDir)
+	ensureConfigFromWorkDir(workDir)
 
 	if reviewFlag {
 		return runPlanReview(ctx, workDir)
