@@ -134,9 +134,9 @@ func buildFilterArgs(repoRoot, command string, filterPaths []string) []string {
 	args = appendExtraTerragruntFlags(args)
 	args = appendCommandTerragruntFlags(args, command)
 
-	// Inject --json-out-dir when summary mode is active. Uses an absolute path
-	// anchored at repoRoot so file locations are predictable across all filter targets.
-	if command == "plan" && viper.GetBool("plan.summary_enabled") {
+	// Inject --json-out-dir when summary or review mode is active.
+	// Both modes read the JSON plan files — review for the TUI, summary for terminal output.
+	if command == "plan" && (viper.GetBool("plan.summary_enabled") || viper.GetBool("plan.review_enabled")) {
 		absJSONOutDir := filepath.Join(repoRoot, config.DefaultJSONOutDir)
 		args = append(args, fmt.Sprintf("--json-out-dir=%s", absJSONOutDir))
 	}
@@ -145,13 +145,6 @@ func buildFilterArgs(repoRoot, command string, filterPaths []string) []string {
 
 	args = appendTerraformExtraFlags(args)
 	args = appendCommandTerraformFlags(args, command)
-
-	// Inject binary output for plan review when review mode is active.
-	if command == "plan" && viper.GetBool("plan.review_enabled") {
-		timestamp := viper.GetInt64("terrax.session_timestamp")
-		planFile := fmt.Sprintf("terrax-tfplan-%d.binary", timestamp)
-		args = append(args, fmt.Sprintf("-out=%s", planFile))
-	}
 
 	return args
 }

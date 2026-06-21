@@ -522,70 +522,30 @@ type PlanReviewRunner func(initialModel tui.Model) (tui.Model, error)
 // currentPlanReviewRunner holds the active Plan Review TUI runner.
 var currentPlanReviewRunner PlanReviewRunner = defaultPlanReviewRunner
 
-// runPlanReview collects plan results and launches the review TUI.
+// runPlanReview reads JSON plan files and launches the review TUI.
 func runPlanReview(ctx context.Context, stackPath string) error {
-	collector := plan.NewCollector(stackPath)
-	progressChan := make(chan plan.ProgressMsg, 10) // Buffered channel
-
-	// Error channel to capture collection error from goroutine
-	errChan := make(chan error, 1)
-	var report *plan.PlanReport
-
-	// Start collection in background
-	go func() {
-		defer close(errChan)
-		defer close(progressChan)
-
-		r, err := collector.Collect(ctx, progressChan)
-		if err != nil {
-			errChan <- err
-			return
-		}
-		report = r
-	}()
-
-	// CLI Progress Loop
-	fmt.Println() // Start with a newline
-	for msg := range progressChan {
-		if msg.TotalFiles > 0 && msg.Current > 0 {
-			// [1/10] Processed path/to/stack
-			fmt.Printf("[%d/%d] %s\n", msg.Current, msg.TotalFiles, msg.Message)
-		} else {
-			// Initial messages (Scanning..., Found X plans)
-			fmt.Printf("🔍 %s\n", msg.Message)
-		}
+	rootConfigFile := viper.GetString("root_config_file")
+	if rootConfigFile == "" {
+		rootConfigFile = config.DefaultRootConfigFile
 	}
-	fmt.Println() // End progress line
+	repoRoot, _ := history.FindProjectRoot(stackPath, rootConfigFile)
+	if repoRoot == "" {
+		repoRoot = stackPath
+	}
+	jsonDir := filepath.Join(repoRoot, config.DefaultJSONOutDir)
 
-	// Check for collection error
-	if err := <-errChan; err != nil {
+	report, err := plan.CollectFromJSONDir(ctx, jsonDir, stackPath)
+	if err != nil {
 		return fmt.Errorf("plan collection failed: %w", err)
 	}
 
-	if report == nil {
-		return fmt.Errorf("no plan results collected")
-	}
-
-	// Check if there are any changes to display
 	if report.Summary.StacksWithChanges == 0 {
 		fmt.Println("✅ No changes found in any stack.")
-		// We still perform cleanup
-		if cleanupErr := collector.CleanupOldPlans(); cleanupErr != nil {
-			fmt.Fprintf(os.Stderr, "Warning: Failed to cleanup old plans: %v\n", cleanupErr)
-		}
 		return nil
 	}
 
-	// Launch Review TUI with ready report
 	initialModel := tui.NewPlanReviewModel(report)
-
-	_, err := currentPlanReviewRunner(initialModel)
-
-	// Best-effort cleanup after review
-	if cleanupErr := collector.CleanupOldPlans(); cleanupErr != nil {
-		fmt.Fprintf(os.Stderr, "Warning: Failed to cleanup old plans: %v\n", cleanupErr)
-	}
-
+	_, err = currentPlanReviewRunner(initialModel)
 	return err
 }
 

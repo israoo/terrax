@@ -1,3 +1,8 @@
+// Package plan provides plan analysis utilities for TerraX.
+//
+// It implements collection of Terraform plan results from pre-generated JSON files
+// produced by Terragrunt's --json-out-dir flag, and builds a structured PlanReport
+// for display in the StatePlanReview TUI.
 package plan
 
 import (
@@ -5,46 +10,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
-
-	"github.com/israoo/terrax/internal/config"
-	"github.com/israoo/terrax/internal/history"
-	"github.com/spf13/viper"
 )
 
-// execCommandContext allows mocking exec.CommandContext in tests
-var execCommandContext = exec.CommandContext
-
-// Collector handles the collection and processing of plan files.
-type Collector struct {
-	projectRoot string
-	runDir      string
-}
-
-// NewCollector creates a new Collector for the given run directory.
-// It automatically finds the project root to ensure dependencies are captured.
-func NewCollector(runDir string) *Collector {
-	rootConfigFile := viper.GetString("root_config_file")
-	if rootConfigFile == "" {
-		rootConfigFile = config.DefaultRootConfigFile
-	}
-
-	projectRoot, err := history.FindProjectRoot(runDir, rootConfigFile)
-	if err != nil || projectRoot == "" {
-		projectRoot = runDir // Fallback
-	}
-
-	return &Collector{
-		projectRoot: projectRoot,
-		runDir:      runDir,
-	}
-}
-
-// TerraformPlanJSON represents the structure of `terraform show -json` output.
+// TerraformPlanJSON represents the structure of terraform show -json output.
 type TerraformPlanJSON struct {
 	ResourceChanges []struct {
 		Address string `json:"address"`
@@ -55,266 +26,89 @@ type TerraformPlanJSON struct {
 			Before    interface{} `json:"before"`
 			After     interface{} `json:"after"`
 			Unknown   interface{} `json:"after_unknown"`
-			Importing interface{} `json:"importing"` // non-nil when resource is being imported
+			Importing interface{} `json:"importing"`
 		} `json:"change"`
 	} `json:"resource_changes"`
 }
 
-// Collect scans the project for binary plan files concurrently and processes them.
-// It sends progress updates to the optional progressChan.
-func (c *Collector) Collect(ctx context.Context, progressChan chan<- ProgressMsg) (*PlanReport, error) {
+// CollectFromJSONDir reads pre-generated JSON plan files from jsonDir and builds a PlanReport.
+// jsonDir is written by Terragrunt's --json-out-dir flag (e.g. <repoRoot>/.terrax/plans).
+// runDir is the selected stack path, used to determine which stacks are dependencies.
+func CollectFromJSONDir(ctx context.Context, jsonDir, runDir string) (*PlanReport, error) {
 	report := &PlanReport{
 		Timestamp: time.Now(),
 		Stacks:    []StackResult{},
 	}
 
-	if progressChan != nil {
-		select {
-		case progressChan <- ProgressMsg{Message: "Scanning for plan files..."}:
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		}
-	}
-
-	planFiles, err := c.findPlanFiles()
-	if err != nil {
-		return nil, fmt.Errorf("failed to find plan files: %w", err)
-	}
-
-	totalFiles := len(planFiles)
-	if totalFiles == 0 {
+	if _, err := os.Stat(jsonDir); os.IsNotExist(err) {
 		return report, nil
 	}
 
-	if progressChan != nil {
-		select {
-		case progressChan <- ProgressMsg{TotalFiles: totalFiles, Message: fmt.Sprintf("Found %d plans", totalFiles)}:
-		case <-ctx.Done():
+	var jsonFiles []string
+	err := filepath.WalkDir(jsonDir, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if !d.IsDir() && strings.HasSuffix(d.Name(), ".json") {
+			jsonFiles = append(jsonFiles, path)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to scan plan directory: %w", err)
+	}
+
+	for _, planFile := range jsonFiles {
+		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
-	}
-
-	// Determine parallelism suitable for file I/O and subprocess execution.
-	// We use all available CPUs for plan analysis as it involves JSON parsing and transformation.
-	maxWorkers := runtime.NumCPU()
-
-	// Don't spawn more workers than tasks
-	if totalFiles < maxWorkers {
-		maxWorkers = totalFiles
-	}
-
-	// Channels for distribution and results
-	jobs := make(chan string, totalFiles)
-	results := make(chan *StackResult, totalFiles)
-	errs := make(chan error, totalFiles)
-
-	// Start workers
-	for w := 0; w < maxWorkers; w++ {
-		go func() {
-			for path := range jobs {
-				// Check context cancellation
-				if ctx.Err() != nil {
-					return
-				}
-
-				res, err := c.processStack(ctx, path)
-				if err != nil {
-					errs <- fmt.Errorf("process %s: %w", path, err)
-					continue
-				}
-				results <- res
-			}
-		}()
-	}
-
-	// Enqueue jobs
-	for _, path := range planFiles {
-		jobs <- path
-	}
-	close(jobs)
-
-	// Collect results
-	processedCount := 0
-	for i := 0; i < totalFiles; i++ {
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case res := <-results:
-			processedCount++
-			if res != nil {
-				report.Stacks = append(report.Stacks, *res)
-				if progressChan != nil {
-					select {
-					case progressChan <- ProgressMsg{
-						TotalFiles: totalFiles,
-						Current:    processedCount,
-						Message:    fmt.Sprintf("Processed %s", res.StackPath),
-					}:
-					case <-ctx.Done():
-						return nil, ctx.Err()
-					}
-				}
-			}
-		case err := <-errs:
-			processedCount++
-			// Log error but continue
-			fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
-			if progressChan != nil {
-				select {
-				case progressChan <- ProgressMsg{
-					TotalFiles: totalFiles,
-					Current:    processedCount,
-					Message:    "Error processing stack",
-				}:
-				case <-ctx.Done():
-					return nil, ctx.Err()
-				}
-			}
+		result, err := processPlanJSONFile(planFile, jsonDir, runDir)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to process %s: %v\n", planFile, err)
+			continue
+		}
+		if result != nil {
+			report.Stacks = append(report.Stacks, *result)
 		}
 	}
 
 	report.calculateSummary()
-
 	return report, nil
 }
 
-// findPlanFiles searches for terrax-tfplan-timestamp.binary files specifically within .terragrunt-cache directories.
-// It matches the current session timestamp and ignores others.
-func (c *Collector) findPlanFiles() ([]string, error) {
-	var matches []string
-	targetName := getSessionPlanFilename()
+// processPlanJSONFile parses a single JSON plan file and returns a StackResult.
+func processPlanJSONFile(planFile, jsonDir, runDir string) (*StackResult, error) {
+	rel, _ := filepath.Rel(jsonDir, planFile)
+	stackRelPath := filepath.ToSlash(filepath.Dir(rel))
 
-	// Fast path: recursive directory walk with optimized skipping
-	err := filepath.WalkDir(c.projectRoot, func(path string, d os.DirEntry, err error) error {
-		if err != nil {
-			return nil // Skip inaccessible directories
-		}
+	// jsonDir = <repoRoot>/.terrax/plans — repoRoot is two levels up.
+	repoRoot := filepath.Dir(filepath.Dir(jsonDir))
+	absPath := filepath.Join(repoRoot, filepath.FromSlash(stackRelPath))
+	isDependency := !isSubDir(runDir, absPath)
 
-		if d.IsDir() {
-			if shouldSkipDir(d.Name()) {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-
-		// Only match plan binaries with the specific timestamp
-		if d.Name() == targetName {
-			// Ensure it's inside a .terragrunt-cache path to be strictly compliant
-			// with "search ONLY inside found .terragrunt-cache"
-			if strings.Contains(path, ".terragrunt-cache") {
-				matches = append(matches, path)
-			}
-		}
-
-		return nil
-	})
-
-	return matches, err
-}
-
-// CleanupOldPlans removes any terrax-tfplan-*.binary files that do NOT match the current session timestamp.
-// This ensures we don't accumulate old plan files.
-func (c *Collector) CleanupOldPlans() error {
-	currentTarget := getSessionPlanFilename()
-
-	return filepath.WalkDir(c.projectRoot, func(path string, d os.DirEntry, err error) error {
-		if err != nil {
-			return nil
-		}
-
-		if d.IsDir() {
-			if shouldSkipDir(d.Name()) {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-
-		// Check if it's a terrax plan file but NOT the current one
-		name := d.Name()
-		if strings.HasPrefix(name, "terrax-tfplan-") && strings.HasSuffix(name, ".binary") && name != currentTarget {
-			// Only delete if inside .terragrunt-cache (safety check)
-			if strings.Contains(path, ".terragrunt-cache") {
-				if err := os.Remove(path); err != nil {
-					// Log error but continue
-					fmt.Fprintf(os.Stderr, "Warning: Failed to delete old plan %s: %v\n", path, err)
-				}
-			}
-		}
-
-		return nil
-	})
-}
-
-// Helper definitions
-
-func getSessionPlanFilename() string {
-	sessionTimestamp := viper.GetInt64("terrax.session_timestamp")
-	return fmt.Sprintf("terrax-tfplan-%d.binary", sessionTimestamp)
-}
-
-func shouldSkipDir(name string) bool {
-	return name == ".git" || name == "node_modules" || name == ".idea" || name == ".vscode"
-}
-
-func (c *Collector) processStack(ctx context.Context, planPath string) (*StackResult, error) {
-	stackDir := filepath.Dir(planPath)
-
-	// Calculate cleaned relative path
-	configRoot := viper.GetString("root_config_file")
-	if configRoot == "" {
-		configRoot = config.DefaultRootConfigFile
-	}
-
-	// Clean path from .terragrunt-cache
-	cleanDir := cleanStackPath(stackDir)
-	relPath, err := history.GetRelativeStackPath(cleanDir, configRoot)
+	data, err := os.ReadFile(planFile)
 	if err != nil {
-		relPath = cleanDir
+		return nil, fmt.Errorf("failed to read plan file: %w", err)
 	}
 
-	// A stack is a dependency if it's NOT within the runDir
-	isDependency := !isSubDir(c.runDir, cleanDir)
-
-	// We use terraform directly to avoid parsing issues with terragrunt output wrappers
-	planBinary := getSessionPlanFilename()
-	cmd := execCommandContext(ctx, "terraform", "show", "-json", planBinary)
-	cmd.Dir = stackDir
-
-	// Capture output
-	output, err := cmd.Output()
-	if err != nil {
-		return nil, fmt.Errorf("terraform show failed: %w", err)
-	}
-
-	// Optimize: Use json.Decoder for streaming parsing which is more memory efficient
-	// and often faster for large JSON files than Unmarshal.
 	var planJSON TerraformPlanJSON
-	// We can decode directly from the output bytes using a bytes buffer wrapper
-	// or better, if we could pipe exec stdout to decoder, but we already captured it.
-	// Since we already have []byte, Unmarshal vs Decoder on buffer is similar,
-	// BUT the user asked for optimization. Decoder is the standard "optimization" answer.
-	// Let's wrapping bytes in a reader.
-	if err := json.NewDecoder(strings.NewReader(string(output))).Decode(&planJSON); err != nil {
-		return nil, fmt.Errorf("failed to parse json: %w", err)
+	if err := json.Unmarshal(data, &planJSON); err != nil {
+		return nil, fmt.Errorf("failed to parse plan JSON: %w", err)
 	}
 
 	result := &StackResult{
-		StackPath:    relPath,
-		AbsPath:      stackDir,
+		StackPath:    stackRelPath,
+		AbsPath:      absPath,
 		IsDependency: isDependency,
-		Stats:        StackStats{},
 	}
 
 	for _, rc := range planJSON.ResourceChanges {
 		changeType := mapActionsToChangeType(rc.Change.Actions)
-
 		if changeType == ChangeTypeNoOp {
 			continue
 		}
-
 		result.HasChanges = true
-
-		internalRC := ResourceChange{
+		result.ResourceChanges = append(result.ResourceChanges, ResourceChange{
 			Address:    rc.Address,
 			Type:       rc.Type,
 			Name:       rc.Name,
@@ -322,9 +116,7 @@ func (c *Collector) processStack(ctx context.Context, planPath string) (*StackRe
 			Before:     rc.Change.Before,
 			After:      rc.Change.After,
 			Unknown:    rc.Change.Unknown,
-		}
-		result.ResourceChanges = append(result.ResourceChanges, internalRC)
-
+		})
 		switch changeType {
 		case ChangeTypeCreate:
 			result.Stats.Add++
@@ -341,39 +133,23 @@ func (c *Collector) processStack(ctx context.Context, planPath string) (*StackRe
 	return result, nil
 }
 
-// cleanStackPath removes everything from .terragrunt-cache onwards
-func cleanStackPath(path string) string {
-	parts := strings.Split(path, string(filepath.Separator))
-
-	for i, part := range parts {
-		if part == ".terragrunt-cache" {
-			// Found the cache dir, return everything before it
-			return strings.Join(parts[:i], string(filepath.Separator))
-		}
-	}
-
-	return path
-}
-
-// isSubDir checks if child is a subdirectory of parent
+// isSubDir returns true when child is within the parent directory tree.
 func isSubDir(parent, child string) bool {
 	rel, err := filepath.Rel(parent, child)
 	if err != nil {
 		return false
 	}
-	// If relative path starts with ".." it's outside
 	return !strings.HasPrefix(rel, "..")
 }
 
+// mapActionsToChangeType converts Terraform action strings to a ChangeType.
 func mapActionsToChangeType(actions []string) ChangeType {
 	if len(actions) == 0 || (len(actions) == 1 && actions[0] == "no-op") {
 		return ChangeTypeNoOp
 	}
-
 	isCreate := contains(actions, "create")
 	isDelete := contains(actions, "delete")
 	isUpdate := contains(actions, "update")
-
 	if isCreate && isDelete {
 		return ChangeTypeReplace
 	}
@@ -386,10 +162,10 @@ func mapActionsToChangeType(actions []string) ChangeType {
 	if isUpdate {
 		return ChangeTypeUpdate
 	}
-
 	return ChangeTypeNoOp
 }
 
+// contains returns true when slice contains item.
 func contains(slice []string, item string) bool {
 	for _, s := range slice {
 		if s == item {
@@ -399,10 +175,10 @@ func contains(slice []string, item string) bool {
 	return false
 }
 
+// calculateSummary aggregates counts across all stacks in the report.
 func (r *PlanReport) calculateSummary() {
 	summary := PlanSummary{}
 	summary.TotalStacks = len(r.Stacks)
-
 	for _, stack := range r.Stacks {
 		if stack.HasChanges {
 			summary.StacksWithChanges++
