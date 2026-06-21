@@ -59,6 +59,7 @@ func init() {
 
 	rootCmd.Flags().BoolP("last", "l", false, "Execute the last command from history")
 	rootCmd.Flags().Bool("history", false, "View execution history interactively")
+	rootCmd.Flags().Bool("review", false, "Open the plan review TUI from the last plan execution without re-running")
 	rootCmd.Flags().String("dir", "", "Working directory (overrides current directory)")
 }
 
@@ -131,10 +132,16 @@ func runTUI(cmd *cobra.Command, args []string) error {
 		return runHistoryViewer(ctx, historyService)
 	}
 
+	reviewFlag, _ := cmd.Flags().GetBool("review")
+
 	dirFlag, _ := cmd.Flags().GetString("dir")
 	workDir, err := getWorkingDirectory(dirFlag)
 	if err != nil {
 		return fmt.Errorf("failed to get working directory: %w", err)
+	}
+
+	if reviewFlag {
+		return runPlanReview(ctx, workDir)
 	}
 
 	stackRoot, maxDepth, err := buildStackTree(workDir)
