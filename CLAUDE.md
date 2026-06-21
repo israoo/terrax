@@ -92,7 +92,7 @@ terrax/
 
 - **`internal/deps/`** — stdlib only; no viper, cobra, or UI imports
 - **`internal/stack/`** — pure business logic, no UI imports
-- **`internal/executor/`** — no UI imports; `Run` signature: `(ctx, historyLogger, command, absoluteStackPath, repoRoot string, filterPaths []string)`
+- **`internal/executor/`** — no UI imports; `Run` signature: `(ctx, historyLogger, command, absoluteStackPath, repoRoot string, filterPaths []string, envVars map[string]string)`
 - **`internal/state/`** — no UI imports; AWS CLI subprocess mockable via `execSummarizerContext` pattern
 - **`internal/tui/model.go`** — UI state only (focus, offsets, dimensions); delegates to Navigator
 - **`internal/tui/view.go`** — pure rendering, never modifies state

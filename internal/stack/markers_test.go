@@ -44,6 +44,12 @@ func TestDetectGroup(t *testing.T) {
 			writeFile: false,
 			expected:  "default",
 		},
+		{
+			name:       "multiple matches — first alphabetical group wins",
+			hclContent: "deprecated = true\nrequire_private_connection = true",
+			writeFile:  true,
+			expected:   "deprecated",
+		},
 	}
 
 	for _, tt := range tests {

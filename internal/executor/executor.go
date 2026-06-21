@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/spf13/viper"
@@ -46,11 +47,18 @@ func Run(ctx context.Context, historyLogger HistoryLogger, command, absoluteStac
 	cmd := exec.CommandContext(ctx, "terragrunt", args...)
 	cmd.Dir = repoRoot
 	if len(envVars) > 0 {
-		env := os.Environ()
-		for k, v := range envVars {
-			env = append(env, fmt.Sprintf("%s=%s", k, v))
+		existing := os.Environ()
+		merged := make([]string, 0, len(existing)+len(envVars))
+		for _, entry := range existing {
+			key := entry[:strings.IndexByte(entry, '=')]
+			if _, overridden := envVars[key]; !overridden {
+				merged = append(merged, entry)
+			}
 		}
-		cmd.Env = env
+		for k, v := range envVars {
+			merged = append(merged, fmt.Sprintf("%s=%s", k, v))
+		}
+		cmd.Env = merged
 	}
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

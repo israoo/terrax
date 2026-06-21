@@ -89,7 +89,14 @@ func TopologicalSort(groups map[string]GroupDetectConfig) ([]string, error) {
 	}
 
 	if len(result) != len(groups) {
-		return nil, fmt.Errorf("cycle detected in stack_groups depends_on")
+		cycleMembers := make([]string, 0, len(groups))
+		for name, deg := range inDegree {
+			if deg > 0 {
+				cycleMembers = append(cycleMembers, name)
+			}
+		}
+		sort.Strings(cycleMembers)
+		return nil, fmt.Errorf("cycle detected in stack_groups depends_on involving: %v", cycleMembers)
 	}
 	return result, nil
 }
