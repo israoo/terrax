@@ -176,7 +176,7 @@ jobs:
           name: coverage-report
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         with:
           files: ./${{ env.COVERAGE_FILE }}
           fail_ci_if_error: true
