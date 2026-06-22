@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- Working directory: `/Users/isra/Repos/israoo/terrax-api` (new repo — create it first).
+- Working directory: `/path/to/terrax-api` (new repo — create it first).
 - Package manager: `pnpm`.
 - All API keys have format `tx_sk_<64 hex chars>`, hashed with SHA-256 for storage.
 - Key prefix for display: first 12 characters of the full key (e.g. `tx_sk_ab12cd`).
@@ -46,8 +46,8 @@
 - [ ] **Step 1: Create and enter the project directory**
 
 ```bash
-mkdir -p /Users/isra/Repos/israoo/terrax-api
-cd /Users/isra/Repos/israoo/terrax-api
+mkdir -p /path/to/terrax-api
+cd /path/to/terrax-api
 git init
 ```
 

@@ -16,7 +16,7 @@ Terragrunt stacks declare inter-module dependencies via `dependency "name" { con
 
 The standard tool for this is `terragrunt graph-dependencies`, which produces a full dependency graph. The problem is that it invokes Terraform init for each module — on a repository with hundreds of modules this takes minutes. TerraX needs a fast alternative that works without network access and without spawning any subprocesses.
 
-A static analysis of the target repository (`hip-iac-cl-aws-caas`, 695 HCL files) showed:
+A static analysis of terragrunt repository (695 HCL files) showed:
 
 1. **98.6% of `config_path` values are static relative paths** (`../vpc`, `../../shared/networking`).
 2. **One file uses `${get_repo_root()}/...`**, resolvable once the repo root is known.

@@ -74,7 +74,7 @@ Outputs the groups and their filter lists as JSON. The CI pipeline consumes this
       "env": {"TF_VAR_host": "localhost", "TF_VAR_port": "15432"}
     }
   ],
-  "repo_root": "/Users/isra/Repos/npb/hip-iac-cl-aws-caas"
+  "repo_root": "/path/to/repo/root"
 }
 ```
 

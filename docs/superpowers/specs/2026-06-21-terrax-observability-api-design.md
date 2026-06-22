@@ -110,7 +110,7 @@ The raw key (`tx_sk_<random_32_bytes>`) is generated and returned **once** at cr
 | Column | Type | Notes |
 |---|---|---|
 | `id` | UUID PK | |
-| `project_id` | text UNIQUE | Slug from `.terrax.yaml` (e.g. `hip-iac-cl-aws-caas`) |
+| `project_id` | text UNIQUE | Slug from `.terrax.yaml` (e.g. `org-iac-cl-aws-caas`) |
 | `name` | text | Display name |
 | `repo_url` | text | Optional git remote URL |
 | `root_config_file` | text | Default: `root.hcl` |
@@ -332,7 +332,7 @@ volumes:
 ```yaml
 observability:
   api_url: "https://api.terrax.io"   # or self-hosted URL
-  project_id: "hip-iac-cl-aws-caas"
+  project_id: "org-iac-cl-aws-caas"
   api_key: "tx_sk_..."
 ```
 

@@ -32,7 +32,7 @@ terragrunt/
 ### 1. Build TerraX
 
 ```bash
-cd /Users/isra/Repos/israoo/terrax
+cd terrax
 make build
 ```
 

@@ -46,7 +46,7 @@ Deleted from tg-runner: `configLoader.ts`, `types.ts`, `__tests__/configLoader.t
 Add `--dir <path>` to `cmd/root.go` as an optional persistent flag. When provided, `getWorkingDirectory()` returns this path instead of `os.Getwd()`. Without the flag, behavior is identical to today.
 
 ```
-terrax --dir '/Users/isra/infra/modules/networking'
+terrax --dir '/path/to/infra/modules/networking'
 ```
 
 ## VS Code Extension
