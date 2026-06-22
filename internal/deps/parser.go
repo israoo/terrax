@@ -2,6 +2,7 @@
 package deps
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -12,6 +13,8 @@ import (
 var (
 	// configPathRe matches config_path = "some/path" inside dependency blocks.
 	configPathRe = regexp.MustCompile(`config_path\s*=\s*"([^"]+)"`)
+	// markAsReadRe matches mark_as_read("some/path") calls.
+	markAsReadRe = regexp.MustCompile(`mark_as_read\s*\(\s*"([^"]+)"\s*\)`)
 )
 
 // FindRepoRoot walks up from startDir until it finds a directory containing
@@ -115,6 +118,117 @@ func extractIncludePaths(content string) []string {
 		}
 	}
 	return paths
+}
+
+// ParseIncludes reads an HCL file and returns the absolute paths of all statically resolvable
+// include blocks. Paths containing unresolvable expressions (e.g. find_in_parent_folders,
+// unresolved ${...} interpolations) are silently skipped. Returns an empty slice on error.
+func ParseIncludes(hclFilePath, repoRoot string) []string {
+	content, err := os.ReadFile(hclFilePath)
+	if err != nil {
+		return []string{}
+	}
+	fileDir := filepath.Dir(hclFilePath)
+	var result []string
+	for _, raw := range extractIncludePaths(string(content)) {
+		if resolved := resolvePath(raw, fileDir, repoRoot); resolved != "" {
+			result = append(result, resolved)
+		}
+	}
+	return result
+}
+
+// ParseMarkAsRead reads an HCL file and extracts mark_as_read() file references.
+// Returns two slices: staticPaths contains absolute paths for fully resolvable expressions;
+// dynamicPrefixes contains absolute directory prefixes for expressions with unresolvable
+// interpolations (conservative: any file under that prefix is treated as a potential match).
+// Both slices are sorted and deduplicated. Returns empty slices on error or no matches.
+func ParseMarkAsRead(hclFilePath, repoRoot string) (staticPaths []string, dynamicPrefixes []string) {
+	content, err := os.ReadFile(hclFilePath)
+	if err != nil {
+		return []string{}, []string{}
+	}
+	fileDir := filepath.Dir(hclFilePath)
+	seenStatic := make(map[string]bool)
+	seenPrefix := make(map[string]bool)
+	for _, match := range markAsReadRe.FindAllStringSubmatch(string(content), -1) {
+		raw := match[1]
+		if resolved := resolvePath(raw, fileDir, repoRoot); resolved != "" {
+			if !seenStatic[resolved] {
+				seenStatic[resolved] = true
+				staticPaths = append(staticPaths, resolved)
+			}
+			continue
+		}
+		if prefix := extractStaticPrefix(raw, repoRoot); prefix != "" {
+			if !seenPrefix[prefix] {
+				seenPrefix[prefix] = true
+				dynamicPrefixes = append(dynamicPrefixes, prefix)
+			}
+		}
+	}
+	sort.Strings(staticPaths)
+	sort.Strings(dynamicPrefixes)
+	if staticPaths == nil {
+		staticPaths = []string{}
+	}
+	if dynamicPrefixes == nil {
+		dynamicPrefixes = []string{}
+	}
+	return staticPaths, dynamicPrefixes
+}
+
+// ScanAllHCLFiles walks the repo and returns the absolute paths of every .hcl file found,
+// skipping hidden directories and known non-Terragrunt directories (.git, .terraform,
+// .terragrunt-cache, vendor). Unlike FindAndBuildTree this includes non-stack HCL files
+// such as _envcommon, globals, and account/region configs.
+func ScanAllHCLFiles(repoRoot string) []string {
+	var files []string
+	_ = filepath.WalkDir(repoRoot, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if d.IsDir() {
+			name := d.Name()
+			if strings.HasPrefix(name, ".") || shouldSkipHCLScanDir(name) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if filepath.Ext(path) == ".hcl" {
+			files = append(files, path)
+		}
+		return nil
+	})
+	return files
+}
+
+// extractStaticPrefix returns the absolute directory prefix of a mark_as_read path that
+// contains unresolvable interpolations. It substitutes ${get_repo_root()} and takes
+// everything up to the first remaining ${, then returns filepath.Dir of that prefix.
+// Returns an empty string if no static prefix can be determined.
+func extractStaticPrefix(raw, repoRoot string) string {
+	substituted := strings.ReplaceAll(raw, "${get_repo_root()}", repoRoot)
+	idx := strings.Index(substituted, "${")
+	if idx < 0 {
+		return ""
+	}
+	prefix := substituted[:idx]
+	prefix = strings.TrimRight(prefix, "/\\")
+	if !filepath.IsAbs(prefix) {
+		return ""
+	}
+	return filepath.Clean(prefix)
+}
+
+// shouldSkipHCLScanDir returns true for directories that should be skipped when scanning
+// for HCL files. Mirrors the skip list in internal/stack/builder.go.
+func shouldSkipHCLScanDir(name string) bool {
+	switch name {
+	case ".git", ".terraform", ".terragrunt-cache", "vendor", ".idea", ".vscode":
+		return true
+	}
+	return false
 }
 
 // resolvePath converts a raw Terragrunt path expression to an absolute filesystem path.
