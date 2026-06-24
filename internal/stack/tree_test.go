@@ -9,8 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestFindAndBuildTree_Success tests the tree building with a mocked filesystem.
-// It verifies that the tree structure matches the expected hierarchy and depth.
 func TestFindAndBuildTree_Success(t *testing.T) {
 	// Create in-memory filesystem.
 	fs := afero.NewMemMapFs()
@@ -611,7 +609,7 @@ func TestFindAndBuildTree_RealFilesystem(t *testing.T) {
 	require.NoError(t, err)
 
 	// Call the actual production function (not the test helper).
-	tree, maxDepth, err := FindAndBuildTree(wd)
+	tree, maxDepth, err := FindAndBuildTree(wd, "")
 
 	// Assertions.
 	require.NoError(t, err, "should build tree from real filesystem")
@@ -643,7 +641,7 @@ func TestFindAndBuildTree_InvalidPath(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tree, maxDepth, err := FindAndBuildTree(tt.path)
+			tree, maxDepth, err := FindAndBuildTree(tt.path, "")
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -886,7 +884,7 @@ func TestBuildTreeRecursive_RealFilesystem(t *testing.T) {
 	maxDepth := 0
 
 	// Call the production buildTreeRecursive (uses os.ReadDir).
-	err := buildTreeRecursive(root, &maxDepth)
+	err := buildTreeRecursive(root, &maxDepth, "")
 
 	// Assertions.
 	require.NoError(t, err, "should build tree without error")
@@ -924,7 +922,7 @@ func TestBuildTreeRecursive_ErrorOnNonexistentPath(t *testing.T) {
 	maxDepth := 0
 
 	// Call buildTreeRecursive with a nonexistent path.
-	err := buildTreeRecursive(root, &maxDepth)
+	err := buildTreeRecursive(root, &maxDepth, "")
 
 	// Should not return an error (errors are swallowed in buildTreeRecursive).
 	assert.NoError(t, err, "buildTreeRecursive swallows ReadDir errors")

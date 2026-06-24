@@ -9,3 +9,51 @@ commands:
   - destroy
 
 max_navigation_columns: 3
+
+history:
+  max_entries: 20
+
+log_level: "stdout"
+
+log_format: "pretty"
+
+terragrunt:
+  # queue_include_external removed — use top-level include_dependencies: true
+
+# TerraX feature shortcuts
+# These enable high-level Terragrunt behaviors with simple boolean toggles.
+features:
+  # Forward Terraform stdout directly without Terragrunt prefixes.
+  # Equivalent to --tf-forward-stdout.
+  # Default: false
+  tf_forward_stdout: true
+
+  # Print a summary per stack unit after execution.
+  # Equivalent to --summary-per-unit.
+  # Default: false
+  summary_per_unit: true
+
+  # Generate a structured JSON report file after execution.
+  # Equivalent to --report-file <file> --report-format <format>.
+  report:
+    enabled: true
+    # Default: ".terrax/report.json"
+    file: ".terrax/report.json"
+    # Default: "json"
+    format: "json"
+
+# Per-command extra Terragrunt flags (added before the -- separator).
+# Use this for flags only relevant to specific commands.
+# terragrunt:
+#   command_flags:
+#     plan:
+#       - "--out-dir=.terrax/plans"
+#       - "--json-out-dir=.terrax/plans"
+
+# Extra Terraform flags (added after the -- separator, passed directly to Terraform).
+# terraform:
+#   extra_flags:
+#     - "-input=false"
+#   command_flags:
+#     plan:
+#       - "-detailed-exitcode"

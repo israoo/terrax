@@ -1,0 +1,214 @@
+{
+  "name": "terrax-vscode",
+  "displayName": "TerraX",
+  "description": "Open TerraX from the VS Code file explorer",
+  "version": "0.1.0",
+  "engines": {
+    "vscode": "^1.125.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/israoo/terrax"
+  },
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "terrax",
+          "title": "TerraX",
+          "icon": "icons/terrax.svg"
+        }
+      ]
+    },
+    "views": {
+      "terrax": [
+        { "id": "terrax.stackTree",      "name": "Stacks" },
+        { "id": "terrax.dependencyTree", "name": "Dependencies" },
+        { "id": "terrax.dependentsTree", "name": "Dependents" },
+        { "id": "terrax.historyTree",    "name": "History" }
+      ]
+    },
+    "commands": [
+      {
+        "command": "terrax.openHere",
+        "title": "TerraX: Open here"
+      },
+      {
+        "command": "terrax.refresh",
+        "title": "TerraX: Refresh",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "terrax.expandAll",
+        "title": "TerraX: Expand All",
+        "icon": "$(expand-all)"
+      },
+      {
+        "command": "terrax.runPlan",
+        "title": "Run Plan",
+        "shortTitle": "Plan",
+        "icon": "$(play)"
+      },
+      {
+        "command": "terrax.runApply",
+        "title": "Run Apply",
+        "icon": "$(play)"
+      },
+      {
+        "command": "terrax.runValidate",
+        "title": "Run Validate",
+        "icon": "$(play)"
+      },
+      {
+        "command": "terrax.runInit",
+        "title": "Run Init",
+        "icon": "$(play)"
+      },
+      {
+        "command": "terrax.runOutput",
+        "title": "Run Output",
+        "icon": "$(play)"
+      },
+      {
+        "command": "terrax.runRefresh",
+        "title": "Run Refresh",
+        "icon": "$(play)"
+      },
+      {
+        "command": "terrax.runFmt",
+        "title": "Run Fmt",
+        "icon": "$(play)"
+      },
+      {
+        "command": "terrax.runDestroy",
+        "title": "Run Destroy",
+        "icon": "$(warning)"
+      },
+      {
+        "command": "terrax.openFile",
+        "title": "Open terragrunt.hcl",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "terrax.refreshHistory",
+        "title": "TerraX: Refresh History",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "terrax.reRunHistory",
+        "title": "Re-run",
+        "icon": "$(run)"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "terrax.openHere",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "terrax.runPlan",
+          "when": "view == terrax.stackTree && viewItem == terraxDirectory",
+          "group": "inline"
+        },
+        {
+          "command": "terrax.runPlan",
+          "when": "view == terrax.stackTree && viewItem == terraxStack",
+          "group": "inline"
+        },
+        {
+          "command": "terrax.reRunHistory",
+          "when": "view == terrax.historyTree && viewItem == terraxHistoryEntry",
+          "group": "inline"
+        },
+        {
+          "command": "terrax.runPlan",
+          "when": "view == terrax.stackTree && (viewItem == terraxDirectory || viewItem == terraxStack)",
+          "group": "terrax@1"
+        },
+        {
+          "command": "terrax.runApply",
+          "when": "view == terrax.stackTree && (viewItem == terraxDirectory || viewItem == terraxStack)",
+          "group": "terrax@1"
+        },
+        {
+          "command": "terrax.runValidate",
+          "when": "view == terrax.stackTree && (viewItem == terraxDirectory || viewItem == terraxStack)",
+          "group": "terrax@1"
+        },
+        {
+          "command": "terrax.runFmt",
+          "when": "view == terrax.stackTree && (viewItem == terraxDirectory || viewItem == terraxStack)",
+          "group": "terrax@1"
+        },
+        {
+          "command": "terrax.runInit",
+          "when": "view == terrax.stackTree && (viewItem == terraxDirectory || viewItem == terraxStack)",
+          "group": "terrax@1"
+        },
+        {
+          "command": "terrax.runOutput",
+          "when": "view == terrax.stackTree && (viewItem == terraxDirectory || viewItem == terraxStack)",
+          "group": "terrax@1"
+        },
+        {
+          "command": "terrax.runRefresh",
+          "when": "view == terrax.stackTree && (viewItem == terraxDirectory || viewItem == terraxStack)",
+          "group": "terrax@1"
+        },
+        {
+          "command": "terrax.runDestroy",
+          "when": "view == terrax.stackTree && (viewItem == terraxDirectory || viewItem == terraxStack)",
+          "group": "terrax@1"
+        },
+        {
+          "command": "terrax.openFile",
+          "when": "view == terrax.stackTree && viewItem == terraxStack",
+          "group": "terrax@2"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "terrax.expandAll",
+          "when": "view == terrax.stackTree",
+          "group": "navigation@1"
+        },
+        {
+          "command": "terrax.refresh",
+          "when": "view == terrax.stackTree",
+          "group": "navigation@2"
+        },
+        {
+          "command": "terrax.refreshHistory",
+          "when": "view == terrax.historyTree",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "TerraX",
+      "properties": {
+        "terrax.binaryPath": {
+          "type": "string",
+          "default": "terrax",
+          "description": "Path to the terrax binary. Defaults to 'terrax' (assumes it's on PATH)."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "vscode:prepublish": "pnpm run compile"
+  },
+  "devDependencies": {
+    "@types/node": "18.19.130",
+    "@types/vscode": "1.125.0",
+    "@vscode/vsce": "3.9.2",
+    "typescript": "5.9.3"
+  }
+}

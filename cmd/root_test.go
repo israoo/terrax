@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// testCommands defines a standard list of commands for testing.
 var testCommands = []string{
 	"plan",
 	"apply",
@@ -37,20 +36,30 @@ func captureStdout(t *testing.T) (restore func() string) {
 	os.Stdout = w
 
 	return func() string {
-		_ = w.Close()
+		// Close the writer to signal end of output
+		assert.NoError(t, w.Close())
 		os.Stdout = oldStdout
 		var buf bytes.Buffer
-		_, _ = io.Copy(&buf, r)
+		_, err := io.Copy(&buf, r)
+		assert.NoError(t, err)
 		return buf.String()
 	}
 }
 
-// TestGetWorkingDirectory tests that getWorkingDirectory returns a valid path.
-func TestGetWorkingDirectory(t *testing.T) {
-	workDir, err := getWorkingDirectory()
+func TestGetWorkingDirectory_WithExplicitDir(t *testing.T) {
+	dir := t.TempDir()
+	got, err := getWorkingDirectory(dir)
+	require.NoError(t, err)
+	assert.Equal(t, dir, got)
+}
 
-	assert.NoError(t, err, "should get working directory without error")
-	assert.NotEmpty(t, workDir, "working directory should not be empty")
+func TestGetWorkingDirectory_DefaultsToCwd(t *testing.T) {
+	expected, err := os.Getwd()
+	require.NoError(t, err)
+
+	got, err := getWorkingDirectory("")
+	require.NoError(t, err)
+	assert.Equal(t, expected, got)
 }
 
 // TestBuildStackTree tests the buildStackTree function with real filesystem.
@@ -241,7 +250,7 @@ func TestExecute(t *testing.T) {
 
 	// Cleanup: Restore state after test
 	t.Cleanup(func() {
-		_ = os.Chdir(originalWd)
+		require.NoError(t, os.Chdir(originalWd))
 		rootCmd.ResetFlags()
 		rootCmd.ResetCommands()
 	})
@@ -282,7 +291,7 @@ func TestExecute_WithConfirmation(t *testing.T) {
 
 	// Cleanup: Restore state after test
 	t.Cleanup(func() {
-		_ = os.Chdir(originalWd)
+		require.NoError(t, os.Chdir(originalWd))
 		rootCmd.ResetFlags()
 		rootCmd.ResetCommands()
 	})
@@ -300,6 +309,13 @@ func TestExecute_WithConfirmation(t *testing.T) {
 	} // Inject mock runner and ensure cleanup
 	restoreRunner := setTUIRunner(mockTUIRunner)
 	defer restoreRunner()
+
+	// Mock Plan Review Runner to prevent blocking
+	mockPlanRunner := func(initialModel tui.Model) (tui.Model, error) {
+		return initialModel, nil
+	}
+	restorePlanRunner := setPlanReviewRunner(mockPlanRunner)
+	defer restorePlanRunner()
 
 	// Execute the command - should complete without blocking
 	err = Execute()
@@ -404,7 +420,7 @@ max_navigation_columns: 2
 
 				// Cleanup function to remove home config
 				cleanup := func() {
-					_ = os.Remove(configPath)
+					require.NoError(t, os.Remove(configPath))
 				}
 
 				return tmpDir, cleanup
@@ -437,7 +453,7 @@ max_navigation_columns: 5
 				require.NoError(t, os.WriteFile(homeConfigPath, []byte(homeContent), 0644))
 
 				cleanup := func() {
-					_ = os.Remove(homeConfigPath)
+					require.NoError(t, os.Remove(homeConfigPath))
 				}
 
 				return tmpDir, cleanup
@@ -475,7 +491,7 @@ max_navigation_columns: 5
 			originalWd, err := os.Getwd()
 			require.NoError(t, err)
 			require.NoError(t, os.Chdir(configDir))
-			defer func() { _ = os.Chdir(originalWd) }()
+			defer func() { require.NoError(t, os.Chdir(originalWd)) }()
 
 			// Call initConfig
 			initConfig()
@@ -574,7 +590,7 @@ func TestRunTUI_ConfigValidation(t *testing.T) {
 			originalWd, err := os.Getwd()
 			require.NoError(t, err)
 			require.NoError(t, os.Chdir(tmpDir))
-			defer func() { _ = os.Chdir(originalWd) }()
+			defer func() { require.NoError(t, os.Chdir(originalWd)) }()
 
 			// Setup config
 			tt.setupConfig()
@@ -614,7 +630,7 @@ func TestRunTUI_TUIRunnerError(t *testing.T) {
 	originalWd, err := os.Getwd()
 	require.NoError(t, err)
 	require.NoError(t, os.Chdir(tmpDir))
-	defer func() { _ = os.Chdir(originalWd) }()
+	defer func() { require.NoError(t, os.Chdir(originalWd)) }()
 
 	// Mock TUI runner that returns an error
 	mockTUIRunner := func(initialModel tui.Model) (tui.Model, error) {

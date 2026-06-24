@@ -1,5 +1,5 @@
 # Binary files
-terrax
+/terrax
 *.exe
 *.dll
 *.so
@@ -29,3 +29,14 @@ Thumbs.db
 # Build artifacts
 dist/
 build/
+
+# VS Code extension
+extensions/vscode/node_modules/
+extensions/vscode/out/
+extensions/vscode/*.vsix
+
+# TerraX generated plan files
+.terrax/
+
+# Local TerraX config overrides (machine-specific, not committed)
+.terrax.local.yaml

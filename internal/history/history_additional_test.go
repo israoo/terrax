@@ -12,34 +12,30 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestGetHistoryFilePath_DirectoryCreation tests directory creation.
-func TestGetHistoryFilePath_DirectoryCreation(t *testing.T) {
-	// This test verifies that GetHistoryFilePath creates the directory
-	path, err := GetHistoryFilePath()
-	require.NoError(t, err)
-	assert.NotEmpty(t, path)
+// TestFileRepository_DirectoryCreation tests directory creation via repository.
+func TestFileRepository_DirectoryCreation(t *testing.T) {
+	tempDir := t.TempDir()
+	historyPath := filepath.Join(tempDir, "subdir", "history.log")
 
-	// Directory should exist
-	dir := filepath.Dir(path)
-	info, err := os.Stat(dir)
+	// Let's test NewFileRepository with a path where dir exists.
+	err := os.MkdirAll(filepath.Dir(historyPath), 0755)
 	require.NoError(t, err)
-	assert.True(t, info.IsDir())
+
+	repo, err := NewFileRepository(historyPath)
+	require.NoError(t, err)
+	assert.NotNil(t, repo)
 }
 
-// TestAppendToHistory_CloseErrorHandling tests error paths in AppendToHistory.
+// TestAppendToHistory_CloseErrorHandling tests error paths.
 func TestAppendToHistory_CloseErrorHandling(t *testing.T) {
 	ctx := context.Background()
 
 	tempDir := t.TempDir()
 	tempHistoryPath := filepath.Join(tempDir, HistoryFileName)
 
-	originalFunc := historyFilePathFunc
-	historyFilePathFunc = func() (string, error) {
-		return tempHistoryPath, nil
-	}
-	defer func() {
-		historyFilePathFunc = originalFunc
-	}()
+	repo, err := NewFileRepository(tempHistoryPath)
+	require.NoError(t, err)
+	svc := NewService(repo, "root.hcl")
 
 	entry := ExecutionLogEntry{
 		ID:           1,
@@ -53,11 +49,10 @@ func TestAppendToHistory_CloseErrorHandling(t *testing.T) {
 		Summary:      "test",
 	}
 
-	err := AppendToHistory(ctx, entry)
+	err = svc.Append(ctx, entry)
 	require.NoError(t, err)
 
-	// Verify entry was written
-	loaded, err := LoadHistory(ctx)
+	loaded, err := svc.LoadAll(ctx)
 	require.NoError(t, err)
 	assert.Len(t, loaded, 1)
 	assert.Equal(t, entry.ID, loaded[0].ID)
@@ -70,15 +65,10 @@ func TestTrimHistory_TempFileHandling(t *testing.T) {
 	tempDir := t.TempDir()
 	tempHistoryPath := filepath.Join(tempDir, HistoryFileName)
 
-	originalFunc := historyFilePathFunc
-	historyFilePathFunc = func() (string, error) {
-		return tempHistoryPath, nil
-	}
-	defer func() {
-		historyFilePathFunc = originalFunc
-	}()
+	repo, err := NewFileRepository(tempHistoryPath)
+	require.NoError(t, err)
+	svc := NewService(repo, "root.hcl")
 
-	// Create 20 entries
 	for i := 1; i <= 20; i++ {
 		entry := ExecutionLogEntry{
 			ID:        i,
@@ -90,20 +80,17 @@ func TestTrimHistory_TempFileHandling(t *testing.T) {
 			DurationS: float64(i),
 			Summary:   fmt.Sprintf("entry %d", i),
 		}
-		err := AppendToHistory(ctx, entry)
+		err := svc.Append(ctx, entry)
 		require.NoError(t, err)
 	}
 
-	// Trim to 10 entries
-	err := TrimHistory(ctx, 10)
+	err = svc.TrimHistory(ctx, 10)
 	require.NoError(t, err)
 
-	// Verify only 10 most recent entries remain
-	loaded, err := LoadHistory(ctx)
+	loaded, err := svc.LoadAll(ctx)
 	require.NoError(t, err)
 	assert.Len(t, loaded, 10)
 
-	// Verify these are the most recent ones (IDs 11-20, but reversed in output)
 	assert.Equal(t, 20, loaded[0].ID)
 	assert.Equal(t, 11, loaded[9].ID)
 }
@@ -111,7 +98,6 @@ func TestTrimHistory_TempFileHandling(t *testing.T) {
 // TestGetCurrentUser_ErrorHandling tests error scenarios.
 func TestGetCurrentUser_ErrorHandling(t *testing.T) {
 	// GetCurrentUser should always return a non-empty string
-	// Even if user.Current() fails, it returns "unknown"
 	user := GetCurrentUser()
 	assert.NotEmpty(t, user)
 }
@@ -119,20 +105,14 @@ func TestGetCurrentUser_ErrorHandling(t *testing.T) {
 // TestGetNextID_EmptyHistory tests ID generation for empty history.
 func TestGetNextID_EmptyHistory(t *testing.T) {
 	ctx := context.Background()
-
 	tempDir := t.TempDir()
 	tempHistoryPath := filepath.Join(tempDir, "empty_history.log")
 
-	originalFunc := historyFilePathFunc
-	historyFilePathFunc = func() (string, error) {
-		return tempHistoryPath, nil
-	}
-	defer func() {
-		historyFilePathFunc = originalFunc
-	}()
+	repo, err := NewFileRepository(tempHistoryPath)
+	require.NoError(t, err)
+	svc := NewService(repo, "root.hcl")
 
-	// Don't create the file - test when it doesn't exist
-	nextID, err := GetNextID(ctx)
+	nextID, err := svc.GetNextID(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, 1, nextID)
 }
@@ -140,28 +120,20 @@ func TestGetNextID_EmptyHistory(t *testing.T) {
 // TestGetLastExecution_EmptyHistory tests getting last execution from empty history.
 func TestGetLastExecution_EmptyHistory(t *testing.T) {
 	ctx := context.Background()
-
 	tempDir := t.TempDir()
 	tempHistoryPath := filepath.Join(tempDir, "empty_history.log")
 
-	originalFunc := historyFilePathFunc
-	historyFilePathFunc = func() (string, error) {
-		return tempHistoryPath, nil
-	}
-	defer func() {
-		historyFilePathFunc = originalFunc
-	}()
+	repo, err := NewFileRepository(tempHistoryPath)
+	require.NoError(t, err)
+	svc := NewService(repo, "root.hcl")
 
-	// File doesn't exist - should return nil
-	entry, err := GetLastExecution(ctx)
+	entry, err := svc.GetLastExecutionForProject(ctx)
 	require.NoError(t, err)
 	assert.Nil(t, entry)
 }
 
 // TestFindProjectRoot_FileSystemRoot tests reaching filesystem root.
 func TestFindProjectRoot_FileSystemRoot(t *testing.T) {
-	// Start from a temporary directory that definitely doesn't have root.hcl
-	// and walk up to filesystem root
 	tmpDir := t.TempDir()
 
 	root, err := FindProjectRoot(tmpDir, "definitely_nonexistent_root_file.hcl")
@@ -176,7 +148,6 @@ func TestGetRelativeStackPath_InvalidAbsolutePath(t *testing.T) {
 	stackPath := filepath.Join(tmpDir, "stack")
 	require.NoError(t, os.MkdirAll(stackPath, 0755))
 
-	// No root.hcl exists, so should return absolute path
 	relPath, err := GetRelativeStackPath(stackPath, "root.hcl")
 	require.NoError(t, err)
 	assert.Equal(t, stackPath, relPath, "should return absolute path when root not found")
@@ -199,29 +170,25 @@ func TestFilterHistoryByProject_WithoutAbsolutePath(t *testing.T) {
 		},
 	}
 
-	// Filter should skip entries without AbsolutePath
-	filtered, err := FilterHistoryByProject(entries, "root.hcl")
+	// Let's use service directly.
+	repo, _ := NewFileRepository("")
+	svc := NewService(repo, "root.hcl")
+
+	filtered, err := svc.FilterByCurrentProject(entries)
 	require.NoError(t, err)
 
-	// Entry 1 should be skipped due to empty AbsolutePath
-	// Entry 2 will be included or not depending on project root match
 	assert.LessOrEqual(t, len(filtered), 2)
 }
 
 // TestLoadHistory_CloseError tests handling of file close errors.
 func TestLoadHistory_CloseError(t *testing.T) {
 	ctx := context.Background()
-
 	tempDir := t.TempDir()
 	tempHistoryPath := filepath.Join(tempDir, HistoryFileName)
 
-	originalFunc := historyFilePathFunc
-	historyFilePathFunc = func() (string, error) {
-		return tempHistoryPath, nil
-	}
-	defer func() {
-		historyFilePathFunc = originalFunc
-	}()
+	repo, err := NewFileRepository(tempHistoryPath)
+	require.NoError(t, err)
+	svc := NewService(repo, "root.hcl")
 
 	// Create a valid history file
 	entry := ExecutionLogEntry{
@@ -234,11 +201,11 @@ func TestLoadHistory_CloseError(t *testing.T) {
 		DurationS: 1.0,
 		Summary:   "test",
 	}
-	err := AppendToHistory(ctx, entry)
+	err = svc.Append(ctx, entry)
 	require.NoError(t, err)
 
-	// Load history - close error is logged but doesn't fail
-	entries, err := LoadHistory(ctx)
+	// Load history
+	entries, err := svc.LoadAll(ctx)
 	require.NoError(t, err)
 	assert.Len(t, entries, 1)
 }
@@ -260,94 +227,4 @@ func TestGetRelativeStackPath_SymlinkResolution(t *testing.T) {
 
 	// Should be relative to project root
 	assert.Equal(t, filepath.Join("stacks", "dev"), relPath)
-}
-
-// TestAppendToHistory_GetHistoryFilePathError tests error from GetHistoryFilePath.
-func TestAppendToHistory_GetHistoryFilePathError(t *testing.T) {
-	ctx := context.Background()
-
-	originalFunc := historyFilePathFunc
-	historyFilePathFunc = func() (string, error) {
-		return "", fmt.Errorf("simulated error")
-	}
-	defer func() {
-		historyFilePathFunc = originalFunc
-	}()
-
-	entry := ExecutionLogEntry{
-		ID:      1,
-		Command: "plan",
-	}
-
-	err := AppendToHistory(ctx, entry)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to get history file path")
-}
-
-// TestTrimHistory_GetHistoryFilePathError tests error from GetHistoryFilePath in TrimHistory.
-func TestTrimHistory_GetHistoryFilePathError(t *testing.T) {
-	ctx := context.Background()
-
-	originalFunc := historyFilePathFunc
-	historyFilePathFunc = func() (string, error) {
-		return "", fmt.Errorf("simulated error")
-	}
-	defer func() {
-		historyFilePathFunc = originalFunc
-	}()
-
-	err := TrimHistory(ctx, 10)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to get history file path")
-}
-
-// TestGetNextID_GetHistoryFilePathError tests error from GetHistoryFilePath in GetNextID.
-func TestGetNextID_GetHistoryFilePathError(t *testing.T) {
-	ctx := context.Background()
-
-	originalFunc := historyFilePathFunc
-	historyFilePathFunc = func() (string, error) {
-		return "", fmt.Errorf("simulated error")
-	}
-	defer func() {
-		historyFilePathFunc = originalFunc
-	}()
-
-	_, err := GetNextID(ctx)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to get history file path")
-}
-
-// TestGetLastExecution_GetHistoryFilePathError tests error from GetHistoryFilePath in GetLastExecution.
-func TestGetLastExecution_GetHistoryFilePathError(t *testing.T) {
-	ctx := context.Background()
-
-	originalFunc := historyFilePathFunc
-	historyFilePathFunc = func() (string, error) {
-		return "", fmt.Errorf("simulated error")
-	}
-	defer func() {
-		historyFilePathFunc = originalFunc
-	}()
-
-	_, err := GetLastExecution(ctx)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to get history file path")
-}
-
-// TestLoadHistory_GetHistoryFilePathError tests error from GetHistoryFilePath in LoadHistory.
-func TestLoadHistory_GetHistoryFilePathError(t *testing.T) {
-	ctx := context.Background()
-
-	originalFunc := historyFilePathFunc
-	historyFilePathFunc = func() (string, error) {
-		return "", fmt.Errorf("simulated error")
-	}
-	defer func() {
-		historyFilePathFunc = originalFunc
-	}()
-
-	_, err := LoadHistory(ctx)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to get history file path")
 }

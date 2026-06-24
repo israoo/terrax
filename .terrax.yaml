@@ -1,5 +1,9 @@
 # TerraX configuration file
-# Save this file as .terrax.yaml in your project root or home directory
+# Save this file as .terrax.yaml in your project root or home directory.
+#
+# Local overrides: create .terrax.local.yaml alongside this file for machine-specific
+# settings that should not be committed (it is gitignored by default). Keys in
+# .terrax.local.yaml take priority and are deep-merged with this file.
 
 # Name of the root configuration file used to determine the project root directory
 # This file is searched upward from the stack path to calculate relative paths in history
@@ -31,3 +35,156 @@ history:
   # Default: 500
   # Minimum: 10
   max_entries: 500
+
+# Terragrunt configuration
+# These settings control how terragrunt executes commands
+
+# Logging configuration
+# Log level for terragrunt output
+# Options: "trace", "debug", "info", "warn", "error", "stdout", "stderr"
+# Default: (terragrunt default)
+log_level: "info"
+
+# Log format for terragrunt output
+# Options: "pretty", "bare", "key-value", "json"
+# Default: "pretty"
+# Note: This setting is ignored if log_custom_format is set
+log_format: "pretty"
+
+# Custom log format template for terragrunt output
+# When set, this takes priority over log_format
+# Default: (not set)
+# Example: "%time %level %msg"
+# Uncomment to use a custom format:
+# log_custom_format: "%time %level %msg"
+
+# Whether to include transitive dependencies when building the execution filter list.
+# When true, TerraX resolves all dependency stacks via static HCL analysis and passes
+# each as an explicit --filter to Terragrunt.
+# When false, only the selected stack(s) are included.
+# Default: true
+# include_dependencies: false
+
+# Terragrunt execution flags
+terragrunt:
+  # Number of modules to run in parallel
+  # Default: 0 (uses terragrunt's default parallelism)
+  # Set to a positive number to limit parallelism
+  # parallelism: 4
+
+  # Disable colored output
+  # Default: false
+  # no_color: true
+
+  # Run in non-interactive mode (no prompts)
+  # Default: false
+  # non_interactive: true
+
+  # Include external dependencies in queue
+  # Default: false
+  # (removed — use top-level include_dependencies: true instead)
+
+  # Ignore dependency errors and continue execution
+  # Default: false
+  # ignore_dependency_errors: true
+
+  # Ignore external dependencies (dependencies outside the working directory)
+  # Default: false
+  # ignore_external_dependencies: true
+
+  # Include external dependencies in execution
+  # Default: false
+  # include_external_dependencies: true
+
+  # Additional custom flags to pass to terragrunt
+  # This is a list of flags that will be added to every command
+  # Useful for flags not explicitly supported above
+  # Example:
+  # extra_flags:
+  #   - "--terragrunt-download-dir=/tmp/terragrunt"
+  #   - "--terragrunt-source-update"
+
+  # Per-command extra Terragrunt flags (added before the -- separator)
+  # Use this for flags only relevant to specific commands
+  # Example:
+  # command_flags:
+  #   plan:
+  #     - "--out-dir=.terrax/plans"
+  #     - "--json-out-dir=.terrax/plans"
+
+# TerraX feature shortcuts
+# These enable high-level Terragrunt behaviors with simple boolean toggles
+features:
+  # Forward Terraform stdout directly without Terragrunt prefixes
+  # Equivalent to --tf-forward-stdout
+  # Default: false
+  # tf_forward_stdout: true
+
+  # Print a summary per stack unit after execution
+  # Equivalent to --summary-per-unit
+  # Default: false
+  # summary_per_unit: true
+
+  # Generate a structured JSON report file after execution
+  # Equivalent to --report-file <file> --report-format <format>
+  report:
+    # Default: false
+    # enabled: true
+    # Default: ".terrax/report.json"
+    # file: ".terrax/report.json"
+    # Default: "json"
+    # format: "json"
+
+# Plan configuration
+plan:
+  # Enable or disable plan file scanning and review TUI after running plan.
+  # When disabled, -out= is not injected and plan review is skipped entirely.
+  # Default: true
+  # review_enabled: false
+
+  # Enable terminal summary mode after plan execution.
+  # When enabled, --json-out-dir=.terrax/plans is automatically injected and
+  # TerraX prints a count line per stack (+add ~update -delete ♻recreate).
+  # No external tools required.
+  # Default: false
+  # summary_enabled: true
+
+# Stack group classification
+# Stacks matching a group's detect string in their stack.hcl are assigned to that group.
+# Each group runs as a separate terragrunt run, in depends_on order.
+# The default group captures all stacks not matching any other group.
+# Use `terrax groups --json` to see the computed groups for a given directory.
+#
+# stack_groups:
+#   default:
+#     depends_on: []
+#
+#   private_connection:
+#     detect: "require_private_connection = true"
+#     depends_on: [default]
+#     env:
+#       TF_VAR_host: "localhost"
+#       TF_VAR_port: "15432"
+#
+#   # Groups with skip: true are excluded from local execution.
+#   # They still appear in `terrax groups --json` so CI can decide what to do with them.
+#   deprecated:
+#     detect: "deprecated = true"
+#     skip: true
+
+# Extra Terraform flags (added after the -- separator, passed directly to Terraform)
+# terraform:
+#   extra_flags:
+#     - "-input=false"
+#   command_flags:
+#     plan:
+#       - "-detailed-exitcode"
+
+# State backend configuration (required for force-unlock command)
+# state:
+#   bucket: "my-terraform-state-bucket"   # S3 bucket holding Terraform state
+#   project: "caas-workloads"             # Key prefix inside the bucket (e.g., project name)
+#   region: "us-east-1"                   # AWS region (default: us-east-1)
+#   aws_profile: "my-profile"             # AWS CLI named profile (optional, uses default chain if omitted)
+#   aws_config_file: "/path/to/.aws/config" # AWS config file path via AWS_CONFIG_FILE (optional)
+#

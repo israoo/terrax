@@ -61,7 +61,19 @@ Complete audit trail of all command executions with persistent history. View, se
 
 ### ✔︎ Quick command re-execution
 
-Re-run the last executed command instantly with `--last` flag, or browse full history interactively with `--history` to select and re-execute any previous command.
+Re-run the last executed command instantly with `--last` flag, browse full history interactively with `--history`, or reopen the plan review TUI without re-running with `--review`.
+
+### ✔︎ Plan summary and interactive review
+
+After running `plan`, TerraX can show a grouped terminal summary (no-changes vs pending-changes) and/or launch an interactive review TUI with resource-level diffs. Enable via `plan.summary_enabled` and `plan.review_enabled` in `.terrax.yaml`.
+
+### ✔︎ Smart dependency resolution
+
+TerraX pre-computes the exact set of stacks to run using static HCL analysis — no subprocess required. Transitive dependencies are discovered and passed as explicit `--filter` targets. Control with `include_dependencies: true/false`.
+
+### ✔︎ Force unlock
+
+Select `force-unlock` from the TUI to automatically discover and release a locked Terraform state. TerraX reads the lock ID from S3 via the AWS CLI — no manual copy-paste. Configure `state.bucket` and `state.project` in `.terrax.yaml`.
 
 ### ✔︎ Keyboard-first design
 
@@ -196,19 +208,33 @@ commands:
   - refresh
   - fmt
 
-# Maximum number of navigation columns visible simultaneously
-# Increase for deeper hierarchies or larger terminals
 max_navigation_columns: 3
+root_config_file: "root.hcl"
+
+# Whether to include transitive dependencies when computing the execution scope
+include_dependencies: true
 
 # History configuration
 history:
-  # Maximum number of history entries to retain
   max_entries: 1000
 
-# Project root detection
-# This file is used to identify the root of your project
-# for proper history filtering and relative path calculation
-root_config_file: "root.hcl"
+# Plan analysis (requires plan in commands list)
+plan:
+  review_enabled: true    # Launch interactive plan review TUI after plan
+  summary_enabled: false  # Print grouped terminal summary after plan
+
+# Feature shortcuts — map to Terragrunt flags
+features:
+  tf_forward_stdout: false
+  summary_per_unit: false
+  report:
+    enabled: false        # Writes .terrax/report.json
+
+# State backend — required for force-unlock command
+# state:
+#   bucket: "my-terraform-state"
+#   project: "my-project"
+#   region: "us-east-1"
 ```
 
 ### Configuration options
@@ -217,8 +243,13 @@ root_config_file: "root.hcl"
 |--------|------|---------|-------------|
 | `max_navigation_columns` | integer | `3` | Maximum navigation columns visible in sliding window |
 | `commands` | list | 8 commands | Terragrunt commands shown in TUI (in order) |
-| `history.max_entries` | integer | `1000` | Maximum number of history entries to keep |
 | `root_config_file` | string | `root.hcl` | Config file name used to detect project root |
+| `include_dependencies` | bool | `true` | Resolve transitive deps via static HCL analysis |
+| `history.max_entries` | integer | `500` | Maximum number of history entries to keep |
+| `plan.review_enabled` | bool | `true` | Launch plan review TUI after running plan |
+| `plan.summary_enabled` | bool | `false` | Print terminal summary after running plan |
+| `state.bucket` | string | — | S3 bucket for Terraform state (force-unlock) |
+| `state.project` | string | — | S3 key prefix for Terraform state (force-unlock) |
 
 **Notes:**
 
@@ -247,11 +278,17 @@ terrax --history
 # Re-execute the last command from history
 terrax --last       # or -l
 
+# Execute a command directly without opening the TUI
+terrax run plan --dir ./path/to/stack
+
+# Output stack tree with dependency graph as JSON (used by VS Code extension)
+terrax tree --json --dir .
+
+# Output execution history as JSON (used by VS Code extension)
+terrax history --dir .
+
 # Display version information
 terrax --version
-
-# Show help
-terrax --help
 ```
 
 ### Try with examples
@@ -359,6 +396,39 @@ terrax --last  # or -l
 ```
 
 This executes the last command from your project's history without opening the TUI.
+
+---
+
+## 🧩 VS Code Extension
+
+TerraX includes a companion VS Code extension that exposes the CLI as a visual interface directly in your editor.
+
+### Install
+
+```bash
+# Build and install the extension
+task ext:package
+code --install-extension extensions/vscode/terrax-vscode-0.1.0.vsix
+```
+
+### Configure
+
+Set the binary path in VS Code settings (`terrax.binaryPath`) if `terrax` is not on your PATH:
+
+```json
+{ "terrax.binaryPath": "/usr/local/bin/terrax" }
+```
+
+### Panels
+
+| Panel | Description |
+|---|---|
+| **Stacks** | Directory hierarchy — click to open TUI, `$(play)` button to run plan directly |
+| **Dependencies** | What the selected stack depends on (transitive) |
+| **Dependents** | What depends on the selected stack (impact analysis) |
+| **History** | Recent executions — click to open TUI, `$(run)` button to re-execute |
+
+Stacks in a dependency cycle are shown with a `$(warning)` icon.
 
 ---
 
@@ -516,81 +586,15 @@ TerraX/
 
 We welcome contributions! TerraX follows strict architectural principles and comprehensive testing standards.
 
-### Development setup
+We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details on:
 
-```bash
-# Clone repository
-git clone https://github.com/israoo/terrax.git
-cd terrax
+- Setting up your development environment
+- Running tests (`make test`)
+- Code standards and architectural patterns
+- Submitting Pull Requests
 
-# Initialize (install dependencies + verify setup)
-make init
+For a deep dive into the architecture, see [CLAUDE.md](CLAUDE.md) and the [docs/](docs/) directory.
 
-# Run tests
-make test
-
-# Run with coverage report
-make test-coverage
-```
-
-### Tech stack
-
-| Component | Technology | Version |
-|-----------|------------|---------|
-| **Language** | [Go](https://go.dev/) | 1.25.5 |
-| **TUI Framework** | [Bubble Tea](https://github.com/charmbracelet/bubbletea) | 1.3.10 |
-| **UI Components** | [Bubbles](https://github.com/charmbracelet/bubbles) | 0.21.0 |
-| **Styling** | [Lipgloss](https://github.com/charmbracelet/lipgloss) | 1.1.0 |
-| **CLI Framework** | [Cobra](https://github.com/spf13/cobra) | 1.10.2 |
-| **Configuration** | [Viper](https://github.com/spf13/viper) | 1.21.0 |
-| **Testing** | [Testify](https://github.com/stretchr/testify) | 1.11.1 |
-| **Filesystem Mocking** | [Afero](https://github.com/spf13/afero) | 1.15.0 |
-
-### Testing strategy
-
-TerraX employs a multi-layered testing approach:
-
-1. **Unit Tests** (`internal/stack/`):
-   - Pure business logic, zero I/O dependencies
-   - `afero.MemMapFs` for filesystem isolation
-   - Table-driven test patterns
-
-2. **TUI Tests** (`internal/tui/`):
-   - Bubble Tea Model-Update-View validation
-   - State transition testing
-   - Layout calculation verification
-
-3. **Integration Tests** (`cmd/`):
-   - CLI coordination and output formatting
-   - Error handling paths
-
-### Code quality standards
-
-- **Separation of Concerns**: Business logic isolated from UI
-- **Interface-Driven Design**: Navigator operates on pure data structures
-- **Table-Driven Tests**: Comprehensive scenario coverage
-- **Defensive Programming**: Nil checks, error wrapping, bounds validation
-- **Comment Style**: All comments end with periods
-- **Import Organization**: stdlib → third-party → internal
-
-### Contributing workflow
-
-1. **Fork** the repository
-2. **Create** a feature branch (`git checkout -b feature/amazing-feature`)
-3. **Write** tests for new functionality
-4. **Ensure** tests pass (`make test`)
-5. **Format** code (`make fmt`)
-6. **Commit** changes (`git commit -m 'Add amazing feature'`)
-7. **Push** to branch (`git push origin feature/amazing-feature`)
-8. **Open** a Pull Request
-
-### Architecture documentation
-
-For deep architectural guidance, see:
-
-- **[CLAUDE.md](CLAUDE.md)**: Comprehensive architectural patterns and testing strategies
-- **[.github/copilot-instructions.md](.github/copilot-instructions.md)**: Quick orientation for AI agents
-- **[.claude/agents/](claude/agents/)**: Agent-specific governance and patterns
 
 ---
 
