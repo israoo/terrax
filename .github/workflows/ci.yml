@@ -37,7 +37,7 @@ env:
 jobs:
   lint:
     name: Code linting
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-24.04-arm
     steps:
       - name: Checkout code
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
@@ -79,7 +79,7 @@ jobs:
 
   gitguardian:
     name: GitGuardian scan
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     steps:
       - name: Checkout code
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
@@ -97,7 +97,7 @@ jobs:
 
   trivy:
     name: Trivy SCA scan
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-24.04-arm
     permissions:
       contents: read
       security-events: write
@@ -131,7 +131,7 @@ jobs:
 
   sonarcloud:
     name: SonarCloud analysis
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-24.04-arm
     needs: [lint, codeql, trivy, gitguardian]
     steps:
       - name: Checkout code
@@ -167,7 +167,7 @@ jobs:
 
   codecov:
     name: Codecov upload
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-24.04-arm
     needs: sonarcloud
     steps:
       - name: Download coverage artifact
