@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -14,7 +15,11 @@ import (
 // buildTerrax compiles the terrax binary into a temp dir and returns its path.
 func buildTerrax(t *testing.T) string {
 	t.Helper()
-	bin := filepath.Join(t.TempDir(), "terrax")
+	name := "terrax"
+	if runtime.GOOS == "windows" {
+		name = "terrax.exe"
+	}
+	bin := filepath.Join(t.TempDir(), name)
 	out, err := exec.Command("go", "build", "-o", bin, "../main.go").CombinedOutput()
 	require.NoError(t, err, "go build: %s", out)
 	return bin

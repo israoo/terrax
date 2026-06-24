@@ -2,7 +2,6 @@ package tui
 
 import (
 	"fmt"
-	"path/filepath"
 	"sort"
 	"strings"
 
@@ -139,8 +138,8 @@ func (m Model) renderPlanMasterView() string {
 	for i := start; i < end; i++ {
 		node := m.planFlatItems[i]
 
-		// Calculate indentation level based on path depth
-		depth := strings.Count(node.Path, string(filepath.Separator))
+		// Calculate indentation level based on path depth. node.Path always uses "/" (see tree.go).
+		depth := strings.Count(node.Path, "/")
 
 		indent := strings.Repeat("  ", depth)
 

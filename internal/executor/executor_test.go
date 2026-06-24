@@ -621,7 +621,7 @@ func TestBuildTerragruntArgs_PlanSummaryEnabled(t *testing.T) {
 			stackPath:      "/path/to/stack",
 			command:        "plan",
 			summaryEnabled: true,
-			expected:       []string{"run", "--filter", "/path/to/stack", "--log-format", "pretty", "--json-out-dir=/repo/.terrax/plans", "--", "plan"},
+			expected:       []string{"run", "--filter", "/path/to/stack", "--log-format", "pretty", "--json-out-dir=" + filepath.Join("/repo", ".terrax", "plans"), "--", "plan"},
 		},
 		{
 			name:           "summary disabled produces no --json-out-dir",

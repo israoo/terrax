@@ -1,7 +1,6 @@
 package plan
 
 import (
-	"path/filepath"
 	"sort"
 	"strings"
 )
@@ -19,9 +18,9 @@ func BuildTree(stacks []StackResult) []*TreeNode {
 		// safe to take address since we loop by index
 		stack := &stacks[i]
 
-		// Normalize path
+		// StackPath is always normalized to forward slashes (see collector.go), so split on "/".
 		path := stack.StackPath
-		parts := strings.Split(path, string(filepath.Separator))
+		parts := strings.Split(path, "/")
 
 		var currentParent *TreeNode
 		currentPath := ""
@@ -34,7 +33,7 @@ func BuildTree(stacks []StackResult) []*TreeNode {
 			if currentPath == "" {
 				currentPath = part
 			} else {
-				currentPath = filepath.Join(currentPath, part)
+				currentPath = currentPath + "/" + part
 			}
 
 			// Check if this node already exists at this level under the current parent
