@@ -216,7 +216,17 @@ func runTUI(cmd *cobra.Command, args []string) error {
 		repoRoot, filterPaths := collectTransitiveDeps(stackPath)
 
 		if command == "plan" && (viper.GetBool("plan.summary_enabled") || viper.GetBool("plan.review_enabled")) {
-			_ = os.RemoveAll(filepath.Join(repoRoot, config.DefaultOutputDir))
+			jsonOutDir := viper.GetString("plan.json_out_dir")
+			if jsonOutDir == "" {
+				jsonOutDir = config.DefaultJSONOutDir
+			}
+			var absPlansDir string
+			if filepath.IsAbs(jsonOutDir) {
+				absPlansDir = jsonOutDir
+			} else {
+				absPlansDir = filepath.Join(repoRoot, jsonOutDir)
+			}
+			_ = os.RemoveAll(absPlansDir)
 		}
 
 		groups, err := buildGroupedExecution(filterPaths, repoRoot)

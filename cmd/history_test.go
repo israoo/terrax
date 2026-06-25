@@ -96,40 +96,24 @@ func TestHistoryCommand_JSONFlag_OutputsJSON(t *testing.T) {
 }
 
 func TestHistoryCommand_NoJSONFlag_DoesNotOutputJSON(t *testing.T) {
-	// Without --json the command routes to the TUI path.
-	// Inject a no-op runner to avoid opening a real terminal in test environments.
+	// Without --json, runHistoryCmd must route to the TUI path (not JSON output).
+	// Verify by checking that the TUI runner is called, not the JSON writer.
+	tuiCalled := false
 	restore := setHistoryTUIRunner(func(model tui.Model) (tui.Model, error) {
+		tuiCalled = true
 		return tui.Model{}, nil
 	})
 	t.Cleanup(restore)
 
 	tmpDir := t.TempDir()
 
-	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
-
-	done := make(chan string, 1)
-	go func() {
-		var buf bytes.Buffer
-		_, _ = io.Copy(&buf, r)
-		done <- buf.String()
-	}()
-
 	cmd := &cobra.Command{}
 	cmd.Flags().String("dir", "", "")
 	cmd.Flags().Bool("json", false, "")
-	_ = cmd.ParseFlags([]string{"--dir", tmpDir})
+	require.NoError(t, cmd.ParseFlags([]string{"--dir", tmpDir}))
 
 	err := runHistoryCmd(cmd, []string{})
 
-	_ = w.Close()
-	os.Stdout = oldStdout
-	output := <-done
-
 	require.NoError(t, err)
-
-	var entries []map[string]interface{}
-	assert.Error(t, json.Unmarshal([]byte(output), &entries),
-		"without --json the output must not be a JSON array")
+	assert.True(t, tuiCalled, "without --json flag the TUI runner must be invoked")
 }
