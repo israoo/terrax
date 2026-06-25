@@ -168,8 +168,9 @@ include_dependencies: true   # BFS over deps via static HCL; false = selected st
 history:
   max_entries: 500
 plan:
-  review_enabled: true        # Launches StatePlanReview TUI; reads .terrax/plans/
+  review_enabled: true        # Launches StatePlanReview TUI; reads plan output dir
   summary_enabled: false      # Prints grouped terminal summary after plan
+  json_out_dir: ".terrax/plans"  # Output directory for --json-out-dir (relative to repo root or absolute)
 features:
   tf_forward_stdout: false    # --tf-forward-stdout
   summary_per_unit: false     # --summary-per-unit
@@ -209,4 +210,4 @@ Extension lives in `extensions/vscode/`. All calls use `spawnSync` with 10s time
 
 **Add a Terragrunt/Terraform flag:** See `terrax:executor-flags` skill. Use `appendFeatureFlags` for shortcuts, `appendTerragruntFlags` for first-class booleans, or `terragrunt.extra_flags` / `terragrunt.command_flags.<cmd>` in config for arbitrary flags.
 
-**Plan output files:** Written to `<repoRoot>/.terrax/plans/<stack-path>/tfplan.json` via `--json-out-dir`. Auto-reset before each plan run. Read by `runPlanSummary` (terminal) and `runPlanReview` (TUI). Use `terrax summary` to print the terminal summary on demand, or `terrax review` to reopen the TUI without re-running.
+**Plan output files:** Written to `<repoRoot>/<plan.json_out_dir>/<stack-path>/tfplan.json` via `--json-out-dir` (default `.terrax/plans`). Configurable via `plan.json_out_dir` in `.terrax.yaml` or `--plans-dir` flag on `terrax`, `terrax run`, `terrax review`, and `terrax summary`. Auto-reset before each plan run. Read by `runPlanSummary` (terminal) and `runPlanReview` (TUI). Use `terrax summary` to print the terminal summary on demand, or `terrax review` to reopen the TUI without re-running.

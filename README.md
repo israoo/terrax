@@ -220,8 +220,9 @@ history:
 
 # Plan analysis (requires plan in commands list)
 plan:
-  review_enabled: true    # Launch interactive plan review TUI after plan
-  summary_enabled: false  # Print grouped terminal summary after plan
+  review_enabled: true        # Launch interactive plan review TUI after plan
+  summary_enabled: false      # Print grouped terminal summary after plan
+  json_out_dir: ".terrax/plans"  # Output directory for Terragrunt --json-out-dir (relative to repo root or absolute)
 
 # Feature shortcuts — map to Terragrunt flags
 features:
@@ -248,6 +249,7 @@ features:
 | `history.max_entries` | integer | `500` | Maximum number of history entries to keep |
 | `plan.review_enabled` | bool | `true` | Launch plan review TUI after running plan |
 | `plan.summary_enabled` | bool | `false` | Print terminal summary after running plan |
+| `plan.json_out_dir` | string | `.terrax/plans` | Directory for Terragrunt JSON plan output (relative to repo root or absolute) |
 | `state.bucket` | string | — | S3 bucket for Terraform state (force-unlock) |
 | `state.project` | string | — | S3 key prefix for Terraform state (force-unlock) |
 
@@ -412,7 +414,7 @@ terrax summary
 terrax summary --dir ./path/to/project
 ```
 
-Reads from `.terrax/plans/` — run `plan` first (or enable `plan.summary_enabled: true` for automatic output after each plan run).
+Reads from the configured plans directory (default `.terrax/plans/`) — run `plan` first, or enable `plan.summary_enabled: true` for automatic output after each plan run. Use `--plans-dir` to point at a custom directory.
 
 ---
 
