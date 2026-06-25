@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -37,7 +38,8 @@ func TestHistoryCommand_OutputsValidJSON(t *testing.T) {
 	// Create a real cobra command with the required flags.
 	cmd := &cobra.Command{}
 	cmd.Flags().String("dir", "", "Working directory (overrides current directory)")
-	_ = cmd.ParseFlags([]string{"--dir", tmpDir})
+	cmd.Flags().Bool("json", false, "")
+	_ = cmd.ParseFlags([]string{"--dir", tmpDir, "--json"})
 
 	// Run the history command.
 	err = runHistoryCmd(cmd, []string{})
@@ -55,4 +57,73 @@ func TestHistoryCommand_OutputsValidJSON(t *testing.T) {
 		json.Unmarshal([]byte(output), &entries),
 		"output must be a valid JSON array, got: %s", output,
 	)
+}
+
+func TestHistoryCommand_JSONFlag_OutputsJSON(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	done := make(chan string, 1)
+	go func() {
+		var buf bytes.Buffer
+		_, _ = io.Copy(&buf, r)
+		done <- buf.String()
+	}()
+
+	cmd := &cobra.Command{}
+	cmd.Flags().String("dir", "", "")
+	cmd.Flags().Bool("json", false, "")
+	_ = cmd.ParseFlags([]string{"--dir", tmpDir, "--json"})
+
+	err := runHistoryCmd(cmd, []string{})
+
+	_ = w.Close()
+	os.Stdout = oldStdout
+	output := <-done
+
+	require.NoError(t, err)
+
+	var entries []map[string]interface{}
+	require.NoError(t,
+		json.Unmarshal([]byte(output), &entries),
+		"output with --json must be a valid JSON array, got: %s", output,
+	)
+}
+
+func TestHistoryCommand_NoJSONFlag_DoesNotOutputJSON(t *testing.T) {
+	// Without --json the command routes to the TUI path; since there is no
+	// terminal in tests, we only verify that runHistoryCmd does not write
+	// JSON to stdout (it writes nothing or writes to stderr).
+	tmpDir := t.TempDir()
+
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	done := make(chan string, 1)
+	go func() {
+		var buf bytes.Buffer
+		_, _ = io.Copy(&buf, r)
+		done <- buf.String()
+	}()
+
+	cmd := &cobra.Command{}
+	cmd.Flags().String("dir", "", "")
+	cmd.Flags().Bool("json", false, "")
+	_ = cmd.ParseFlags([]string{"--dir", tmpDir})
+
+	// The TUI will fail without a real terminal — that is expected in tests.
+	// We only assert that stdout does not contain a JSON array.
+	_ = runHistoryCmd(cmd, []string{})
+
+	_ = w.Close()
+	os.Stdout = oldStdout
+	output := <-done
+
+	var entries []map[string]interface{}
+	assert.Error(t, json.Unmarshal([]byte(output), &entries),
+		"without --json the output must not be a JSON array")
 }
