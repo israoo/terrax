@@ -161,7 +161,7 @@ func getHistoryService() (*history.Service, error) {
 	return history.NewService(repo, rootConfigFile), nil
 }
 
-// runTUI starts the TUI application or executes the last command if --last flag is set.
+// runTUI starts the TUI application.
 func runTUI(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 

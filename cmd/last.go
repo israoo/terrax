@@ -58,10 +58,10 @@ func executeLastCommand(ctx context.Context, historyService *history.Service) er
 	fmt.Println("═══════════════════════════════════════")
 	fmt.Println()
 
-	// (StackPath is relative for display, AbsolutePath is for execution)
+	// (StackPath is relative for display, AbsolutePath is for execution).
 	absolutePath := lastEntry.AbsolutePath
 	if absolutePath == "" {
-		// Backward compatibility: old entries only have StackPath (which was absolute)
+		// Backward compatibility: old entries only have StackPath (which was absolute).
 		absolutePath = lastEntry.StackPath
 	}
 
