@@ -58,7 +58,6 @@ func init() {
 	rootCmd.SilenceUsage = true
 	rootCmd.SilenceErrors = true // main.go handles error printing to avoid duplicates.
 
-	rootCmd.Flags().BoolP("last", "l", false, "Execute the last command from history")
 	rootCmd.Flags().Bool("history", false, "View execution history interactively")
 	rootCmd.Flags().BoolP("review", "r", false, "Open the plan review TUI from the last plan execution without re-running")
 	rootCmd.Flags().String("dir", "", "Working directory (overrides current directory)")
@@ -169,11 +168,6 @@ func runTUI(cmd *cobra.Command, args []string) error {
 	historyService, err := getHistoryService()
 	if err != nil {
 		return err
-	}
-
-	lastFlag, _ := cmd.Flags().GetBool("last")
-	if lastFlag {
-		return executeLastCommand(ctx, historyService)
 	}
 
 	historyFlag, _ := cmd.Flags().GetBool("history")
@@ -344,69 +338,6 @@ func displayResults(model tui.Model) {
 	fmt.Printf("Stack Path: %s\n", model.GetSelectedStackPath())
 	fmt.Println("═══════════════════════════════════════")
 	fmt.Println()
-}
-
-// executeLastCommand retrieves and executes the most recent command from history for the current project.
-func executeLastCommand(ctx context.Context, historyService *history.Service) error {
-	lastEntry, err := historyService.GetLastExecutionForProject(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get last execution: %w", err)
-	}
-
-	if lastEntry == nil {
-		fmt.Println("⚠️  No execution history found for this project")
-		fmt.Println("Run terrax interactively first to build history")
-		return nil
-	}
-
-	fmt.Println("═══════════════════════════════════════")
-	fmt.Println("  🔄 Re-executing last command")
-	fmt.Println("═══════════════════════════════════════")
-	fmt.Printf("Command:    %s\n", lastEntry.Command)
-	fmt.Printf("Stack Path: %s\n", lastEntry.StackPath)
-	fmt.Printf("Previous:   %s (exit code: %d)\n", lastEntry.Timestamp.Format("2006-01-02 15:04:05"), lastEntry.ExitCode)
-	fmt.Println("═══════════════════════════════════════")
-	fmt.Println()
-
-	// (StackPath is relative for display, AbsolutePath is for execution)
-	absolutePath := lastEntry.AbsolutePath
-	if absolutePath == "" {
-		// Backward compatibility: old entries only have StackPath (which was absolute)
-		absolutePath = lastEntry.StackPath
-	}
-
-	if lastEntry.Command == "force-unlock" {
-		return runForceUnlock(ctx, historyService, absolutePath)
-	}
-
-	repoRoot, filterPaths := collectTransitiveDeps(absolutePath)
-
-	if lastEntry.Command == "plan" && (viper.GetBool("plan.summary_enabled") || viper.GetBool("plan.review_enabled")) {
-		_ = os.RemoveAll(filepath.Join(repoRoot, config.DefaultOutputDir))
-	}
-
-	groups, err := buildGroupedExecution(filterPaths, repoRoot)
-	if err != nil {
-		return fmt.Errorf("failed to build group execution plan: %w", err)
-	}
-	for _, group := range groups {
-		if group.Skip {
-			continue
-		}
-		if err := executor.Run(ctx, historyService, lastEntry.Command, absolutePath, repoRoot, group.Paths, group.EnvVars); err != nil {
-			return err
-		}
-	}
-	if lastEntry.Command == "plan" && viper.GetBool("plan.summary_enabled") {
-		if err := runPlanSummary(ctx, absolutePath, repoRoot); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: plan summary failed: %v\n", err)
-		}
-	}
-	if lastEntry.Command == "plan" && viper.GetBool("plan.review_enabled") {
-		return runPlanReview(ctx, absolutePath)
-	}
-
-	return nil
 }
 
 // runHistoryViewer loads and displays the execution history in an interactive TUI.
