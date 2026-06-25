@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 var reviewCmd = &cobra.Command{
@@ -16,6 +17,7 @@ var reviewCmd = &cobra.Command{
 
 func init() {
 	reviewCmd.Flags().String("dir", "", "Working directory (overrides current directory)")
+	reviewCmd.Flags().String("plans-dir", "", "Directory for JSON plan output files (overrides plan.json_out_dir in config)")
 	rootCmd.AddCommand(reviewCmd)
 }
 
@@ -29,6 +31,11 @@ func runReviewCmd(cmd *cobra.Command, args []string) error {
 	}
 
 	ensureConfigFromWorkDir(workDir)
+
+	if plansDir, _ := cmd.Flags().GetString("plans-dir"); plansDir != "" {
+		viper.Set("plan.json_out_dir", plansDir)
+	}
+
 	workDir = resolveWorkDir(workDir)
 
 	return runPlanReview(ctx, workDir)

@@ -22,6 +22,7 @@ var summaryCmd = &cobra.Command{
 
 func init() {
 	summaryCmd.Flags().String("dir", "", "Working directory (overrides current directory)")
+	summaryCmd.Flags().String("plans-dir", "", "Directory for JSON plan output files (overrides plan.json_out_dir in config)")
 	rootCmd.AddCommand(summaryCmd)
 }
 
@@ -37,13 +38,27 @@ func runSummaryCmd(cmd *cobra.Command, args []string) error {
 	ensureConfigFromWorkDir(workDir)
 	workDir = resolveWorkDir(workDir)
 
+	if plansDir, _ := cmd.Flags().GetString("plans-dir"); plansDir != "" {
+		viper.Set("plan.json_out_dir", plansDir)
+	}
+
 	rootConfigFile := viper.GetString("root_config_file")
 	if rootConfigFile == "" {
 		rootConfigFile = config.DefaultRootConfigFile
 	}
 
 	repoRoot := deps.FindRepoRoot(workDir, rootConfigFile)
-	jsonDir := filepath.Join(repoRoot, config.DefaultJSONOutDir)
+
+	jsonOutDir := viper.GetString("plan.json_out_dir")
+	if jsonOutDir == "" {
+		jsonOutDir = config.DefaultJSONOutDir
+	}
+	var jsonDir string
+	if filepath.IsAbs(jsonOutDir) {
+		jsonDir = jsonOutDir
+	} else {
+		jsonDir = filepath.Join(repoRoot, jsonOutDir)
+	}
 
 	_, err = plan.Summarize(ctx, jsonDir, repoRoot)
 	return err
