@@ -61,11 +61,11 @@ Complete audit trail of all command executions with persistent history. View, se
 
 ### ✔︎ Quick command re-execution
 
-Re-run the last executed command instantly with `terrax last`, browse full history interactively with `terrax history`, or reopen the plan review TUI without re-running with `terrax review`.
+Re-run the last executed command instantly with `terrax last`, browse full history interactively with `terrax history`, reopen the plan review TUI without re-running with `terrax review`, or print a terminal summary of pending changes with `terrax summary`.
 
 ### ✔︎ Plan summary and interactive review
 
-After running `plan`, TerraX can show a grouped terminal summary (no-changes vs pending-changes) and/or launch an interactive review TUI with resource-level diffs. Enable via `plan.summary_enabled` and `plan.review_enabled` in `.terrax.yaml`.
+After running `plan`, TerraX can show a grouped terminal summary (no-changes vs pending-changes) and/or launch an interactive review TUI with resource-level diffs. Enable automatic summary via `plan.summary_enabled` in `.terrax.yaml`, or invoke it on demand with `terrax summary`. Enable the review TUI via `plan.review_enabled`, or reopen it anytime with `terrax review`.
 
 ### ✔︎ Smart dependency resolution
 
@@ -281,6 +281,9 @@ terrax last
 # Open plan review TUI without re-running
 terrax review
 
+# Print terminal summary of pending plan changes
+terrax summary
+
 # Execute a command directly without opening the TUI
 terrax run plan --dir ./path/to/stack
 
@@ -399,6 +402,17 @@ terrax last
 ```
 
 This executes the last command from your project's history without opening the TUI.
+
+### Plan summary on demand
+
+Print a terminal summary of pending vs. no-change stacks from existing plan files:
+
+```bash
+terrax summary
+terrax summary --dir ./path/to/project
+```
+
+Reads from `.terrax/plans/` — run `plan` first (or enable `plan.summary_enabled: true` for automatic output after each plan run).
 
 ---
 

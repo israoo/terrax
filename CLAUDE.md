@@ -209,4 +209,4 @@ Extension lives in `extensions/vscode/`. All calls use `spawnSync` with 10s time
 
 **Add a Terragrunt/Terraform flag:** See `terrax:executor-flags` skill. Use `appendFeatureFlags` for shortcuts, `appendTerragruntFlags` for first-class booleans, or `terragrunt.extra_flags` / `terragrunt.command_flags.<cmd>` in config for arbitrary flags.
 
-**Plan output files:** Written to `<repoRoot>/.terrax/plans/<stack-path>/tfplan.json` via `--json-out-dir`. Auto-reset before each plan run. Read by `runPlanSummary` (terminal) and `runPlanReview` (TUI). Use `terrax review` to reopen without re-running.
+**Plan output files:** Written to `<repoRoot>/.terrax/plans/<stack-path>/tfplan.json` via `--json-out-dir`. Auto-reset before each plan run. Read by `runPlanSummary` (terminal) and `runPlanReview` (TUI). Use `terrax summary` to print the terminal summary on demand, or `terrax review` to reopen the TUI without re-running.
