@@ -61,7 +61,7 @@ Complete audit trail of all command executions with persistent history. View, se
 
 ### ✔︎ Quick command re-execution
 
-Re-run the last executed command instantly with `--last` flag, browse full history interactively with `--history`, or reopen the plan review TUI without re-running with `--review`.
+Re-run the last executed command instantly with `terrax last`, browse full history interactively with `terrax history`, or reopen the plan review TUI without re-running with `terrax review`.
 
 ### ✔︎ Plan summary and interactive review
 
@@ -272,11 +272,14 @@ features:
 # Interactive mode: Navigate and select stacks/commands
 terrax
 
-# View execution history for current project
-terrax --history
+# View execution history interactively
+terrax history
 
 # Re-execute the last command from history
-terrax --last       # or -l
+terrax last
+
+# Open plan review TUI without re-running
+terrax review
 
 # Execute a command directly without opening the TUI
 terrax run plan --dir ./path/to/stack
@@ -285,7 +288,7 @@ terrax run plan --dir ./path/to/stack
 terrax tree --json --dir .
 
 # Output execution history as JSON (used by VS Code extension)
-terrax history --dir .
+terrax history --json --dir .
 
 # Display version information
 terrax --version
@@ -356,7 +359,7 @@ terrax
 View and manage your execution history:
 
 ```bash
-terrax --history
+terrax history
 ```
 
 **History table view:**
@@ -392,7 +395,7 @@ Showing 1-3 of 12 entries | Use ↑/↓ to navigate | Press Enter to re-execute 
 Re-run the most recent command instantly:
 
 ```bash
-terrax --last  # or -l
+terrax last
 ```
 
 This executes the last command from your project's history without opening the TUI.
