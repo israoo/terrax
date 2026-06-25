@@ -59,6 +59,7 @@ func init() {
 	rootCmd.SilenceErrors = true // main.go handles error printing to avoid duplicates.
 
 	rootCmd.Flags().String("dir", "", "Working directory (overrides current directory)")
+	rootCmd.Flags().String("plans-dir", "", "Directory for JSON plan output files (overrides plan.json_out_dir in config)")
 }
 
 // Execute runs the root command.
@@ -176,6 +177,10 @@ func runTUI(cmd *cobra.Command, args []string) error {
 	}
 	workDir = resolveWorkDir(workDir)
 	ensureConfigFromWorkDir(workDir)
+
+	if plansDir, _ := cmd.Flags().GetString("plans-dir"); plansDir != "" {
+		viper.Set("plan.json_out_dir", plansDir)
+	}
 
 	stackRoot, maxDepth, err := buildStackTree(workDir)
 	if err != nil {

@@ -24,6 +24,7 @@ var runCmd = &cobra.Command{
 
 func init() {
 	runCmd.Flags().String("dir", "", "Working directory (overrides current directory)")
+	runCmd.Flags().String("plans-dir", "", "Directory for JSON plan output files (overrides plan.json_out_dir in config)")
 	rootCmd.AddCommand(runCmd)
 }
 
@@ -45,6 +46,10 @@ func runCommand(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get working directory: %w", err)
 	}
 	ensureConfigFromWorkDir(workDir)
+
+	if plansDir, _ := cmd.Flags().GetString("plans-dir"); plansDir != "" {
+		viper.Set("plan.json_out_dir", plansDir)
+	}
 
 	historyService, err := getHistoryService()
 	if err != nil {
