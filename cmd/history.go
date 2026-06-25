@@ -197,9 +197,8 @@ func runHistoryCmdTUI(cmd *cobra.Command, args []string) error {
 			fmt.Fprintf(os.Stderr, "Path: %s\n\n", entry.StackPath)
 
 			return reExecuteHistoryEntry(ctx, historyService, entry)
-		} else {
-			fmt.Fprintln(os.Stderr, "Warning: re-execution requested but no entry selected.")
 		}
+		fmt.Fprintln(os.Stderr, "Warning: re-execution requested but no entry selected.")
 	}
 
 	return nil
