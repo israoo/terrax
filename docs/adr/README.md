@@ -149,3 +149,4 @@ Create an ADR for decisions that:
 - [ADR-0021: Local Config Override](0021-local-config-override.md) - .terrax.local.yaml gitignored deep-merge override for machine-specific configuration
 - [ADR-0022: VS Code Context Menu Commands](0022-vscode-context-menu-commands.md) - Static right-click context menu with 8 Terragrunt commands and Open terragrunt.hcl on stack nodes
 - [ADR-0023: Git-Based Affected Stack Detection](0023-git-based-affected-stack-detection.md) - terrax find --base for CI change detection via mark_as_read reverse map and include chain traversal
+- [ADR-0024: CLI Subcommand Reorganization](0024-cli-subcommand-reorganization.md) - Promotes --last, --history, --review flags to proper subcommands; terrax history becomes TUI-first with --json opt-in
