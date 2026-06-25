@@ -10,6 +10,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/israoo/terrax/internal/tui"
 )
 
 func TestHistoryCommand_OutputsValidJSON(t *testing.T) {
@@ -94,9 +96,13 @@ func TestHistoryCommand_JSONFlag_OutputsJSON(t *testing.T) {
 }
 
 func TestHistoryCommand_NoJSONFlag_DoesNotOutputJSON(t *testing.T) {
-	// Without --json the command routes to the TUI path; since there is no
-	// terminal in tests, we only verify that runHistoryCmd does not write
-	// JSON to stdout (it writes nothing or writes to stderr).
+	// Without --json the command routes to the TUI path.
+	// Inject a no-op runner to avoid opening a real terminal in test environments.
+	restore := setHistoryTUIRunner(func(model tui.Model) (tui.Model, error) {
+		return tui.Model{}, nil
+	})
+	t.Cleanup(restore)
+
 	tmpDir := t.TempDir()
 
 	oldStdout := os.Stdout
@@ -115,13 +121,13 @@ func TestHistoryCommand_NoJSONFlag_DoesNotOutputJSON(t *testing.T) {
 	cmd.Flags().Bool("json", false, "")
 	_ = cmd.ParseFlags([]string{"--dir", tmpDir})
 
-	// The TUI will fail without a real terminal — that is expected in tests.
-	// We only assert that stdout does not contain a JSON array.
-	_ = runHistoryCmd(cmd, []string{})
+	err := runHistoryCmd(cmd, []string{})
 
 	_ = w.Close()
 	os.Stdout = oldStdout
 	output := <-done
+
+	require.NoError(t, err)
 
 	var entries []map[string]interface{}
 	assert.Error(t, json.Unmarshal([]byte(output), &entries),

@@ -17,6 +17,41 @@ import (
 	"github.com/israoo/terrax/internal/tui"
 )
 
+// HistoryTUIRunner is a function type that runs the history TUI and returns the final model.
+// This allows dependency injection for testing without a real terminal.
+type HistoryTUIRunner func(initialModel tui.Model) (tui.Model, error)
+
+// currentHistoryTUIRunner holds the active history TUI runner (can be overridden in tests).
+var currentHistoryTUIRunner HistoryTUIRunner = defaultHistoryTUIRunner
+
+// defaultHistoryTUIRunner runs the history TUI using Bubble Tea with Stderr output.
+func defaultHistoryTUIRunner(initialModel tui.Model) (tui.Model, error) {
+	p := tea.NewProgram(
+		initialModel,
+		tea.WithAltScreen(),
+		tea.WithOutput(os.Stderr),
+	)
+	finalModel, err := p.Run()
+	if err != nil {
+		return tui.Model{}, err
+	}
+	model, ok := finalModel.(tui.Model)
+	if !ok {
+		return tui.Model{}, fmt.Errorf("unexpected model type")
+	}
+	return model, nil
+}
+
+// setHistoryTUIRunner allows tests to inject a custom history TUI runner.
+// Returns a cleanup function to restore the original runner.
+func setHistoryTUIRunner(runner HistoryTUIRunner) func() {
+	original := currentHistoryTUIRunner
+	currentHistoryTUIRunner = runner
+	return func() {
+		currentHistoryTUIRunner = original
+	}
+}
+
 var historyCmd = &cobra.Command{
 	Use:   "history",
 	Short: "View or export command execution history",
@@ -149,21 +184,9 @@ func runHistoryCmdTUI(cmd *cobra.Command, args []string) error {
 
 	initialModel := tui.NewHistoryModel(filteredEntries)
 
-	// History viewer uses Stderr; the shared runBubbleTeaProgram helper does not support custom output.
-	p := tea.NewProgram(
-		initialModel,
-		tea.WithAltScreen(),
-		tea.WithOutput(os.Stderr),
-	)
-
-	finalModel, err := p.Run()
+	model, err := currentHistoryTUIRunner(initialModel)
 	if err != nil {
 		return fmt.Errorf("history viewer error: %w", err)
-	}
-
-	model, ok := finalModel.(tui.Model)
-	if !ok {
-		return fmt.Errorf("unexpected model type")
 	}
 
 	if model.ShouldReExecuteFromHistory() {
