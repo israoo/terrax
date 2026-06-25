@@ -96,6 +96,7 @@ func initConfig() {
 	viper.SetDefault("terragrunt.no_color", config.DefaultNoColor)
 	viper.SetDefault("plan.review_enabled", config.DefaultPlanReviewEnabled)
 	viper.SetDefault("plan.summary_enabled", config.DefaultPlanSummaryEnabled)
+	viper.SetDefault("plan.json_out_dir", config.DefaultJSONOutDir)
 	viper.SetDefault("include_dependencies", config.DefaultIncludeDependencies)
 
 	viper.SetConfigName(".terrax")
@@ -454,9 +455,18 @@ func collectTransitiveDeps(stackPath string) (repoRoot string, filterPaths []str
 	return repoRoot, filterPaths
 }
 
-// runPlanSummary reads JSON plan files from repoRoot/.terrax/plans and prints a terminal count summary.
+// runPlanSummary reads JSON plan files from the configured plans directory and prints a terminal count summary.
 func runPlanSummary(ctx context.Context, stackPath, repoRoot string) error {
-	dir := filepath.Join(repoRoot, config.DefaultJSONOutDir)
+	jsonOutDir := viper.GetString("plan.json_out_dir")
+	if jsonOutDir == "" {
+		jsonOutDir = config.DefaultJSONOutDir
+	}
+	var dir string
+	if filepath.IsAbs(jsonOutDir) {
+		dir = jsonOutDir
+	} else {
+		dir = filepath.Join(repoRoot, jsonOutDir)
+	}
 	_, err := plan.Summarize(ctx, dir, repoRoot)
 	return err
 }
@@ -477,7 +487,16 @@ func runPlanReview(ctx context.Context, stackPath string) error {
 	if repoRoot == "" {
 		repoRoot = stackPath
 	}
-	jsonDir := filepath.Join(repoRoot, config.DefaultJSONOutDir)
+	jsonOutDir := viper.GetString("plan.json_out_dir")
+	if jsonOutDir == "" {
+		jsonOutDir = config.DefaultJSONOutDir
+	}
+	var jsonDir string
+	if filepath.IsAbs(jsonOutDir) {
+		jsonDir = jsonOutDir
+	} else {
+		jsonDir = filepath.Join(repoRoot, jsonOutDir)
+	}
 
 	if _, err := os.Stat(jsonDir); os.IsNotExist(err) {
 		return fmt.Errorf("no plan results found — run a plan first (terrax with plan.review_enabled: true)")

@@ -605,6 +605,44 @@ func TestBuildFilterArgs_PlanOutputFlags(t *testing.T) {
 			assert.Equal(t, tt.wantJSONOutDir, found, "Arguments should match expected output.")
 		})
 	}
+
+	t.Run("custom plan.json_out_dir is used", func(t *testing.T) {
+		resetViper()
+		viper.Set("log_format", "pretty")
+		viper.Set("plan.review_enabled", true)
+		viper.Set("plan.json_out_dir", "/custom/plans")
+
+		args := buildFilterArgs("/repo", "plan", []string{"/path/to/stack"})
+
+		want := "--json-out-dir=/custom/plans"
+		found := false
+		for _, a := range args {
+			if a == want {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "expected --json-out-dir=/custom/plans in args, got: %v", args)
+	})
+
+	t.Run("relative plan.json_out_dir is joined with repoRoot", func(t *testing.T) {
+		resetViper()
+		viper.Set("log_format", "pretty")
+		viper.Set("plan.review_enabled", true)
+		viper.Set("plan.json_out_dir", "custom/plans")
+
+		args := buildFilterArgs("/repo", "plan", []string{"/path/to/stack"})
+
+		want := "--json-out-dir=/repo/custom/plans"
+		found := false
+		for _, a := range args {
+			if a == want {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "expected --json-out-dir=/repo/custom/plans in args, got: %v", args)
+	})
 }
 
 // TestBuildTerragruntArgs_PlanSummaryEnabled tests plan.summary_enabled via buildTerragruntArgs.
