@@ -13,7 +13,6 @@ import (
 
 	"github.com/israoo/terrax/internal/config"
 	"github.com/israoo/terrax/internal/deps"
-	"github.com/israoo/terrax/internal/executor"
 	"github.com/israoo/terrax/internal/history"
 	"github.com/israoo/terrax/internal/tui"
 )
@@ -114,14 +113,31 @@ func runHistoryCmdJSON(cmd *cobra.Command, args []string) error {
 func runHistoryCmdTUI(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 
+	dirFlag, _ := cmd.Flags().GetString("dir")
+	workDir, err := getWorkingDirectory(dirFlag)
+	if err != nil {
+		return fmt.Errorf("failed to get working directory: %w", err)
+	}
+
 	historyService, err := getHistoryService()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to initialize history service: %w", err)
 	}
 
 	entries, err := historyService.LoadAll(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to load history: %w", err)
+	}
+
+	// FilterByCurrentProject detects the project root from os.Getwd().
+	// Change to workDir first so detection uses the --dir argument.
+	originalDir, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get current directory: %w", err)
+	}
+	defer func() { _ = os.Chdir(originalDir) }()
+	if err := os.Chdir(workDir); err != nil {
+		return fmt.Errorf("failed to change directory: %w", err)
 	}
 
 	filteredEntries, err := historyService.FilterByCurrentProject(entries)
@@ -133,8 +149,7 @@ func runHistoryCmdTUI(cmd *cobra.Command, args []string) error {
 
 	initialModel := tui.NewHistoryModel(filteredEntries)
 
-	// Note: History viewer uses Stderr specifically, so we don't use the shared runBubbleTeaProgram helper here
-	// unless we update it to support custom output.
+	// History viewer uses Stderr; the shared runBubbleTeaProgram helper does not support custom output.
 	p := tea.NewProgram(
 		initialModel,
 		tea.WithAltScreen(),
@@ -158,42 +173,9 @@ func runHistoryCmdTUI(cmd *cobra.Command, args []string) error {
 			fmt.Fprintf(os.Stderr, "Command: %s\n", entry.Command)
 			fmt.Fprintf(os.Stderr, "Path: %s\n\n", entry.StackPath)
 
-			absolutePath := entry.AbsolutePath
-			if absolutePath == "" {
-				// Backward compatibility: old entries only have StackPath (which was absolute).
-				absolutePath = entry.StackPath
-			}
-
-			if entry.Command == "force-unlock" {
-				return runForceUnlock(ctx, historyService, absolutePath)
-			}
-
-			repoRoot, filterPaths := collectTransitiveDeps(absolutePath)
-
-			if entry.Command == "plan" && (viper.GetBool("plan.summary_enabled") || viper.GetBool("plan.review_enabled")) {
-				_ = os.RemoveAll(filepath.Join(repoRoot, config.DefaultOutputDir))
-			}
-
-			groups, err := buildGroupedExecution(filterPaths, repoRoot)
-			if err != nil {
-				return fmt.Errorf("failed to build group execution plan: %w", err)
-			}
-			for _, group := range groups {
-				if group.Skip {
-					continue
-				}
-				if err := executor.Run(ctx, historyService, entry.Command, absolutePath, repoRoot, group.Paths, group.EnvVars); err != nil {
-					return err
-				}
-			}
-			if entry.Command == "plan" && viper.GetBool("plan.summary_enabled") {
-				if err := runPlanSummary(ctx, absolutePath, repoRoot); err != nil {
-					fmt.Fprintf(os.Stderr, "Warning: plan summary failed: %v\n", err)
-				}
-			}
-			if entry.Command == "plan" && viper.GetBool("plan.review_enabled") {
-				return runPlanReview(ctx, absolutePath)
-			}
+			return reExecuteHistoryEntry(ctx, historyService, entry)
+		} else {
+			fmt.Fprintln(os.Stderr, "Warning: re-execution requested but no entry selected.")
 		}
 	}
 

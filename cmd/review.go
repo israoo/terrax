@@ -29,6 +29,7 @@ func runReviewCmd(cmd *cobra.Command, args []string) error {
 	}
 
 	ensureConfigFromWorkDir(workDir)
+	workDir = resolveWorkDir(workDir)
 
 	return runPlanReview(ctx, workDir)
 }
