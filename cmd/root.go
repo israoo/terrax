@@ -209,16 +209,23 @@ func runTUI(cmd *cobra.Command, args []string) error {
 		command := model.GetSelectedCommand()
 		stackPath := model.GetSelectedStackPath()
 
-		if command == "force-unlock" {
-			return runForceUnlock(ctx, historyService, stackPath)
-		}
-
 		var execPaths []string
 		if model.HasSelectedPaths() {
 			execPaths = model.GetSelectedStackPaths()
 		} else {
 			execPaths = []string{stackPath}
 		}
+		primaryPath := execPaths[0]
+
+		if command == "force-unlock" {
+			for _, p := range execPaths {
+				if err := runForceUnlock(ctx, historyService, p); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+
 		repoRoot, filterPaths := collectTransitiveDeps(execPaths)
 
 		if command == "plan" && (viper.GetBool("plan.summary_enabled") || viper.GetBool("plan.review_enabled")) {
@@ -243,17 +250,17 @@ func runTUI(cmd *cobra.Command, args []string) error {
 			if group.Skip {
 				continue
 			}
-			if err := executor.Run(ctx, historyService, command, stackPath, repoRoot, group.Paths, group.EnvVars); err != nil {
+			if err := executor.Run(ctx, historyService, command, primaryPath, repoRoot, group.Paths, group.EnvVars); err != nil {
 				return err
 			}
 		}
 		if command == "plan" && viper.GetBool("plan.summary_enabled") {
-			if err := runPlanSummary(ctx, stackPath, repoRoot); err != nil {
+			if err := runPlanSummary(ctx, primaryPath, repoRoot); err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: plan summary failed: %v\n", err)
 			}
 		}
 		if command == "plan" && viper.GetBool("plan.review_enabled") {
-			return runPlanReview(ctx, stackPath)
+			return runPlanReview(ctx, primaryPath)
 		}
 
 		return nil
@@ -453,7 +460,7 @@ func collectTransitiveDeps(stackPaths []string) (repoRoot string, filterPaths []
 		} else {
 			leafPaths, err := stack.CollectStackPaths(stackPath)
 			if err != nil || len(leafPaths) == 0 {
-				seeds = append(seeds, stackPath) // fallback
+				seeds = append(seeds, stackPath) // fallback.
 			} else {
 				seeds = append(seeds, leafPaths...)
 			}

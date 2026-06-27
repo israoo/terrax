@@ -8,6 +8,7 @@ package tui
 
 import (
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -507,7 +508,7 @@ func (m Model) GetSelectedHistoryEntry() *history.ExecutionLogEntry {
 	return m.selectedHistoryEntry
 }
 
-// GetSelectedStackPaths returns all explicitly marked paths as a slice.
+// GetSelectedStackPaths returns all explicitly marked paths as a sorted slice.
 // Returns nil when no paths are marked.
 func (m Model) GetSelectedStackPaths() []string {
 	if len(m.selectedPaths) == 0 {
@@ -517,6 +518,7 @@ func (m Model) GetSelectedStackPaths() []string {
 	for p := range m.selectedPaths {
 		paths = append(paths, p)
 	}
+	sort.Strings(paths)
 	return paths
 }
 
