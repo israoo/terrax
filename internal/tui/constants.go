@@ -56,12 +56,13 @@ const (
 
 // UI Text
 const (
-	AppTitle       = "TerraX - Terragrunt eXecutor"
-	CommandsTitle  = "Commands"
-	StacksTitle    = "Stacks"
-	HelpText       = "↑↓: navigate | ←→: change column | enter: select/confirm | q/esc: quit"
-	PlanHelpText   = "↑↓: navigate | ←→: change column | PgUp/PgDn: scroll | q/esc: quit"
-	NoItemSelected = "None"
-	Initializing   = "Initializing..."
-	ScanningStacks = "Scanning stacks..."
+	AppTitle          = "TerraX - Terragrunt eXecutor"
+	CommandsTitle     = "Commands"
+	StacksTitle       = "Stacks"
+	HelpText          = "↑↓: navigate | ←→: change column | enter: select/confirm | q/esc: quit"
+	HelpTextWithMarks = "space: mark/unmark | ↑↓: navigate | enter: run on marked (%d) | esc: clear all | q: quit"
+	PlanHelpText      = "↑↓: navigate | ←→: change column | PgUp/PgDn: scroll | q/esc: quit"
+	NoItemSelected    = "None"
+	Initializing      = "Initializing..."
+	ScanningStacks    = "Scanning stacks..."
 )

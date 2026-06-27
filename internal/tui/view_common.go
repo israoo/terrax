@@ -61,8 +61,12 @@ func (r *Renderer) renderBreadcrumbBar() string {
 	return breadcrumbBarStyle.Width(r.model.width).Render(content)
 }
 
-// renderFooter renders the footer with help text only.
+// renderFooter renders the footer with help text or marks help text when selections are active.
 func (r *Renderer) renderFooter() string {
+	if r.model.HasSelectedPaths() {
+		text := fmt.Sprintf(HelpTextWithMarks, len(r.model.selectedPaths))
+		return footerStyle.Render(text)
+	}
 	return footerStyle.Render(HelpText)
 }
 
