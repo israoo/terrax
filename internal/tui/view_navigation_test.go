@@ -394,11 +394,16 @@ func TestGetMaxItemTextWidth(t *testing.T) {
 	layout := NewLayoutCalculator(120, 30, 30)
 	renderer := NewRenderer(m, layout)
 
-	width := renderer.getMaxItemTextWidth()
+	width := renderer.getMaxItemTextWidth(false)
 
-	// Should be positive and less than column width
+	// Should be positive and less than column width.
 	assert.Greater(t, width, 0)
 	assert.Less(t, width, 30)
+
+	widthWithMarkers := renderer.getMaxItemTextWidth(true)
+
+	// Width with markers should be less than or equal to width without markers.
+	assert.LessOrEqual(t, widthWithMarkers, width)
 }
 
 // TestNewRenderer tests the Renderer constructor.
@@ -517,4 +522,84 @@ func TestView_ScanningStacks(t *testing.T) {
 
 	view := m.View()
 	assert.Equal(t, ScanningStacks, view)
+}
+
+func TestIsMarkedOrAncestorMarked(t *testing.T) {
+	selectedPaths := map[string]bool{
+		"/repo/env": true,
+	}
+
+	tests := []struct {
+		name     string
+		path     string
+		expected bool
+	}{
+		{
+			name:     "exact match",
+			path:     "/repo/env",
+			expected: true,
+		},
+		{
+			name:     "child of marked path",
+			path:     "/repo/env/dev",
+			expected: true,
+		},
+		{
+			name:     "deep descendant of marked path",
+			path:     "/repo/env/dev/app",
+			expected: true,
+		},
+		{
+			name:     "sibling - not marked",
+			path:     "/repo/app",
+			expected: false,
+		},
+		{
+			name:     "parent of marked - not marked",
+			path:     "/repo",
+			expected: false,
+		},
+		{
+			name:     "empty map",
+			path:     "/repo/env",
+			expected: false,
+		},
+	}
+
+	emptyMap := map[string]bool{}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := selectedPaths
+			if tt.name == "empty map" {
+				m = emptyMap
+			}
+			got := isMarkedOrAncestorMarked(tt.path, m)
+			assert.Equal(t, tt.expected, got)
+		})
+	}
+}
+
+func TestBuildNavigationList_ShowsMarkers(t *testing.T) {
+	root := &stack.Node{
+		Name: "root",
+		Path: "/repo",
+		Children: []*stack.Node{
+			{Name: "env", Path: "/repo/env", IsStack: true},
+			{Name: "app", Path: "/repo/app", IsStack: true},
+		},
+	}
+	m := NewModel(root, 1, []string{"plan"}, 3)
+	m.width = 120
+	m.height = 30
+	m.columnWidth = 25
+	m.ready = true
+	m.selectedPaths["/repo/env"] = true
+
+	layout := NewLayoutCalculator(m.width, m.height, m.columnWidth)
+	r := NewRenderer(m, layout)
+
+	col := r.buildNavigationList(0)
+	assert.Contains(t, col, "●", "marked item should show filled marker")
+	assert.Contains(t, col, "○", "unmarked item should show empty marker when marks are active")
 }

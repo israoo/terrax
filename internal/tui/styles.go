@@ -68,4 +68,8 @@ var (
 					Foreground(secondaryColor).
 					Bold(true).
 					Padding(0, 1)
+
+	// Marker styles for multi-stack selection.
+	markedStyle   = lipgloss.NewStyle().Foreground(accentColor).Bold(true)
+	unmarkedStyle = lipgloss.NewStyle().Foreground(dimColor)
 )

@@ -24,6 +24,7 @@ const (
 	ColumnStylePadding  = 6  // Column padding (unfocused: 2,3 = 6 total)
 	EllipsisWidth       = 3  // Width of truncation ellipsis "..."
 	MinItemTextWidth    = 10 // Minimum width for item text
+	MarkerWidth         = 4  // Width of selection marker prefix "● " rendered by Lipgloss
 	BreadcrumbLineCount = 1  // Number of lines for breadcrumb bar
 
 	// Plan Review Layout

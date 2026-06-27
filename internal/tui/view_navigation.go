@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"path/filepath"
 
 	"github.com/charmbracelet/lipgloss"
 )
@@ -104,8 +105,8 @@ func (r *Renderer) buildCommandList() string {
 	// Calculate visible range
 	startIdx, endIdx := calculatePaginatedRange(scrollOffset, maxVisibleItems, len(commands))
 
-	// Render items with pagination
-	maxTextWidth := r.getMaxItemTextWidth()
+	// Render items with pagination.
+	maxTextWidth := r.getMaxItemTextWidth(false)
 	totalPages := r.model.getTotalPages(len(commands))
 	currentPage := r.model.getCurrentPage(0) // columnID = 0 for commands
 
@@ -116,6 +117,7 @@ func (r *Renderer) buildCommandList() string {
 		maxVisibleItems,
 		maxTextWidth,
 		totalPages, currentPage,
+		nil,
 	)
 }
 
@@ -173,15 +175,31 @@ func (r *Renderer) buildNavigationList(depth int) string {
 		selectedFilteredIndex = selectedIndex
 	}
 
-	// Apply scrolling window
+	// Apply scrolling window.
 	maxVisibleItems := r.model.getMaxVisibleItems()
 	scrollOffset := r.model.scrollOffsets[columnID]
 
-	// Calculate visible range
+	// Calculate visible range.
 	startIdx, endIdx := calculatePaginatedRange(scrollOffset, maxVisibleItems, len(items))
 
-	// Render items with pagination
-	maxTextWidth := r.getMaxItemTextWidth()
+	// Compute marker state for each visible filtered item.
+	var markedItems []bool
+	if r.model.HasSelectedPaths() {
+		markedItems = make([]bool, len(items))
+		for i := range items {
+			origIdx := findOriginalIndex(originalItems, items, i)
+			if origIdx < 0 {
+				continue
+			}
+			path := r.model.navigator.GetPathAtDepthAndIndex(r.model.navState, depth, origIdx)
+			if path != "" {
+				markedItems[i] = isMarkedOrAncestorMarked(path, r.model.selectedPaths)
+			}
+		}
+	}
+
+	// Render items with pagination.
+	maxTextWidth := r.getMaxItemTextWidth(r.model.HasSelectedPaths())
 	totalPages := r.model.getTotalPages(len(items))
 	currentPage := r.model.getCurrentPage(columnID)
 
@@ -192,10 +210,12 @@ func (r *Renderer) buildNavigationList(depth int) string {
 		maxVisibleItems,
 		maxTextWidth,
 		totalPages, currentPage,
+		markedItems,
 	)
 }
 
 // renderItemList renders a list of items with pagination.
+// markedItems is an optional slice of bools (nil = no markers shown).
 func renderItemList(
 	items []string,
 	startIdx, endIdx int,
@@ -203,11 +223,12 @@ func renderItemList(
 	maxVisibleItems int,
 	maxTextWidth int,
 	totalPages, currentPage int,
+	markedItems []bool,
 ) string {
 	var content string
 	itemsRendered := 0
 
-	// Render visible items
+	// Render visible items.
 	for i := startIdx; i < endIdx; i++ {
 		cursor := " "
 		style := itemStyle
@@ -217,9 +238,19 @@ func renderItemList(
 			style = selectedItemStyle
 		}
 
-		// Truncate text to fit within column width
+		// Truncate text to fit within column width.
 		displayText := truncateText(items[i], maxTextWidth)
-		content += fmt.Sprintf("%s %s\n", cursor, style.Render(displayText))
+		if markedItems != nil {
+			var marker string
+			if i < len(markedItems) && markedItems[i] {
+				marker = markedStyle.Render("●") + " "
+			} else {
+				marker = unmarkedStyle.Render("○") + " "
+			}
+			content += fmt.Sprintf("%s %s%s\n", cursor, marker, style.Render(displayText))
+		} else {
+			content += fmt.Sprintf("%s %s\n", cursor, style.Render(displayText))
+		}
 		itemsRendered++
 	}
 
@@ -286,8 +317,9 @@ func columnStyle(focused bool) lipgloss.Style {
 }
 
 // getMaxItemTextWidth calculates the maximum width available for item text.
-// Takes into account cursor (2 chars: "► "), style padding, and column width.
-func (r *Renderer) getMaxItemTextWidth() int {
+// Takes into account cursor (2 chars: "► "), style padding, column width,
+// and optionally the selection marker prefix width.
+func (r *Renderer) getMaxItemTextWidth(hasMarkers bool) int {
 	columnWidth := r.layout.GetColumnWidth()
 
 	// Account for:
@@ -297,10 +329,13 @@ func (r *Renderer) getMaxItemTextWidth() int {
 	// - Border for focused column: 2 chars
 	// Use the larger padding case (unfocused: 2,3 = 6 total)
 	reservedSpace := CursorWidth + ItemStylePadding + ColumnStylePadding
+	if hasMarkers {
+		reservedSpace += MarkerWidth
+	}
 
 	maxWidth := columnWidth - reservedSpace
 
-	// Ensure minimum width
+	// Ensure minimum width.
 	if maxWidth < MinItemTextWidth {
 		maxWidth = MinItemTextWidth
 	}
@@ -321,4 +356,21 @@ func calculatePaginatedRange(scrollOffset, maxVisibleItems, totalItems int) (sta
 	}
 
 	return startIdx, endIdx
+}
+
+// isMarkedOrAncestorMarked returns true if path itself or any of its ancestor
+// directories is in selectedPaths.
+func isMarkedOrAncestorMarked(path string, selectedPaths map[string]bool) bool {
+	if selectedPaths[path] {
+		return true
+	}
+	cur := filepath.Dir(path)
+	for cur != path {
+		if selectedPaths[cur] {
+			return true
+		}
+		path = cur
+		cur = filepath.Dir(cur)
+	}
+	return false
 }
