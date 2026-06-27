@@ -529,6 +529,8 @@ func (m Model) HasSelectedPaths() bool {
 
 // toggleSelectedPath adds path to selectedPaths if absent, removes it if present.
 // No-op when any ancestor path is already in selectedPaths.
+// When adding a path, any existing descendant marks are removed first — the parent
+// covers all descendants so keeping them would cause duplicate execution.
 func (m *Model) toggleSelectedPath(path string) {
 	if path == "" {
 		return
@@ -539,7 +541,18 @@ func (m *Model) toggleSelectedPath(path string) {
 	if m.selectedPaths[path] {
 		delete(m.selectedPaths, path)
 	} else {
+		removeDescendants(path, m.selectedPaths)
 		m.selectedPaths[path] = true
+	}
+}
+
+// removeDescendants deletes all entries in selectedPaths that are descendants of path.
+func removeDescendants(path string, selectedPaths map[string]bool) {
+	prefix := path + string(filepath.Separator)
+	for p := range selectedPaths {
+		if strings.HasPrefix(p, prefix) {
+			delete(selectedPaths, p)
+		}
 	}
 }
 

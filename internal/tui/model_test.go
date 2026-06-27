@@ -494,6 +494,20 @@ func TestModel_ToggleSelectedPath_NoopWhenAncestorMarked(t *testing.T) {
 	assert.True(t, m.selectedPaths["/repo/env"], "ancestor mark must stay")
 }
 
+func TestModel_ToggleSelectedPath_ParentRemovesChildren(t *testing.T) {
+	root := &stack.Node{Name: "root", Path: "/repo"}
+	m := NewModel(root, 1, []string{"plan"}, 3)
+
+	m.selectedPaths["/repo/env/dev"] = true
+	m.selectedPaths["/repo/env/prod"] = true
+
+	m.toggleSelectedPath("/repo/env") // marking parent should remove children
+	assert.True(t, m.selectedPaths["/repo/env"], "parent must be marked")
+	assert.False(t, m.selectedPaths["/repo/env/dev"], "child dev must be removed")
+	assert.False(t, m.selectedPaths["/repo/env/prod"], "child prod must be removed")
+	assert.Len(t, m.selectedPaths, 1, "only parent remains")
+}
+
 func TestModel_ClearSelectedPaths(t *testing.T) {
 	root := &stack.Node{Name: "root", Path: "/repo"}
 	m := NewModel(root, 1, []string{"plan"}, 3)
