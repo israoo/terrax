@@ -158,12 +158,14 @@ func buildFilterArgs(repoRoot, command string, filterPaths []string) []string {
 			jsonOutDir = config.DefaultJSONOutDir
 		}
 		var absJSONOutDir string
-		if filepath.IsAbs(jsonOutDir) {
+		// filepath.IsAbs treats Unix-rooted paths (e.g. "/custom/plans") as non-absolute on
+		// Windows. Check for a leading slash explicitly to handle cross-platform configs.
+		if filepath.IsAbs(jsonOutDir) || strings.HasPrefix(jsonOutDir, "/") {
 			absJSONOutDir = jsonOutDir
 		} else {
 			absJSONOutDir = filepath.Join(repoRoot, jsonOutDir)
 		}
-		args = append(args, fmt.Sprintf("--json-out-dir=%s", absJSONOutDir))
+		args = append(args, fmt.Sprintf("--json-out-dir=%s", filepath.ToSlash(absJSONOutDir)))
 	}
 
 	args = append(args, "--", command)
