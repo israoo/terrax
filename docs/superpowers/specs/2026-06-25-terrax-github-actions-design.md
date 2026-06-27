@@ -19,6 +19,7 @@ A dedicated public repo (`israoo/terrax-action`) exposing three composable GitHu
 - Posting PR comments (out of scope; users can pipe stdout if desired).
 - A higher-level orchestrator action that chains the three.
 - Any logic that duplicates what the TerraX CLI already does.
+- macOS or Windows runner support — Linux (`ubuntu-*`) only.
 
 ## Repo structure
 
@@ -154,20 +155,14 @@ jobs:
 ### OS/arch detection in `setup-terrax`
 
 ```bash
-# $RUNNER_OS is set by GitHub Actions: "Linux", "macOS", "Windows"
-case "$RUNNER_OS" in
-  Linux)   OS="Linux"  ;;
-  macOS)   OS="Darwin" ;;
-  Windows) OS="Windows" ;;
-esac
-# $RUNNER_ARCH is set by GitHub Actions: "X64", "ARM64"
+# Linux only. $RUNNER_ARCH is set by GitHub Actions: "X64", "ARM64"
 case "$RUNNER_ARCH" in
   X64)   ARCH="x86_64" ;;
   ARM64) ARCH="arm64"  ;;
 esac
 ```
 
-Archive name follows GoReleaser template: `terrax_{version}_{Os}_{arch}.tar.gz` (e.g. `terrax_v0.5.1_Linux_x86_64.tar.gz`). Windows uses `.zip`.
+Archive name follows GoReleaser template: `terrax_{version}_Linux_{arch}.tar.gz` (e.g. `terrax_0.4.0_Linux_x86_64.tar.gz`).
 
 ### `fetch-depth: 0` requirement
 
