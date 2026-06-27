@@ -975,3 +975,93 @@ func TestNavigator_GetNavigationPath(t *testing.T) {
 		})
 	}
 }
+
+// TestNavigator_GetPathAtDepthAndIndex tests retrieving node paths by depth and index.
+func TestNavigator_GetPathAtDepthAndIndex(t *testing.T) {
+	root := &Node{
+		Name: "root",
+		Path: "/repo",
+		Children: []*Node{
+			{
+				Name: "env",
+				Path: "/repo/env",
+				Children: []*Node{
+					{Name: "dev", Path: "/repo/env/dev", IsStack: true},
+					{Name: "prod", Path: "/repo/env/prod", IsStack: true},
+				},
+			},
+			{
+				Name: "other",
+				Path: "/repo/other",
+			},
+		},
+	}
+
+	nav := NewNavigator(root, 2)
+	state := NewNavigationState(2)
+	// Select index 0 at depth 0 ("env") so CurrentNodes[0] = env node.
+	nav.PropagateSelection(state)
+
+	tests := []struct {
+		name     string
+		depth    int
+		index    int
+		expected string
+	}{
+		{
+			name:     "depth 0 index 0 returns first child of root",
+			depth:    0,
+			index:    0,
+			expected: "/repo/env",
+		},
+		{
+			name:     "depth 0 index 1 returns second child of root",
+			depth:    0,
+			index:    1,
+			expected: "/repo/other",
+		},
+		{
+			name:     "depth 1 index 0 returns first child of selected depth-0 node",
+			depth:    1,
+			index:    0,
+			expected: "/repo/env/dev",
+		},
+		{
+			name:     "depth 1 index 1 returns second child of selected depth-0 node",
+			depth:    1,
+			index:    1,
+			expected: "/repo/env/prod",
+		},
+		{
+			name:     "negative depth returns empty string",
+			depth:    -1,
+			index:    0,
+			expected: "",
+		},
+		{
+			name:     "depth out of bounds returns empty string",
+			depth:    5,
+			index:    0,
+			expected: "",
+		},
+		{
+			name:     "index out of bounds returns empty string",
+			depth:    0,
+			index:    99,
+			expected: "",
+		},
+		{
+			name:     "negative index returns empty string",
+			depth:    0,
+			index:    -1,
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := nav.GetPathAtDepthAndIndex(state, tt.depth, tt.index)
+			assert.Equal(t, tt.expected, got)
+		})
+	}
+}

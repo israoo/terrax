@@ -209,3 +209,25 @@ func (nav *Navigator) GetNavigationPath(state *NavigationState, depth int) strin
 
 	return path
 }
+
+// GetPathAtDepthAndIndex returns the absolute path of the item at position index
+// in the navigation column at the given depth. depth is 0-based (0 = first nav column).
+// Returns empty string if depth, index, or any required node is out of bounds or nil.
+func (nav *Navigator) GetPathAtDepthAndIndex(state *NavigationState, depth, index int) string {
+	if depth < 0 || depth >= nav.maxDepth || state == nil {
+		return ""
+	}
+
+	var parent *Node
+	if depth == 0 {
+		parent = nav.root
+	} else {
+		parent = state.CurrentNodes[depth-1]
+	}
+
+	if parent == nil || index < 0 || index >= len(parent.Children) {
+		return ""
+	}
+
+	return parent.Children[index].Path
+}
