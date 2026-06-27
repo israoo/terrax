@@ -617,6 +617,51 @@ func TestRunTUI_ConfigValidation(t *testing.T) {
 	}
 }
 
+// TestCollectTransitiveDeps_MultiplePaths tests that two independent leaf stacks
+// are both included in the filter list when passed together.
+func TestCollectTransitiveDeps_MultiplePaths(t *testing.T) {
+	// Create two independent leaf stacks.
+	tmpDir := t.TempDir()
+	envDev := filepath.Join(tmpDir, "env", "dev")
+	envProd := filepath.Join(tmpDir, "env", "prod")
+	require.NoError(t, os.MkdirAll(envDev, 0755))
+	require.NoError(t, os.MkdirAll(envProd, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(envDev, "terragrunt.hcl"), []byte(""), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(envProd, "terragrunt.hcl"), []byte(""), 0644))
+
+	repoRoot, filterPaths := collectTransitiveDeps([]string{envDev, envProd})
+
+	assert.NotEmpty(t, repoRoot)
+	assert.Len(t, filterPaths, 2, "both stacks should be in filter paths")
+	// Paths should be relative slashes.
+	for _, p := range filterPaths {
+		assert.False(t, filepath.IsAbs(p), "filter path should be relative: %s", p)
+	}
+}
+
+// TestCollectTransitiveDeps_DeduplicatesPaths tests that passing the same path twice
+// results in a single entry in the filter list.
+func TestCollectTransitiveDeps_DeduplicatesPaths(t *testing.T) {
+	tmpDir := t.TempDir()
+	envDev := filepath.Join(tmpDir, "env", "dev")
+	require.NoError(t, os.MkdirAll(envDev, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(envDev, "terragrunt.hcl"), []byte(""), 0644))
+
+	// Pass the same path twice.
+	repoRoot, filterPaths := collectTransitiveDeps([]string{envDev, envDev})
+
+	assert.NotEmpty(t, repoRoot)
+	assert.Len(t, filterPaths, 1, "duplicate paths should be deduplicated")
+}
+
+// TestCollectTransitiveDeps_EmptyInput tests that an empty input slice returns
+// empty repoRoot and filterPaths without panicking.
+func TestCollectTransitiveDeps_EmptyInput(t *testing.T) {
+	repoRoot, filterPaths := collectTransitiveDeps([]string{})
+	assert.Empty(t, repoRoot)
+	assert.Empty(t, filterPaths)
+}
+
 // TestRunTUI_TUIRunnerError tests error handling when TUI runner fails.
 func TestRunTUI_TUIRunnerError(t *testing.T) {
 	// Setup temporary directory with stack structure

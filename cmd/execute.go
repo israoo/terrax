@@ -26,7 +26,7 @@ func reExecuteHistoryEntry(ctx context.Context, historyService *history.Service,
 		return runForceUnlock(ctx, historyService, absolutePath)
 	}
 
-	repoRoot, filterPaths := collectTransitiveDeps(absolutePath)
+	repoRoot, filterPaths := collectTransitiveDeps([]string{absolutePath})
 
 	if entry.Command == "plan" && (viper.GetBool("plan.summary_enabled") || viper.GetBool("plan.review_enabled")) {
 		jsonOutDir := viper.GetString("plan.json_out_dir")

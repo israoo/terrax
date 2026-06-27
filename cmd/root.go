@@ -213,7 +213,13 @@ func runTUI(cmd *cobra.Command, args []string) error {
 			return runForceUnlock(ctx, historyService, stackPath)
 		}
 
-		repoRoot, filterPaths := collectTransitiveDeps(stackPath)
+		var execPaths []string
+		if model.HasSelectedPaths() {
+			execPaths = model.GetSelectedStackPaths()
+		} else {
+			execPaths = []string{stackPath}
+		}
+		repoRoot, filterPaths := collectTransitiveDeps(execPaths)
 
 		if command == "plan" && (viper.GetBool("plan.summary_enabled") || viper.GetBool("plan.review_enabled")) {
 			jsonOutDir := viper.GetString("plan.json_out_dir")
@@ -338,7 +344,16 @@ func displayResults(model tui.Model) {
 	fmt.Println("  ✅ Selection confirmed")
 	fmt.Println("═══════════════════════════════════════")
 	fmt.Printf("Command:    %s\n", model.GetSelectedCommand())
-	fmt.Printf("Stack Path: %s\n", model.GetSelectedStackPath())
+
+	if model.HasSelectedPaths() {
+		paths := model.GetSelectedStackPaths()
+		fmt.Printf("Stacks (%d):\n", len(paths))
+		for _, p := range paths {
+			fmt.Printf("  • %s\n", p)
+		}
+	} else {
+		fmt.Printf("Stack Path: %s\n", model.GetSelectedStackPath())
+	}
 	fmt.Println("═══════════════════════════════════════")
 	fmt.Println()
 }
@@ -411,31 +426,37 @@ func runForceUnlock(ctx context.Context, historyService *history.Service, absolu
 	return nil
 }
 
-// collectTransitiveDeps computes the filter list for summary mode.
+// collectTransitiveDeps computes the filter list for one or more stack paths.
 // When include_dependencies is true, transitive dependencies are resolved
 // via static HCL parsing and included in the filter list.
 // When false, only the selected stack(s) are included — no dependency traversal.
 // Non-leaf directories are expanded to all leaf stacks they contain via CollectStackPaths.
-func collectTransitiveDeps(stackPath string) (repoRoot string, filterPaths []string) {
+// All paths must reside under the same repository root; repoRoot is derived from stackPaths[0].
+func collectTransitiveDeps(stackPaths []string) (repoRoot string, filterPaths []string) {
+	if len(stackPaths) == 0 {
+		return "", nil
+	}
+
 	rootConfigFile := viper.GetString("root_config_file")
 	if rootConfigFile == "" {
 		rootConfigFile = config.DefaultRootConfigFile
 	}
-	repoRoot = deps.FindRepoRoot(stackPath, rootConfigFile)
+	repoRoot = deps.FindRepoRoot(stackPaths[0], rootConfigFile)
 	includeExternal := viper.GetBool("include_dependencies")
 
-	// Seed the queue: if the path is a leaf stack, start with it alone.
-	// If it is a directory containing multiple stacks, seed with all of them.
+	// Seed the BFS queue from all input paths, expanding non-leaf directories.
 	var seeds []string
-	hclFile := filepath.Join(stackPath, "terragrunt.hcl")
-	if _, err := os.Stat(hclFile); err == nil {
-		seeds = []string{stackPath}
-	} else {
-		leafPaths, err := stack.CollectStackPaths(stackPath)
-		if err != nil || len(leafPaths) == 0 {
-			seeds = []string{stackPath} // fallback
+	for _, stackPath := range stackPaths {
+		hclFile := filepath.Join(stackPath, "terragrunt.hcl")
+		if _, err := os.Stat(hclFile); err == nil {
+			seeds = append(seeds, stackPath)
 		} else {
-			seeds = leafPaths
+			leafPaths, err := stack.CollectStackPaths(stackPath)
+			if err != nil || len(leafPaths) == 0 {
+				seeds = append(seeds, stackPath) // fallback
+			} else {
+				seeds = append(seeds, leafPaths...)
+			}
 		}
 	}
 

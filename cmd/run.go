@@ -56,7 +56,7 @@ func runCommand(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to initialize history service: %w", err)
 	}
 
-	repoRoot, filterPaths := collectTransitiveDeps(workDir)
+	repoRoot, filterPaths := collectTransitiveDeps([]string{workDir})
 
 	if command == "plan" && (viper.GetBool("plan.summary_enabled") || viper.GetBool("plan.review_enabled")) {
 		jsonOutDir := viper.GetString("plan.json_out_dir")
