@@ -1,5 +1,7 @@
 package stack
 
+import "path/filepath"
+
 // Navigator provides methods for navigating the stack tree hierarchy.
 // It encapsulates the business logic for tree traversal, path resolution,
 // and selection management, keeping the TUI layer clean and focused on presentation.
@@ -219,12 +221,13 @@ func (nav *Navigator) FindNodeByPath(path string) *Node {
 	return findNodeByPath(nav.root, path)
 }
 
-// findNodeByPath recursively searches for a node with the given path.
+// findNodeByPath recursively searches for a node whose path matches.
+// Compares using forward-slash normalization for cross-platform consistency.
 func findNodeByPath(node *Node, path string) *Node {
 	if node == nil {
 		return nil
 	}
-	if node.Path == path {
+	if filepath.ToSlash(node.Path) == path {
 		return node
 	}
 	for _, child := range node.Children {

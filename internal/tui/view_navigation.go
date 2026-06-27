@@ -359,18 +359,21 @@ func calculatePaginatedRange(scrollOffset, maxVisibleItems, totalItems int) (sta
 }
 
 // isMarkedOrAncestorMarked returns true if path itself or any of its ancestor
-// directories is in selectedPaths.
+// directories is in selectedPaths. Uses forward-slash normalization for
+// cross-platform consistency with the selectedPaths map.
 func isMarkedOrAncestorMarked(path string, selectedPaths map[string]bool) bool {
+	path = filepath.ToSlash(path)
 	if selectedPaths[path] {
 		return true
 	}
-	cur := filepath.Dir(path)
-	for cur != path {
+	prev := path
+	cur := filepath.ToSlash(filepath.Dir(path))
+	for cur != prev {
 		if selectedPaths[cur] {
 			return true
 		}
-		path = cur
-		cur = filepath.Dir(cur)
+		prev = cur
+		cur = filepath.ToSlash(filepath.Dir(cur))
 	}
 	return false
 }

@@ -531,7 +531,9 @@ func (m Model) HasSelectedPaths() bool {
 // When adding a path, existing descendant marks are removed — the parent covers them.
 // When pressing Space on a child whose ancestor is marked, the ancestor is removed and
 // all sibling branches are marked, leaving only the pressed child unmarked.
+// Paths are normalized to forward slashes for cross-platform consistency.
 func (m *Model) toggleSelectedPath(path string) {
+	path = filepath.ToSlash(path)
 	if path == "" {
 		return
 	}
@@ -549,6 +551,7 @@ func (m *Model) toggleSelectedPath(path string) {
 
 // excludeChildFromAncestorMark removes the closest marked ancestor and expands it to
 // all sibling branches, leaving childPath itself unmarked.
+// childPath must already be forward-slash normalized.
 func (m *Model) excludeChildFromAncestorMark(childPath string) {
 	ancestorPath := findClosestMarkedAncestor(childPath, m.selectedPaths)
 	if ancestorPath == "" {
@@ -564,26 +567,28 @@ func (m *Model) excludeChildFromAncestorMark(childPath string) {
 
 // expandSiblingsExcluding walks from node toward childPath, adding all sibling branches
 // that are NOT on the path to childPath. childPath itself is never added.
+// All path comparisons use forward slashes for cross-platform consistency.
 func expandSiblingsExcluding(node *stack.Node, childPath string, selectedPaths map[string]bool) {
-	sep := string(filepath.Separator)
 	for _, child := range node.Children {
-		if child.Path == childPath {
+		childN := filepath.ToSlash(child.Path)
+		if childN == childPath {
 			// Exact target — skip, but keep iterating over remaining siblings.
 			continue
 		}
-		if strings.HasPrefix(childPath, child.Path+sep) {
+		if strings.HasPrefix(childPath, childN+"/") {
 			// On the path toward childPath — recurse without marking this intermediate node.
 			expandSiblingsExcluding(child, childPath, selectedPaths)
 		} else {
-			// Sibling branch — mark it entirely.
-			selectedPaths[child.Path] = true
+			// Sibling branch — mark it (normalized).
+			selectedPaths[childN] = true
 		}
 	}
 }
 
 // removeDescendants deletes all entries in selectedPaths that are descendants of path.
+// Uses forward slashes for cross-platform consistency.
 func removeDescendants(path string, selectedPaths map[string]bool) {
-	prefix := path + string(filepath.Separator)
+	prefix := filepath.ToSlash(path) + "/"
 	for p := range selectedPaths {
 		if strings.HasPrefix(p, prefix) {
 			delete(selectedPaths, p)
@@ -603,16 +608,16 @@ func hasMarkedAncestor(path string, selectedPaths map[string]bool) bool {
 }
 
 // findClosestMarkedAncestor returns the nearest ancestor path present in selectedPaths,
-// or empty string if none. Walks upward using a separate cursor to avoid mutating path.
+// or empty string if none. Normalizes to forward slashes for cross-platform consistency.
 func findClosestMarkedAncestor(path string, selectedPaths map[string]bool) string {
 	prev := path
-	cur := filepath.Dir(path)
+	cur := filepath.ToSlash(filepath.Dir(path))
 	for cur != prev {
 		if selectedPaths[cur] {
 			return cur
 		}
 		prev = cur
-		cur = filepath.Dir(cur)
+		cur = filepath.ToSlash(filepath.Dir(cur))
 	}
 	return ""
 }
