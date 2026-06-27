@@ -137,6 +137,7 @@ func NewHistoryModel(historyEntries []history.ExecutionLogEntry) Model {
 		ready:                false,
 		selectedHistoryEntry: nil,
 		reExecuteFromHistory: false,
+		selectedPaths:        make(map[string]bool),
 	}
 	return m
 }
@@ -188,6 +189,7 @@ func NewPlanReviewModel(report *plan.PlanReport) Model {
 		planTargetStats:          targetStats,
 		planDependencyStats:      dependencyStats,
 		ready:                    false,
+		selectedPaths:            make(map[string]bool),
 	}
 }
 
