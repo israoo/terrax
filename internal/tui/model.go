@@ -7,6 +7,7 @@
 package tui
 
 import (
+	"path/filepath"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -89,6 +90,9 @@ type Model struct {
 
 	// State flags
 	ready bool
+
+	// Multi-stack selection
+	selectedPaths map[string]bool // absolute paths of explicitly marked nodes
 }
 
 // NewModel creates a new TUI model instance.
@@ -116,6 +120,7 @@ func NewModel(stackRoot *stack.Node, maxDepth int, commands []string, maxNavigat
 		historyCursor:        0,
 		selectedHistoryEntry: nil,
 		reExecuteFromHistory: false,
+		selectedPaths:        make(map[string]bool),
 	}
 
 	navigator.PropagateSelection(navState)
@@ -498,4 +503,58 @@ func (m Model) ShouldReExecuteFromHistory() bool {
 // Returns nil if no entry was selected.
 func (m Model) GetSelectedHistoryEntry() *history.ExecutionLogEntry {
 	return m.selectedHistoryEntry
+}
+
+// GetSelectedStackPaths returns all explicitly marked paths as a slice.
+// Returns nil when no paths are marked.
+func (m Model) GetSelectedStackPaths() []string {
+	if len(m.selectedPaths) == 0 {
+		return nil
+	}
+	paths := make([]string, 0, len(m.selectedPaths))
+	for p := range m.selectedPaths {
+		paths = append(paths, p)
+	}
+	return paths
+}
+
+// HasSelectedPaths returns true when at least one path is marked.
+func (m Model) HasSelectedPaths() bool {
+	return len(m.selectedPaths) > 0
+}
+
+// toggleSelectedPath adds path to selectedPaths if absent, removes it if present.
+// No-op when any ancestor path is already in selectedPaths.
+func (m *Model) toggleSelectedPath(path string) {
+	if path == "" {
+		return
+	}
+	if hasMarkedAncestor(path, m.selectedPaths) {
+		return
+	}
+	if m.selectedPaths[path] {
+		delete(m.selectedPaths, path)
+	} else {
+		m.selectedPaths[path] = true
+	}
+}
+
+// clearSelectedPaths removes all marks.
+func (m *Model) clearSelectedPaths() {
+	m.selectedPaths = make(map[string]bool)
+}
+
+// hasMarkedAncestor returns true if any strict ancestor directory of path
+// is present in selectedPaths. Uses a separate cursor variable to avoid
+// mutating the original path argument.
+func hasMarkedAncestor(path string, selectedPaths map[string]bool) bool {
+	cur := filepath.Dir(path)
+	for cur != path {
+		if selectedPaths[cur] {
+			return true
+		}
+		path = cur
+		cur = filepath.Dir(cur)
+	}
+	return false
 }

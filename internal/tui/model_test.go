@@ -435,3 +435,71 @@ func TestModel_IsConfirmed(t *testing.T) {
 		})
 	}
 }
+
+func TestModel_GetSelectedStackPaths_Empty(t *testing.T) {
+	root := &stack.Node{
+		Name:     "root",
+		Path:     "/repo",
+		Children: []*stack.Node{{Name: "env", Path: "/repo/env"}},
+	}
+	m := NewModel(root, 1, []string{"plan"}, 3)
+	paths := m.GetSelectedStackPaths()
+	assert.Empty(t, paths)
+}
+
+func TestModel_GetSelectedStackPaths_ReturnsMarked(t *testing.T) {
+	root := &stack.Node{
+		Name:     "root",
+		Path:     "/repo",
+		Children: []*stack.Node{{Name: "env", Path: "/repo/env"}},
+	}
+	m := NewModel(root, 1, []string{"plan"}, 3)
+	m.selectedPaths = map[string]bool{
+		"/repo/env": true,
+		"/repo/app": true,
+	}
+	paths := m.GetSelectedStackPaths()
+	assert.Len(t, paths, 2)
+	assert.Contains(t, paths, "/repo/env")
+	assert.Contains(t, paths, "/repo/app")
+}
+
+func TestModel_HasSelectedPaths(t *testing.T) {
+	root := &stack.Node{Name: "root", Path: "/repo"}
+	m := NewModel(root, 1, []string{"plan"}, 3)
+	assert.False(t, m.HasSelectedPaths())
+
+	m.selectedPaths["/repo/env"] = true
+	assert.True(t, m.HasSelectedPaths())
+}
+
+func TestModel_ToggleSelectedPath_AddsAndRemoves(t *testing.T) {
+	root := &stack.Node{Name: "root", Path: "/repo"}
+	m := NewModel(root, 1, []string{"plan"}, 3)
+
+	m.toggleSelectedPath("/repo/env")
+	assert.True(t, m.selectedPaths["/repo/env"])
+
+	m.toggleSelectedPath("/repo/env")
+	assert.False(t, m.selectedPaths["/repo/env"])
+}
+
+func TestModel_ToggleSelectedPath_NoopWhenAncestorMarked(t *testing.T) {
+	root := &stack.Node{Name: "root", Path: "/repo"}
+	m := NewModel(root, 1, []string{"plan"}, 3)
+
+	m.selectedPaths["/repo/env"] = true
+	m.toggleSelectedPath("/repo/env/dev") // ancestor "/repo/env" is marked
+	assert.False(t, m.selectedPaths["/repo/env/dev"], "descendant should not be added when ancestor is marked")
+	assert.True(t, m.selectedPaths["/repo/env"], "ancestor mark must stay")
+}
+
+func TestModel_ClearSelectedPaths(t *testing.T) {
+	root := &stack.Node{Name: "root", Path: "/repo"}
+	m := NewModel(root, 1, []string{"plan"}, 3)
+	m.selectedPaths["/repo/env"] = true
+	m.selectedPaths["/repo/app"] = true
+
+	m.clearSelectedPaths()
+	assert.Empty(t, m.selectedPaths)
+}

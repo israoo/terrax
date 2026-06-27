@@ -37,6 +37,7 @@ func NewTestModel(stackRoot *stack.Node, maxDepth int, commands []string, maxNav
 		width:                120,
 		height:               30,
 		columnWidth:          25,
+		selectedPaths:        make(map[string]bool),
 	}
 
 	// Initialize navigation state.
