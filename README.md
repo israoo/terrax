@@ -671,7 +671,7 @@ After you confirm your selection (pressing Enter), TerraX:
    ═══════════════════════════════════════
      ✅ Selection confirmed
    ═══════════════════════════════════════
-   Command:    plan
+   Command: plan
    Stack Path: /infrastructure/vpc
    ═══════════════════════════════════════
    ```

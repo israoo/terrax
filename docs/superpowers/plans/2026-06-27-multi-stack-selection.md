@@ -1297,7 +1297,7 @@ func displayResults(model tui.Model) {
 	fmt.Println("═══════════════════════════════════════")
 	fmt.Println("  ✅ Selection confirmed")
 	fmt.Println("═══════════════════════════════════════")
-	fmt.Printf("Command:    %s\n", model.GetSelectedCommand())
+	fmt.Printf("Command: %s\n", model.GetSelectedCommand())
 
 	if model.HasSelectedPaths() {
 		paths := model.GetSelectedStackPaths()

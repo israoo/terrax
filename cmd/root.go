@@ -350,13 +350,22 @@ func displayResults(model tui.Model) {
 	fmt.Println("═══════════════════════════════════════")
 	fmt.Println("  ✅ Selection confirmed")
 	fmt.Println("═══════════════════════════════════════")
-	fmt.Printf("Command:    %s\n", model.GetSelectedCommand())
+	fmt.Printf("Command: %s\n", model.GetSelectedCommand())
 
 	if model.HasSelectedPaths() {
 		paths := model.GetSelectedStackPaths()
+		rootConfigFile := viper.GetString("root_config_file")
+		if rootConfigFile == "" {
+			rootConfigFile = config.DefaultRootConfigFile
+		}
+		repoRoot := deps.FindRepoRoot(paths[0], rootConfigFile)
 		fmt.Printf("Stacks (%d):\n", len(paths))
 		for _, p := range paths {
-			fmt.Printf("  • %s\n", p)
+			rel, err := filepath.Rel(repoRoot, p)
+			if err != nil {
+				rel = p
+			}
+			fmt.Printf("  • %s\n", rel)
 		}
 	} else {
 		fmt.Printf("Stack Path: %s\n", model.GetSelectedStackPath())
