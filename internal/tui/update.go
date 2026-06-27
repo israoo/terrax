@@ -148,8 +148,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	// Normal navigation mode (always available)
-	// Normal navigation mode (always available)
+	// Normal navigation mode (always available).
 	switch msg.Type {
 	case tea.KeyCtrlC, tea.KeyEsc:
 		if msg.Type == tea.KeyEsc && m.HasSelectedPaths() {
