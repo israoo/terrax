@@ -210,6 +210,31 @@ func (nav *Navigator) GetNavigationPath(state *NavigationState, depth int) strin
 	return path
 }
 
+// FindNodeByPath traverses the tree and returns the node whose Path matches path,
+// or nil if not found.
+func (nav *Navigator) FindNodeByPath(path string) *Node {
+	if nav.root == nil {
+		return nil
+	}
+	return findNodeByPath(nav.root, path)
+}
+
+// findNodeByPath recursively searches for a node with the given path.
+func findNodeByPath(node *Node, path string) *Node {
+	if node == nil {
+		return nil
+	}
+	if node.Path == path {
+		return node
+	}
+	for _, child := range node.Children {
+		if found := findNodeByPath(child, path); found != nil {
+			return found
+		}
+	}
+	return nil
+}
+
 // GetPathAtDepthAndIndex returns the absolute path of the item at position index
 // in the navigation column at the given depth. depth is 0-based (0 = first nav column).
 // Returns empty string if depth, index, or any required node is out of bounds or nil.

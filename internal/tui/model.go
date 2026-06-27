@@ -528,14 +528,15 @@ func (m Model) HasSelectedPaths() bool {
 }
 
 // toggleSelectedPath adds path to selectedPaths if absent, removes it if present.
-// No-op when any ancestor path is already in selectedPaths.
-// When adding a path, any existing descendant marks are removed first — the parent
-// covers all descendants so keeping them would cause duplicate execution.
+// When adding a path, existing descendant marks are removed — the parent covers them.
+// When pressing Space on a child whose ancestor is marked, the ancestor is removed and
+// all sibling branches are marked, leaving only the pressed child unmarked.
 func (m *Model) toggleSelectedPath(path string) {
 	if path == "" {
 		return
 	}
 	if hasMarkedAncestor(path, m.selectedPaths) {
+		m.excludeChildFromAncestorMark(path)
 		return
 	}
 	if m.selectedPaths[path] {
@@ -543,6 +544,40 @@ func (m *Model) toggleSelectedPath(path string) {
 	} else {
 		removeDescendants(path, m.selectedPaths)
 		m.selectedPaths[path] = true
+	}
+}
+
+// excludeChildFromAncestorMark removes the closest marked ancestor and expands it to
+// all sibling branches, leaving childPath itself unmarked.
+func (m *Model) excludeChildFromAncestorMark(childPath string) {
+	ancestorPath := findClosestMarkedAncestor(childPath, m.selectedPaths)
+	if ancestorPath == "" {
+		return
+	}
+	ancestorNode := m.navigator.FindNodeByPath(ancestorPath)
+	if ancestorNode == nil {
+		return
+	}
+	delete(m.selectedPaths, ancestorPath)
+	expandSiblingsExcluding(ancestorNode, childPath, m.selectedPaths)
+}
+
+// expandSiblingsExcluding walks from node toward childPath, adding all sibling branches
+// that are NOT on the path to childPath. childPath itself is never added.
+func expandSiblingsExcluding(node *stack.Node, childPath string, selectedPaths map[string]bool) {
+	sep := string(filepath.Separator)
+	for _, child := range node.Children {
+		if child.Path == childPath {
+			// Exact target — skip, but keep iterating over remaining siblings.
+			continue
+		}
+		if strings.HasPrefix(childPath, child.Path+sep) {
+			// On the path toward childPath — recurse without marking this intermediate node.
+			expandSiblingsExcluding(child, childPath, selectedPaths)
+		} else {
+			// Sibling branch — mark it entirely.
+			selectedPaths[child.Path] = true
+		}
 	}
 }
 
@@ -562,16 +597,22 @@ func (m *Model) clearSelectedPaths() {
 }
 
 // hasMarkedAncestor returns true if any strict ancestor directory of path
-// is present in selectedPaths. Uses a separate cursor variable to avoid
-// mutating the original path argument.
+// is present in selectedPaths.
 func hasMarkedAncestor(path string, selectedPaths map[string]bool) bool {
+	return findClosestMarkedAncestor(path, selectedPaths) != ""
+}
+
+// findClosestMarkedAncestor returns the nearest ancestor path present in selectedPaths,
+// or empty string if none. Walks upward using a separate cursor to avoid mutating path.
+func findClosestMarkedAncestor(path string, selectedPaths map[string]bool) string {
+	prev := path
 	cur := filepath.Dir(path)
-	for cur != path {
+	for cur != prev {
 		if selectedPaths[cur] {
-			return true
+			return cur
 		}
-		path = cur
+		prev = cur
 		cur = filepath.Dir(cur)
 	}
-	return false
+	return ""
 }
