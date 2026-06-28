@@ -32,6 +32,7 @@ func init() {
 	reportCmd.Flags().String("format", "text", "Output format: text or markdown")
 	reportCmd.Flags().String("output", "", "Output file path (default: stdout)")
 	reportCmd.Flags().Bool("all", false, "Include stacks with no changes")
+	reportCmd.Flags().Bool("exit-code", false, "Exit 2 when stacks with pending changes are found (mirrors terraform -detailed-exitcode)")
 	rootCmd.AddCommand(reportCmd)
 }
 
@@ -82,6 +83,7 @@ func runReportCmd(cmd *cobra.Command, _ []string) error {
 	formatFlag, _ := cmd.Flags().GetString("format")
 	showAll, _ := cmd.Flags().GetBool("all")
 	outputFlag, _ := cmd.Flags().GetString("output")
+	exitCode, _ := cmd.Flags().GetBool("exit-code")
 
 	// Validate format before creating the output file to avoid orphaning it.
 	outputFormat := plan.Format(formatFlag)
@@ -102,9 +104,16 @@ func runReportCmd(cmd *cobra.Command, _ []string) error {
 		w = f
 	}
 
-	return plan.Report(report, plan.ReportOptions{
+	if err := plan.Report(report, plan.ReportOptions{
 		Format:  outputFormat,
 		ShowAll: showAll,
 		Writer:  w,
-	})
+	}); err != nil {
+		return err
+	}
+
+	if exitCode && report.Summary.StacksWithChanges > 0 {
+		os.Exit(2)
+	}
+	return nil
 }
