@@ -382,10 +382,20 @@ func TestDiffAttributes_StringValueUnchanged_NoChildren(t *testing.T) {
 }
 
 func TestAttrSymbol(t *testing.T) {
+	// Leaf cases.
 	assert.Equal(t, "+", attrSymbol(attrDiff{after: "x"}))
 	assert.Equal(t, "-", attrSymbol(attrDiff{before: "x"}))
 	assert.Equal(t, "~", attrSymbol(attrDiff{before: "x", after: "y"}))
-	assert.Equal(t, "~", attrSymbol(attrDiff{children: []attrDiff{{key: "k"}}}))
+	assert.Equal(t, "~", attrSymbol(attrDiff{computed: true}))
+
+	// Nested: all children removed → "-".
+	assert.Equal(t, "-", attrSymbol(attrDiff{children: []attrDiff{{key: "k", before: "x"}}}))
+	// Nested: all children added → "+".
+	assert.Equal(t, "+", attrSymbol(attrDiff{children: []attrDiff{{key: "k", after: "x"}}}))
+	// Nested: mixed children → "~".
+	assert.Equal(t, "~", attrSymbol(attrDiff{children: []attrDiff{{key: "a", before: "x"}, {key: "b", after: "y"}}}))
+	// Nested: all removed but some unchanged siblings → "~" (partial remove = update).
+	assert.Equal(t, "~", attrSymbol(attrDiff{children: []attrDiff{{key: "k", before: "x"}}, unchangedCnt: 1}))
 }
 
 func TestReport_Text_NestedArray(t *testing.T) {

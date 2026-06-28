@@ -89,8 +89,30 @@ func (ew *errWriter) println(a ...interface{}) {
 }
 
 // attrSymbol returns the diff symbol (+/-/~) for any attrDiff node.
+// For nested nodes it derives the symbol from children: pure-delete → "-",
+// pure-add → "+", mixed or partially-unchanged → "~".
 func attrSymbol(d attrDiff) string {
 	if len(d.children) > 0 {
+		// Partially unchanged siblings mean a mixed change.
+		if d.unchangedCnt > 0 {
+			return "~"
+		}
+		allAdd, allRemove := true, true
+		for _, child := range d.children {
+			sym := attrSymbol(child)
+			if sym != "+" {
+				allAdd = false
+			}
+			if sym != "-" {
+				allRemove = false
+			}
+		}
+		if allRemove {
+			return "-"
+		}
+		if allAdd {
+			return "+"
+		}
 		return "~"
 	}
 	if d.computed {
