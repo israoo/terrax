@@ -1,6 +1,7 @@
 package plan
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -290,6 +291,111 @@ func TestReport_Markdown_BacktickInValue(t *testing.T) {
 	assert.Contains(t, out, "\\`hello\\`")
 	// The cell must not contain an unescaped backtick inside the value column.
 	assert.NotContains(t, out, "| `echo `hello`")
+}
+
+// ---- Recursive diff tests ----
+
+func TestDiffAttributes_NestedMap(t *testing.T) {
+	// "emails" is an array of objects; the nested "value" field changes.
+	before := map[string]interface{}{
+		"emails": []interface{}{
+			map[string]interface{}{"primary": false, "type": "", "value": "a@example.com"},
+		},
+	}
+	after := map[string]interface{}{
+		"emails": []interface{}{
+			map[string]interface{}{"primary": false, "type": "", "value": "b@example.com"},
+		},
+	}
+	diffs := diffAttributes(before, after, nil)
+	require.Len(t, diffs, 1)
+	assert.Equal(t, "emails", diffs[0].key)
+	// Must have children — not a flat blob.
+	require.NotEmpty(t, diffs[0].children, "emails diff must be nested, not a flat string")
+	// The [0] child must itself have children (it's an object).
+	elem := diffs[0].children[0]
+	assert.Equal(t, "[0]", elem.key)
+	require.NotEmpty(t, elem.children)
+	// Only the "value" key changed; "primary" and "type" are suppressed.
+	valueChild := findChild(elem.children, "value")
+	require.NotNil(t, valueChild)
+	assert.Contains(t, valueChild.before, "a@example.com")
+	assert.Contains(t, valueChild.after, "b@example.com")
+	// 2 unchanged attributes hidden on [0].
+	assert.Equal(t, 2, elem.unchangedCnt)
+}
+
+func TestDiffAttributes_JSONString(t *testing.T) {
+	// "inline_policy" is a JSON-encoded string (Terraform jsonencode pattern).
+	// The before has 2 statements; the after removes one.
+	stmt1 := map[string]interface{}{"Sid": "Keep", "Effect": "Allow", "Action": "s3:GetObject", "Resource": "*"}
+	stmt2 := map[string]interface{}{"Sid": "Remove", "Effect": "Allow", "Action": "lambda:InvokeFunction", "Resource": "*"}
+	stmt1After := map[string]interface{}{"Sid": "Keep", "Effect": "Allow", "Action": "s3:GetObject", "Resource": "*"}
+
+	mustJSON := func(v interface{}) string {
+		b, _ := json.Marshal(map[string]interface{}{"Statement": v})
+		return string(b)
+	}
+	before := map[string]interface{}{"inline_policy": mustJSON([]interface{}{stmt1, stmt2})}
+	after := map[string]interface{}{"inline_policy": mustJSON([]interface{}{stmt1After})}
+
+	diffs := diffAttributes(before, after, nil)
+	require.Len(t, diffs, 1)
+	assert.Equal(t, "inline_policy", diffs[0].key)
+	// Must recurse into the decoded JSON — not a flat blob.
+	require.NotEmpty(t, diffs[0].children, "inline_policy diff must be nested after JSON decoding")
+}
+
+func TestDiffAttributes_NestedMap_UnchangedCount(t *testing.T) {
+	// Object with 4 keys; only one changes. unchangedCnt must be 3.
+	before := map[string]interface{}{"obj": map[string]interface{}{"a": 1.0, "b": 2.0, "c": 3.0, "d": 4.0}}
+	after := map[string]interface{}{"obj": map[string]interface{}{"a": 1.0, "b": 99.0, "c": 3.0, "d": 4.0}}
+	diffs := diffAttributes(before, after, nil)
+	require.Len(t, diffs, 1)
+	assert.Equal(t, "obj", diffs[0].key)
+	require.Len(t, diffs[0].children, 1) // only "b" changed
+	assert.Equal(t, 3, diffs[0].unchangedCnt)
+}
+
+func TestDiffAttributes_ArrayAdd(t *testing.T) {
+	// Array grows from 1 to 2 elements.
+	before := map[string]interface{}{"tags": []interface{}{"prod"}}
+	after := map[string]interface{}{"tags": []interface{}{"prod", "new-tag"}}
+	diffs := diffAttributes(before, after, nil)
+	require.Len(t, diffs, 1)
+	require.NotEmpty(t, diffs[0].children)
+	// Element [0] unchanged (1 hidden), element [1] is an add.
+	assert.Equal(t, 1, diffs[0].unchangedCnt)
+	require.Len(t, diffs[0].children, 1)
+	assert.Equal(t, "[1]", diffs[0].children[0].key)
+	assert.Empty(t, diffs[0].children[0].before)
+	assert.NotEmpty(t, diffs[0].children[0].after)
+}
+
+func TestDiffAttributes_StringValueUnchanged_NoChildren(t *testing.T) {
+	// Plain string that parses as JSON but is equal on both sides → no diff entry at all.
+	val := `{"key":"value"}`
+	before := map[string]interface{}{"policy": val}
+	after := map[string]interface{}{"policy": val}
+	diffs := diffAttributes(before, after, nil)
+	assert.Empty(t, diffs, "unchanged JSON string must produce no diff")
+}
+
+func TestAttrSymbol(t *testing.T) {
+	assert.Equal(t, "+", attrSymbol(attrDiff{after: "x"}))
+	assert.Equal(t, "-", attrSymbol(attrDiff{before: "x"}))
+	assert.Equal(t, "~", attrSymbol(attrDiff{before: "x", after: "y"}))
+	assert.Equal(t, "~", attrSymbol(attrDiff{children: []attrDiff{{key: "k"}}}))
+}
+
+// findChild returns the first attrDiff with the given key, or nil.
+func findChild(diffs []attrDiff, key string) *attrDiff {
+	for i := range diffs {
+		if diffs[i].key == key {
+			return &diffs[i]
+		}
+	}
+	return nil
 }
 
 // stripANSI removes ANSI escape sequences for plain-text assertions.

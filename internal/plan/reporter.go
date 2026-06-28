@@ -25,12 +25,16 @@ type ReportOptions struct {
 	Writer  io.Writer
 }
 
-// attrDiff represents a single attribute comparison between before and after.
+// attrDiff represents one attribute comparison at any nesting depth.
+// Leaf diffs have len(children)==0 and non-empty before/after strings.
+// Nested diffs have len(children)>0 and empty before/after strings.
 type attrDiff struct {
-	key      string
-	before   string // JSON-formatted; empty for creates.
-	after    string // JSON-formatted; empty for deletes.
-	computed bool   // True when field is marked unknown in the plan.
+	key          string
+	before       string     // JSON-formatted leaf value; empty for adds and nested diffs.
+	after        string     // JSON-formatted leaf value; empty for removes and nested diffs.
+	computed     bool       // True when field is marked unknown in the plan.
+	children     []attrDiff // Non-empty for nested (map/array/JSON-string) diffs.
+	unchangedCnt int        // Count of equal siblings omitted from children.
 }
 
 // Report writes a full per-resource attribute diff to opts.Writer.
@@ -84,7 +88,21 @@ func (ew *errWriter) println(a ...interface{}) {
 	_, ew.err = fmt.Fprintln(ew, a...)
 }
 
-// diffAttributes computes the attribute-level diff between before and after.
+// attrSymbol returns the diff symbol (+/-/~) for any attrDiff node.
+func attrSymbol(d attrDiff) string {
+	if len(d.children) > 0 {
+		return "~"
+	}
+	if d.before == "" && !d.computed {
+		return "+"
+	}
+	if d.after == "" {
+		return "-"
+	}
+	return "~"
+}
+
+// diffAttributes computes the top-level attribute diff between before and after.
 // before and after are expected to be map[string]interface{} or nil.
 // unknown is a map[string]interface{} where true marks computed fields.
 func diffAttributes(before, after, unknown interface{}) []attrDiff {
@@ -105,7 +123,6 @@ func diffAttributes(before, after, unknown interface{}) []attrDiff {
 	for k := range keySet {
 		bVal, bExists := beforeMap[k]
 		aVal, aExists := afterMap[k]
-
 		isComputed := unknownMap[k] == true
 
 		// For updates: skip attributes that haven't changed.
@@ -113,23 +130,140 @@ func diffAttributes(before, after, unknown interface{}) []attrDiff {
 			continue
 		}
 
-		d := attrDiff{
-			key:      k,
-			computed: isComputed,
+		var bv, av interface{}
+		if bExists {
+			bv = bVal
 		}
-		if bExists && bVal != nil {
-			d.before = formatValue(bVal)
+		if aExists {
+			av = aVal
 		}
-		if isComputed {
-			d.after = "(computed)"
-		} else if aExists && aVal != nil {
-			d.after = formatValue(aVal)
-		}
-		diffs = append(diffs, d)
+		diffs = append(diffs, diffValue(k, bv, av, isComputed))
 	}
 
 	sort.Slice(diffs, func(i, j int) bool { return diffs[i].key < diffs[j].key })
 	return diffs
+}
+
+// diffValue constructs an attrDiff for a single key, recursing when possible.
+func diffValue(key string, bv, av interface{}, computed bool) attrDiff {
+	if computed {
+		return attrDiff{key: key, computed: true}
+	}
+
+	// Attempt recursive diff when at least one side is present.
+	if bv != nil || av != nil {
+		children, unchanged := recursiveDiff(bv, av)
+		if len(children) > 0 || unchanged > 0 {
+			return attrDiff{key: key, children: children, unchangedCnt: unchanged}
+		}
+	}
+
+	// Leaf diff.
+	d := attrDiff{key: key}
+	if bv != nil {
+		d.before = formatValue(bv)
+	}
+	if av != nil {
+		d.after = formatValue(av)
+	}
+	return d
+}
+
+// recursiveDiff attempts to produce a structured diff of before and after.
+// Returns (nil, 0) when the values cannot be recursed (e.g. primitive scalars).
+func recursiveDiff(before, after interface{}) ([]attrDiff, int) {
+	// Case B: both are JSON-encoded strings — decode and recurse.
+	bStr, bIsStr := before.(string)
+	aStr, aIsStr := after.(string)
+	if bIsStr && aIsStr {
+		var bParsed, aParsed interface{}
+		bErr := json.Unmarshal([]byte(bStr), &bParsed)
+		aErr := json.Unmarshal([]byte(aStr), &aParsed)
+		if bErr == nil && aErr == nil {
+			children, unchanged := recursiveDiff(bParsed, aParsed)
+			if children != nil || unchanged > 0 {
+				return children, unchanged
+			}
+		}
+		return nil, 0
+	}
+
+	// Case C1: both are maps.
+	bMap, bIsMap := before.(map[string]interface{})
+	aMap, aIsMap := after.(map[string]interface{})
+	if bIsMap && aIsMap {
+		return diffMaps(bMap, aMap)
+	}
+
+	// Case C2: both are arrays.
+	bArr, bIsArr := before.([]interface{})
+	aArr, aIsArr := after.([]interface{})
+	if bIsArr && aIsArr {
+		return diffArrays(bArr, aArr)
+	}
+
+	return nil, 0
+}
+
+// diffMaps computes a recursive diff between two maps.
+// Returns changed diffs and the count of unchanged keys.
+func diffMaps(before, after map[string]interface{}) ([]attrDiff, int) {
+	keySet := map[string]struct{}{}
+	for k := range before {
+		keySet[k] = struct{}{}
+	}
+	for k := range after {
+		keySet[k] = struct{}{}
+	}
+
+	var diffs []attrDiff
+	unchanged := 0
+	for k := range keySet {
+		bv, bExists := before[k]
+		av, aExists := after[k]
+		if bExists && aExists && jsonEqual(bv, av) {
+			unchanged++
+			continue
+		}
+		var bvp, avp interface{}
+		if bExists {
+			bvp = bv
+		}
+		if aExists {
+			avp = av
+		}
+		diffs = append(diffs, diffValue(k, bvp, avp, false))
+	}
+	sort.Slice(diffs, func(i, j int) bool { return diffs[i].key < diffs[j].key })
+	return diffs, unchanged
+}
+
+// diffArrays computes an index-based diff between two arrays.
+// Returns changed diffs and the count of unchanged elements.
+func diffArrays(before, after []interface{}) ([]attrDiff, int) {
+	maxLen := len(before)
+	if len(after) > maxLen {
+		maxLen = len(after)
+	}
+
+	var diffs []attrDiff
+	unchanged := 0
+	for i := 0; i < maxLen; i++ {
+		key := fmt.Sprintf("[%d]", i)
+		var bv, av interface{}
+		if i < len(before) {
+			bv = before[i]
+		}
+		if i < len(after) {
+			av = after[i]
+		}
+		if bv != nil && av != nil && jsonEqual(bv, av) {
+			unchanged++
+			continue
+		}
+		diffs = append(diffs, diffValue(key, bv, av, false))
+	}
+	return diffs, unchanged
 }
 
 // formatValue returns a compact JSON representation of v.
