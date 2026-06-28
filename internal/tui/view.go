@@ -51,7 +51,8 @@ func (r *Renderer) Render() string {
 
 	header := r.renderHeader()
 	breadcrumbBar := r.renderBreadcrumbBar()
+	depthIndicator := r.renderDepthIndicator()
 	footer := r.renderFooter()
 
-	return lipgloss.JoinVertical(lipgloss.Left, header, breadcrumbBar, content, footer)
+	return lipgloss.JoinVertical(lipgloss.Left, header, breadcrumbBar, depthIndicator, content, footer)
 }

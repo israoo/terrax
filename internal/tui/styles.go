@@ -72,4 +72,9 @@ var (
 	// Marker styles for multi-stack selection.
 	markedStyle   = lipgloss.NewStyle().Foreground(accentColor).Bold(true)
 	unmarkedStyle = lipgloss.NewStyle().Foreground(dimColor)
+
+	// Depth indicator dot styles: visible window, reachable-but-offscreen, unreachable from here.
+	depthDotVisibleStyle     = lipgloss.NewStyle().Foreground(secondaryColor).Bold(true)
+	depthDotReachableStyle   = lipgloss.NewStyle().Foreground(dimColor)
+	depthDotUnreachableStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#3A3A3A"))
 )

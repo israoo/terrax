@@ -3,10 +3,11 @@ package tui
 // UI Layout Constants
 const (
 	// Column layout
-	ColumnOverhead    = 8  // Total overhead per column (borders, padding, spacing)
-	ColumnPadding     = 4  // Padding within each column
-	ColumnBorderWidth = 2  // Border width for each column
-	MinColumnWidth    = 20 // Minimum width for a column
+	ColumnOverhead      = 2  // External overhead per column: left + right margin from Margin(0,1).
+	ArrowIndicatorWidth = 3  // Width of each overflow arrow indicator: 1 char + Padding(0,1) = 2.
+	ColumnPadding       = 4  // Padding within each column.
+	ColumnBorderWidth   = 2  // Border width for each column.
+	MinColumnWidth      = 20 // Minimum width for a column.
 
 	// Header
 	HeaderHeight    = 1
@@ -19,13 +20,14 @@ const (
 	FirstItemIndex = 0 // Index of the first item in a list
 
 	// Item rendering
-	CursorWidth         = 2  // Width of cursor and space: "► "
-	ItemStylePadding    = 2  // Item style padding (left + right)
-	ColumnStylePadding  = 6  // Column padding (unfocused: 2,3 = 6 total)
-	EllipsisWidth       = 3  // Width of truncation ellipsis "..."
-	MinItemTextWidth    = 10 // Minimum width for item text
-	MarkerWidth         = 4  // Width of selection marker prefix "● " rendered by Lipgloss
-	BreadcrumbLineCount = 1  // Number of lines for breadcrumb bar
+	CursorWidth             = 2  // Width of cursor and space: "► "
+	ItemStylePadding        = 2  // Item style padding (left + right)
+	ColumnStylePadding      = 6  // Column padding (unfocused: 2,3 = 6 total)
+	EllipsisWidth           = 3  // Width of truncation ellipsis "..."
+	MinItemTextWidth        = 10 // Minimum width for item text
+	MarkerWidth             = 4  // Width of selection marker prefix "● " rendered by Lipgloss
+	BreadcrumbLineCount     = 1  // Number of lines for breadcrumb bar.
+	DepthIndicatorLineCount = 1  // Number of lines for the depth dots indicator.
 
 	// Plan Review Layout
 	PlanMasterWidthRatio = 3  // 1/3 of screen width
