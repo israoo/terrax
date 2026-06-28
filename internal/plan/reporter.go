@@ -399,14 +399,28 @@ func renderStackText(ew *errWriter, stack StackResult, sep string) {
 	}
 }
 
+// attrStyleFor returns the Lipgloss style matching a diff symbol.
+func attrStyleFor(sym string) lipgloss.Style {
+	switch sym {
+	case "+":
+		return textCreate
+	case "-":
+		return textDelete
+	default:
+		return textUpdate
+	}
+}
+
 // renderAttrText renders one attrDiff at the given nesting depth.
 // depth 0 = direct child of a resource (base indent = 6 spaces).
+// The sym+key portion is colored by change type; values remain dim.
 func renderAttrText(ew *errWriter, d attrDiff, depth int) {
 	indent := strings.Repeat("  ", depth) + "      " // 6 spaces base + 2 per depth.
+	sym := attrSymbol(d)
+	style := attrStyleFor(sym)
 
 	if len(d.children) > 0 {
-		sym := attrSymbol(d)
-		ew.printf("%s\n", textDim.Render(fmt.Sprintf("%s%s %s", indent, sym, d.key)))
+		ew.printf("%s\n", style.Render(fmt.Sprintf("%s%s %s", indent, sym, d.key)))
 		for _, child := range d.children {
 			renderAttrText(ew, child, depth+1)
 		}
@@ -416,21 +430,21 @@ func renderAttrText(ew *errWriter, d attrDiff, depth int) {
 		return
 	}
 
-	// Leaf diff — symbol prefix makes add/remove/change explicit at every nesting depth.
-	sym := attrSymbol(d)
+	// Leaf diff: sym+key in color, value(s) in dim for readability.
+	keyPart := style.Render(fmt.Sprintf("%s%s %-28s", indent, sym, d.key))
 	if d.computed {
-		ew.printf("%s\n", textDim.Render(fmt.Sprintf("%s%s %-28s (computed)", indent, sym, d.key)))
+		ew.printf("%s%s\n", keyPart, textDim.Render(" (computed)"))
 		return
 	}
 	if d.before == "" {
-		ew.printf("%s\n", textDim.Render(fmt.Sprintf("%s%s %-28s %s", indent, sym, d.key, d.after)))
+		ew.printf("%s%s\n", keyPart, textDim.Render(" "+d.after))
 		return
 	}
 	if d.after == "" {
-		ew.printf("%s\n", textDim.Render(fmt.Sprintf("%s%s %-28s %s", indent, sym, d.key, d.before)))
+		ew.printf("%s%s\n", keyPart, textDim.Render(" "+d.before))
 		return
 	}
-	ew.printf("%s\n", textDim.Render(fmt.Sprintf("%s%s %-28s %s → %s", indent, sym, d.key, d.before, d.after)))
+	ew.printf("%s%s\n", keyPart, textDim.Render(fmt.Sprintf(" %s → %s", d.before, d.after)))
 }
 
 // ---- Markdown renderer. ----
