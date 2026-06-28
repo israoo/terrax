@@ -65,7 +65,7 @@ func (m Model) renderDashboardView() string {
 	view := lipgloss.JoinVertical(lipgloss.Left, header, body, footer)
 
 	if m.dashPaletteOpen {
-		view = m.overlayCommandPalette(view)
+		view = m.overlayCommandPalette()
 	}
 
 	return view
@@ -77,7 +77,7 @@ func (m Model) styleDashPanel(content string, width, height int, focused bool) s
 	if focused {
 		style = dashPanelFocusedStyle
 	}
-	// Width/Height are the INNER dimensions; Lipgloss adds 1 char border on each side.
+	// Width/Height are the OUTER dimensions; subtract 2 to account for the 1-char border on each side.
 	return style.Width(width - 2).Height(height - 2).Render(content)
 }
 
@@ -89,8 +89,8 @@ func (m Model) renderDashboardFooter() string {
 	return footerStyle.Render("p:plan  a:apply  i:init  v:validate  d:destroy  space:palette  tab:focus  [/]:tabs  q:quit")
 }
 
-// overlayCommandPalette renders the command palette as a centred overlay on top of base.
-func (m Model) overlayCommandPalette(base string) string {
+// overlayCommandPalette renders the command palette as a centred overlay.
+func (m Model) overlayCommandPalette() string {
 	paletteW := m.width / 2
 	if paletteW < 30 {
 		paletteW = 30
