@@ -93,7 +93,10 @@ func attrSymbol(d attrDiff) string {
 	if len(d.children) > 0 {
 		return "~"
 	}
-	if d.before == "" && !d.computed {
+	if d.computed {
+		return "~"
+	}
+	if d.before == "" {
 		return "+"
 	}
 	if d.after == "" {
@@ -257,7 +260,7 @@ func diffArrays(before, after []interface{}) ([]attrDiff, int) {
 		if i < len(after) {
 			av = after[i]
 		}
-		if bv != nil && av != nil && jsonEqual(bv, av) {
+		if (bv == nil && av == nil) || (bv != nil && av != nil && jsonEqual(bv, av)) {
 			unchanged++
 			continue
 		}
@@ -298,7 +301,7 @@ func symbolFor(ct ChangeType) string {
 	}
 }
 
-// ---- Text renderer ----
+// ---- Text renderer. ----
 
 var (
 	textCreate  = lipgloss.NewStyle().Foreground(lipgloss.Color("#22c55e")).Bold(true)
@@ -407,7 +410,7 @@ func renderAttrText(ew *errWriter, d attrDiff, depth int) {
 	ew.printf("%s\n", textDim.Render(fmt.Sprintf("%s%-30s %s → %s", indent, d.key, d.before, d.after)))
 }
 
-// ---- Markdown renderer ----
+// ---- Markdown renderer. ----
 
 // hasNestedDiff reports whether any diff in the slice has children.
 func hasNestedDiff(diffs []attrDiff) bool {
@@ -463,11 +466,17 @@ func renderAttrMarkdown(ew *errWriter, d attrDiff, depth int) {
 }
 
 func renderMarkdown(ew *errWriter, report *PlanReport, opts ReportOptions) {
+	printed := false
 	for _, stack := range report.Stacks {
 		if !opts.ShowAll && !stack.HasChanges {
 			continue
 		}
 		renderStackMarkdown(ew, stack)
+		printed = true
+	}
+	if !printed {
+		ew.printf("*No stacks with pending changes.*\n")
+		return
 	}
 	s := report.Summary
 	ew.printf("\n---\n**Summary:** %d stacks · %d with changes · +%d ~%d -%d\n",

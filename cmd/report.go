@@ -83,6 +83,15 @@ func runReportCmd(cmd *cobra.Command, _ []string) error {
 	showAll, _ := cmd.Flags().GetBool("all")
 	outputFlag, _ := cmd.Flags().GetString("output")
 
+	// Validate format before creating the output file to avoid orphaning it.
+	outputFormat := plan.Format(formatFlag)
+	switch outputFormat {
+	case plan.FormatText, plan.FormatMarkdown:
+		// Valid format.
+	default:
+		return fmt.Errorf("unknown format %q: use text or markdown", outputFormat)
+	}
+
 	w := cmd.OutOrStdout()
 	if outputFlag != "" {
 		f, err := os.Create(outputFlag)
@@ -94,7 +103,7 @@ func runReportCmd(cmd *cobra.Command, _ []string) error {
 	}
 
 	return plan.Report(report, plan.ReportOptions{
-		Format:  plan.Format(formatFlag),
+		Format:  outputFormat,
 		ShowAll: showAll,
 		Writer:  w,
 	})
