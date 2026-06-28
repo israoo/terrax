@@ -283,6 +283,115 @@ jobs:
 | `strings.Contains(path, "/")` | Use `filepath` operations |
 | Assume case-sensitive | Use `filepath.EvalSymlinks()` for canonical paths |
 
+## Advanced Windows Gotchas
+
+The basic `filepath.Join` rule avoids most issues, but these subtler problems have been found in TerraX (2026-06-28):
+
+### 1. `filepath.Dir` converts forward slashes to backslashes on Windows
+
+`filepath.Dir` is OS-aware. If your map or slice stores paths with forward slashes (e.g. from `Node.Path` normalized elsewhere, or from user config) and you walk ancestors with `filepath.Dir`, the returned keys will use backslashes on Windows — causing lookups to silently fail.
+
+**Bad:**
+```go
+// selectedPaths stores "/repo/env" but cur becomes "\repo\env" on Windows
+cur := filepath.Dir(path)
+for cur != path {
+    if selectedPaths[cur] { // MISS on Windows
+        return cur
+    }
+    path = cur
+    cur = filepath.Dir(cur)
+}
+```
+
+**Good:** normalize with `filepath.ToSlash` at every Dir call AND at the point where paths enter the map:
+```go
+path = filepath.ToSlash(path) // normalize at entry
+prev := path
+cur := filepath.ToSlash(filepath.Dir(path))
+for cur != prev {
+    if selectedPaths[cur] { // always forward-slash key
+        return cur
+    }
+    prev = cur
+    cur = filepath.ToSlash(filepath.Dir(cur))
+}
+```
+
+Similarly, use `"/"` as the separator constant instead of `string(filepath.Separator)` when building prefixes for `strings.HasPrefix` checks against forward-slash paths:
+```go
+// Bad on Windows if childPath uses "/" but sep is "\"
+prefix := child.Path + string(filepath.Separator)
+
+// Good: always "/"
+prefix := filepath.ToSlash(child.Path) + "/"
+```
+
+### 2. `filepath.IsAbs` returns `false` for Unix-rooted paths on Windows
+
+On Windows, a path like `/custom/plans` has no drive letter, so `filepath.IsAbs` considers it *not absolute*. This causes it to be incorrectly joined with a repoRoot.
+
+**Bad:**
+```go
+if filepath.IsAbs(jsonOutDir) { // false on Windows for "/custom/plans"!
+    absDir = jsonOutDir
+} else {
+    absDir = filepath.Join(repoRoot, jsonOutDir) // wrong: \repo\custom\plans
+}
+```
+
+**Good:** add a leading-slash check as a fallback:
+```go
+if filepath.IsAbs(jsonOutDir) || strings.HasPrefix(jsonOutDir, "/") {
+    absDir = jsonOutDir
+} else {
+    absDir = filepath.Join(repoRoot, jsonOutDir)
+}
+```
+
+### 3. Flags passed to external tools must use forward slashes
+
+Even on Windows, tools like Terragrunt and Terraform expect forward slashes in flag values. Apply `filepath.ToSlash` to the final value before embedding it in a flag string.
+
+**Bad:**
+```go
+args = append(args, fmt.Sprintf("--json-out-dir=%s", absDir))
+// produces --json-out-dir=\repo\.terrax\plans on Windows
+```
+
+**Good:**
+```go
+args = append(args, fmt.Sprintf("--json-out-dir=%s", filepath.ToSlash(absDir)))
+// always produces --json-out-dir=/repo/.terrax/plans
+```
+
+And in tests, expected values must match:
+```go
+// Bad: filepath.Join produces backslashes on Windows
+want := "--json-out-dir=" + filepath.Join("/repo", ".terrax", "plans")
+
+// Good: normalize expected value too
+want := "--json-out-dir=" + filepath.ToSlash(filepath.Join("/repo", ".terrax", "plans"))
+```
+
+### 4. `t.TempDir` + `os.Chdir` cleanup ordering on Windows
+
+On Windows, a directory cannot be deleted while it is the current working directory of any thread. `t.Cleanup` functions run in **LIFO** order, so the order of registration matters.
+
+**Bad:** TempDir's cleanup (delete dir) runs before the Chdir cleanup (restore cwd):
+```go
+t.Cleanup(func() { _ = os.Chdir(originalWd) }) // registered first → runs SECOND
+tmpDir := t.TempDir()                            // registered second → runs FIRST (deletes while cwd=tmpDir → FAIL)
+require.NoError(t, os.Chdir(tmpDir))
+```
+
+**Good:** TempDir registered first → its cleanup runs second (after cwd is restored):
+```go
+tmpDir := t.TempDir()                            // registered first → runs SECOND
+t.Cleanup(func() { _ = os.Chdir(originalWd) }) // registered second → runs FIRST (restores cwd)
+require.NoError(t, os.Chdir(tmpDir))
+```
+
 ## TerraX-Specific Guidelines
 
 Per [CLAUDE.md](../../CLAUDE.md):
@@ -292,5 +401,9 @@ Per [CLAUDE.md](../../CLAUDE.md):
 > - Use `filepath.Join()` for paths, never hardcoded `/` or `\`
 > - Test on Linux, macOS, and Windows
 > - Use Go stdlib for filesystem operations
+> - Use `filepath.ToSlash` when storing paths in maps/slices and walking ancestors
+> - Use `|| strings.HasPrefix(path, "/")` fallback alongside `filepath.IsAbs`
+> - Apply `filepath.ToSlash` to flag values passed to external tools
+> - In tests: register `t.TempDir()` before `t.Cleanup(os.Chdir)` to get correct LIFO order
 
 This is a **CRITICAL** requirement for TerraX. All path operations must be cross-platform.
