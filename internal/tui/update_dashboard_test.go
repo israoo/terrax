@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/stretchr/testify/assert"
@@ -132,4 +133,61 @@ func TestDashboard_QuitCancelsRunningCommand(t *testing.T) {
 	assert.True(t, cancelled)
 	assert.Nil(t, cmd, "command should be nil while cancelling")
 	assert.True(t, newM.(Model).dashQuitPending, "quit should be pending")
+}
+
+func TestDashboard_OutputLineMsgAppendsLine(t *testing.T) {
+	m := makeDashModel(t)
+	m.dashRunning = true
+	ls := &lineScanner{done: make(chan commandResult, 1)}
+	m.dashScanner = ls
+
+	result, cmd := m.handleDashboardUpdate(OutputLineMsg{Line: "hello"})
+	m2 := result.(Model)
+	assert.Equal(t, []string{"hello"}, m2.dashOutputLines)
+	assert.NotNil(t, cmd, "should schedule next read")
+}
+
+func TestDashboard_CommandFinishedMsg_ClearsRunning(t *testing.T) {
+	m := makeDashModel(t)
+	m.dashRunning = true
+	m.dashRunCmd = "plan"
+	m.dashTreeCursor = 1 // mgmt is a leaf.
+
+	result, cmd := m.handleDashboardUpdate(CommandFinishedMsg{
+		ExitCode: 0,
+		Duration: 1200 * time.Millisecond,
+	})
+	m2 := result.(Model)
+	assert.False(t, m2.dashRunning)
+	assert.Nil(t, m2.dashCancelCmd)
+	assert.NotNil(t, m2.dashLastRun)
+	assert.Equal(t, 0, m2.dashLastRun.ExitCode)
+	assert.Nil(t, cmd)
+}
+
+func TestDashboard_CommandFinishedMsg_NonZeroExitCode(t *testing.T) {
+	m := makeDashModel(t)
+	m.dashRunning = true
+	m.dashRunCmd = "apply"
+	m.dashTreeCursor = 1
+
+	result, _ := m.handleDashboardUpdate(CommandFinishedMsg{ExitCode: 1, Duration: 500 * time.Millisecond})
+	m2 := result.(Model)
+	assert.Equal(t, 1, m2.dashLastRun.ExitCode)
+}
+
+func TestDashboard_OutputAutoScroll(t *testing.T) {
+	m := makeDashModel(t)
+	m.dashRunning = true
+	m.dashAutoScroll = true
+	m.dashScanner = &lineScanner{done: make(chan commandResult, 1)}
+
+	// Add enough lines to trigger auto-scroll.
+	for range 50 {
+		m.dashOutputLines = append(m.dashOutputLines, "line")
+	}
+	result, _ := m.handleDashboardUpdate(OutputLineMsg{Line: "new"})
+	m2 := result.(Model)
+	// Offset should be updated to show the last line.
+	assert.Greater(t, m2.dashOutputOffset, 0)
 }
