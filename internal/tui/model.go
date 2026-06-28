@@ -101,6 +101,7 @@ type Model struct {
 
 	dashPaletteOpen   bool
 	dashPaletteCursor int
+	dashQuitPending   bool // true when user pressed q/esc while a command was running
 
 	dashFocusedPanel int // 0=tree 1=output 2=bottom
 

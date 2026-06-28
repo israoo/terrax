@@ -15,6 +15,10 @@ import (
 	"github.com/israoo/terrax/internal/history"
 )
 
+// CancelledMsg is sent internally when the user quits while a command is running,
+// signalling that the quit should proceed after the command finishes.
+type CancelledMsg struct{}
+
 // OutputLineMsg carries one line of streaming command output.
 type OutputLineMsg struct{ Line string }
 
@@ -75,6 +79,9 @@ func (m Model) handleDashboardUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case CommandFinishedMsg:
 		m = m.finishCommand(msg)
+		if m.dashQuitPending {
+			return m, tea.Quit
+		}
 		return m, nil
 
 	case tea.KeyMsg:
@@ -92,8 +99,10 @@ func (m Model) handleDashboardKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.dashPaletteOpen = false
 			return m, nil
 		}
-		if m.dashCancelCmd != nil {
+		if m.dashRunning && m.dashCancelCmd != nil {
 			m.dashCancelCmd()
+			m.dashQuitPending = true
+			return m, nil // wait for CommandFinishedMsg to drain and log history
 		}
 		return m, tea.Quit
 	case "tab":
@@ -298,7 +307,9 @@ func (m Model) dispatchCommand(command string) (Model, tea.Cmd) {
 			var exitErr *exec.ExitError
 			if errors.As(runErr, &exitErr) {
 				exitCode = exitErr.ExitCode()
-			} else if !errors.Is(runErr, context.Canceled) {
+			} else if errors.Is(runErr, context.Canceled) {
+				exitCode = -1
+			} else {
 				exitCode = 1
 			}
 		}
@@ -325,7 +336,10 @@ func (m Model) finishCommand(msg CommandFinishedMsg) Model {
 	node := m.dashTreeNodes[m.dashTreeCursor].Node
 
 	summary := "completed"
-	if msg.ExitCode != 0 {
+	switch {
+	case msg.ExitCode < 0:
+		summary = "cancelled"
+	case msg.ExitCode != 0:
 		summary = fmt.Sprintf("failed (exit %d)", msg.ExitCode)
 	}
 
