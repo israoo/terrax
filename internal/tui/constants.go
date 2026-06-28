@@ -3,10 +3,11 @@ package tui
 // UI Layout Constants
 const (
 	// Column layout
-	ColumnOverhead    = 8  // Total overhead per column (borders, padding, spacing)
-	ColumnPadding     = 4  // Padding within each column
-	ColumnBorderWidth = 2  // Border width for each column
-	MinColumnWidth    = 20 // Minimum width for a column
+	ColumnOverhead      = 2  // External overhead per column: left + right margin from Margin(0,1).
+	ArrowIndicatorWidth = 3  // Width of each overflow arrow indicator: 1 char + Padding(0,1) = 2.
+	ColumnPadding       = 4  // Padding within each column.
+	ColumnBorderWidth   = 2  // Border width for each column.
+	MinColumnWidth      = 20 // Minimum width for a column.
 
 	// Header
 	HeaderHeight    = 1

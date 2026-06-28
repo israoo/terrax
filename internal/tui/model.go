@@ -238,18 +238,27 @@ func (m Model) View() string {
 }
 
 // calculateColumnWidth computes the static width for all columns.
-// Uses configured maxNavigationColumns for sliding window.
+// Uses actual visible columns (capped at maxNavigationColumns) so shallow trees
+// expand to fill the terminal instead of leaving a gap on the right.
 func (m Model) calculateColumnWidth() int {
 	maxDepth := m.navigator.GetMaxDepth()
 	if maxDepth == 0 {
 		return MinColumnWidth
 	}
 
-	// Calculate for 1 commands + N navigation columns max (configurable)
-	maxVisibleColumns := 1 + m.maxNavigationColumns
-	totalOverhead := ColumnOverhead * maxVisibleColumns
-	availableWidth := m.width - totalOverhead
-	colWidth := availableWidth / maxVisibleColumns
+	// Actual nav columns shown: capped at configured max (sliding window never shows more).
+	actualNavCols := min(maxDepth, m.maxNavigationColumns)
+	actualVisibleColumns := 1 + actualNavCols
+
+	// Each column consumes colWidth + ColumnOverhead chars (left + right margin).
+	// When the tree is deeper than the sliding window, a right-overflow arrow is
+	// rendered alongside the columns and must be included in the budget.
+	arrowOverhead := 0
+	if maxDepth > m.maxNavigationColumns {
+		arrowOverhead = ArrowIndicatorWidth
+	}
+
+	colWidth := (m.width - ColumnOverhead*actualVisibleColumns - arrowOverhead) / actualVisibleColumns
 
 	if colWidth < MinColumnWidth {
 		return MinColumnWidth
