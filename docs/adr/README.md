@@ -152,3 +152,4 @@ Create an ADR for decisions that:
 - [ADR-0024: CLI Subcommand Reorganization](0024-cli-subcommand-reorganization.md) - Promotes --last, --history, --review flags to proper subcommands; terrax history becomes TUI-first with --json opt-in
 - [ADR-0025: On-Demand Plan Summary Subcommand](0025-summary-subcommand.md) - terrax summary prints terminal plan summary from existing .terrax/plans/ files without re-running plan
 - [ADR-0026: Configurable Plans Directory](0026-configurable-plans-directory.md) - plan.json_out_dir config key and --plans-dir flag make the Terragrunt --json-out-dir output path configurable per-invocation
+- [ADR-0027: Multi-Stack Selection](0027-multi-stack-selection.md) - Space-to-mark TUI selection with parent/child expansion and union filter-path execution across N stacks
