@@ -27,9 +27,13 @@ func TestReviewCmd_UsesCwd(t *testing.T) {
 	// A fresh temp dir has no plan output, so the same error is expected.
 	originalWd, err := os.Getwd()
 	require.NoError(t, err)
+
+	// t.TempDir() must be registered before the Chdir cleanup so that LIFO order
+	// restores the original working directory before Go attempts to remove the temp
+	// directory — on Windows a directory cannot be deleted while it is the cwd.
+	tmpDir := t.TempDir()
 	t.Cleanup(func() { _ = os.Chdir(originalWd) })
 
-	tmpDir := t.TempDir()
 	require.NoError(t, os.Chdir(tmpDir))
 
 	cmd := &cobra.Command{}
