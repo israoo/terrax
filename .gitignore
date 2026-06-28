@@ -40,3 +40,6 @@ extensions/vscode/*.vsix
 
 # Local TerraX config overrides (machine-specific, not committed)
 .terrax.local.yaml
+
+# Git worktrees
+.worktrees/
