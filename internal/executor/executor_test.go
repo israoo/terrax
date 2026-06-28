@@ -569,7 +569,7 @@ func TestBuildTerragruntArgs_TerraformFlags(t *testing.T) {
 
 // TestBuildFilterArgs_PlanOutputFlags tests --json-out-dir injection for review and summary modes.
 func TestBuildFilterArgs_PlanOutputFlags(t *testing.T) {
-	absJSONOutDir := filepath.Join("/repo", config.DefaultJSONOutDir)
+	absJSONOutDir := filepath.ToSlash(filepath.Join("/repo", config.DefaultJSONOutDir))
 	jsonFlag := fmt.Sprintf("--json-out-dir=%s", absJSONOutDir)
 
 	tests := []struct {
@@ -659,7 +659,7 @@ func TestBuildTerragruntArgs_PlanSummaryEnabled(t *testing.T) {
 			stackPath:      "/path/to/stack",
 			command:        "plan",
 			summaryEnabled: true,
-			expected:       []string{"run", "--filter", "/path/to/stack", "--log-format", "pretty", "--json-out-dir=" + filepath.Join("/repo", ".terrax", "plans"), "--", "plan"},
+			expected:       []string{"run", "--filter", "/path/to/stack", "--log-format", "pretty", "--json-out-dir=" + filepath.ToSlash(filepath.Join("/repo", ".terrax", "plans")), "--", "plan"},
 		},
 		{
 			name:           "summary disabled produces no --json-out-dir",
