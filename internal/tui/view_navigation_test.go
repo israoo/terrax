@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/israoo/terrax/internal/stack"
@@ -9,12 +8,11 @@ import (
 )
 
 // TestRenderColumnsWithArrows tests sliding window column rendering.
+// Overflow is now communicated via the depth indicator row, not inline arrows.
 func TestRenderColumnsWithArrows(t *testing.T) {
 	tests := []struct {
 		name              string
 		setupModel        func() Model
-		expectLeftArrow   bool
-		expectRightArrow  bool
 		expectColumnCount int
 	}{
 		{
@@ -38,8 +36,6 @@ func TestRenderColumnsWithArrows(t *testing.T) {
 				m.columnWidth = 25
 				return m
 			},
-			expectLeftArrow:   false,
-			expectRightArrow:  false,
 			expectColumnCount: 2, // commands + 1 nav column
 		},
 		{
@@ -76,8 +72,8 @@ func TestRenderColumnsWithArrows(t *testing.T) {
 				m.navigationOffset = 1 // Offset = 1 means we've scrolled right
 				return m
 			},
-			expectLeftArrow:  true,
-			expectRightArrow: false,
+			// No arrow columns — overflow is shown in depth indicator row above columns.
+			expectColumnCount: 3, // commands + 2 nav columns (depth 1 and 2 in the sliding window)
 		},
 	}
 
@@ -91,19 +87,15 @@ func TestRenderColumnsWithArrows(t *testing.T) {
 
 			assert.NotEmpty(t, columns)
 
-			hasLeftArrow := false
-			hasRightArrow := false
+			// Arrows must never appear as separate column entries anymore.
 			for _, col := range columns {
-				if strings.Contains(col, "«") {
-					hasLeftArrow = true
-				}
-				if strings.Contains(col, "»") {
-					hasRightArrow = true
-				}
+				assert.NotContains(t, col, "«", "left arrow should not be a column")
+				assert.NotContains(t, col, "»", "right arrow should not be a column")
 			}
 
-			assert.Equal(t, tt.expectLeftArrow, hasLeftArrow, "left arrow expectation failed")
-			assert.Equal(t, tt.expectRightArrow, hasRightArrow, "right arrow expectation failed")
+			if tt.expectColumnCount > 0 {
+				assert.Equal(t, tt.expectColumnCount, len(columns), "column count mismatch")
+			}
 		})
 	}
 }

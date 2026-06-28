@@ -58,12 +58,12 @@ func TestLayoutCalculator_GetContentHeight(t *testing.T) {
 		{
 			name:           "standard height",
 			height:         30,
-			expectedHeight: 30 - HeaderHeight - BreadcrumbLineCount - FooterHeight,
+			expectedHeight: 30 - HeaderHeight - BreadcrumbLineCount - DepthIndicatorLineCount - FooterHeight,
 		},
 		{
 			name:           "minimal height",
 			height:         10,
-			expectedHeight: 10 - HeaderHeight - BreadcrumbLineCount - FooterHeight,
+			expectedHeight: 10 - HeaderHeight - BreadcrumbLineCount - DepthIndicatorLineCount - FooterHeight,
 		},
 		{
 			name:           "very small height returns 1",

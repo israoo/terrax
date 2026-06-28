@@ -20,13 +20,14 @@ const (
 	FirstItemIndex = 0 // Index of the first item in a list
 
 	// Item rendering
-	CursorWidth         = 2  // Width of cursor and space: "► "
-	ItemStylePadding    = 2  // Item style padding (left + right)
-	ColumnStylePadding  = 6  // Column padding (unfocused: 2,3 = 6 total)
-	EllipsisWidth       = 3  // Width of truncation ellipsis "..."
-	MinItemTextWidth    = 10 // Minimum width for item text
-	MarkerWidth         = 4  // Width of selection marker prefix "● " rendered by Lipgloss
-	BreadcrumbLineCount = 1  // Number of lines for breadcrumb bar
+	CursorWidth             = 2  // Width of cursor and space: "► "
+	ItemStylePadding        = 2  // Item style padding (left + right)
+	ColumnStylePadding      = 6  // Column padding (unfocused: 2,3 = 6 total)
+	EllipsisWidth           = 3  // Width of truncation ellipsis "..."
+	MinItemTextWidth        = 10 // Minimum width for item text
+	MarkerWidth             = 4  // Width of selection marker prefix "● " rendered by Lipgloss
+	BreadcrumbLineCount     = 1  // Number of lines for breadcrumb bar.
+	DepthIndicatorLineCount = 1  // Number of lines for the depth dots indicator.
 
 	// Plan Review Layout
 	PlanMasterWidthRatio = 3  // 1/3 of screen width

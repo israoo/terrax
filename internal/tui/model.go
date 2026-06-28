@@ -277,11 +277,12 @@ func (m Model) getAvailableHeight() int {
 	// Total reserved space:
 	// - HeaderHeight (1)
 	// - Breadcrumb bar (1)
+	// - Depth indicator dots (1)
 	// - Column title (1)
 	// - Empty line after title (1)
 	// - FooterHeight (1)
 	// - ColumnPadding (4) - includes borders and internal padding
-	reservedSpace := HeaderHeight + 1 + 1 + 1 + FooterHeight + ColumnPadding
+	reservedSpace := HeaderHeight + BreadcrumbLineCount + DepthIndicatorLineCount + 1 + 1 + FooterHeight + ColumnPadding
 	availableHeight := m.height - reservedSpace
 
 	if availableHeight < 1 {

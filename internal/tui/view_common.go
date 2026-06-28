@@ -28,10 +28,11 @@ func (lc *LayoutCalculator) GetContentHeight() int {
 	// Total reserved space:
 	// - HeaderHeight (1)
 	// - Breadcrumb bar (1)
+	// - Depth indicator dots (1)
 	// - FooterHeight (1)
 	// Note: Column title (1) and empty line after title (1) are part of column content,
 	// not subtracted here since they're rendered inside the column.
-	reservedSpace := HeaderHeight + BreadcrumbLineCount + FooterHeight
+	reservedSpace := HeaderHeight + BreadcrumbLineCount + DepthIndicatorLineCount + FooterHeight
 	contentHeight := lc.height - reservedSpace
 
 	if contentHeight < 1 {

@@ -3,11 +3,13 @@ package tui
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"github.com/charmbracelet/lipgloss"
 )
 
-// renderColumnsWithArrows renders all visible columns with overflow indicators.
+// renderColumnsWithArrows renders all visible columns without overflow arrows.
+// Overflow is now indicated by the depth dots row above the columns.
 func (r *Renderer) renderColumnsWithArrows() []string {
 	columns := make([]string, 0)
 
@@ -15,12 +17,6 @@ func (r *Renderer) renderColumnsWithArrows() []string {
 	commandsView := r.renderCommandsColumn()
 	styledCommands := r.styleColumn(commandsView, r.model.isCommandsColumnFocused())
 	columns = append(columns, styledCommands)
-
-	// Left overflow indicator
-	if r.model.hasLeftOverflow() {
-		leftArrow := r.renderArrowIndicator("«")
-		columns = append(columns, leftArrow)
-	}
 
 	// Render navigation columns in sliding window (configurable max visible)
 	maxDepth := r.model.navigator.GetMaxDepth()
@@ -39,13 +35,42 @@ func (r *Renderer) renderColumnsWithArrows() []string {
 		columns = append(columns, styledNav)
 	}
 
-	// Right overflow indicator
-	if r.model.hasRightOverflow() {
-		rightArrow := r.renderArrowIndicator("»")
-		columns = append(columns, rightArrow)
+	return columns
+}
+
+// renderDepthIndicator renders a row of dots showing the sliding-window position within the tree.
+// Each dot represents one level of the global tree depth with three visual states:
+//   - ● (visible, bright): level is currently shown in the column window
+//   - ○ (reachable, dim): level exists in the current navigation path but is off-screen
+//   - · (unreachable, very dim): level exists in the global tree but not from the current node
+func (r *Renderer) renderDepthIndicator() string {
+	maxDepth := r.model.navigator.GetMaxDepth()
+	if maxDepth <= 1 {
+		return ""
 	}
 
-	return columns
+	visibleStart := r.model.navigationOffset
+	visibleEnd := visibleStart + r.model.maxNavigationColumns
+
+	parts := make([]string, maxDepth)
+	for i := 0; i < maxDepth; i++ {
+		isReachable := i < len(r.model.navState.Columns) && len(r.model.navState.Columns[i]) > 0
+		isVisible := isReachable && i >= visibleStart && i < visibleEnd
+
+		if isVisible {
+			parts[i] = depthDotVisibleStyle.Render("●")
+		} else if isReachable {
+			parts[i] = depthDotReachableStyle.Render("○")
+		} else {
+			parts[i] = depthDotUnreachableStyle.Render("·")
+		}
+	}
+
+	dots := strings.Join(parts, " ")
+	return lipgloss.NewStyle().
+		Width(r.model.width).
+		Align(lipgloss.Center).
+		Render(dots)
 }
 
 // renderCommandsColumn renders the commands column content.
