@@ -7,13 +7,16 @@
 package tui
 
 import (
+	"context"
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/israoo/terrax/internal/executor"
 	"github.com/israoo/terrax/internal/history"
 	"github.com/israoo/terrax/internal/plan"
 	"github.com/israoo/terrax/internal/stack"
@@ -29,6 +32,8 @@ const (
 	StateHistory
 	// StatePlanReview is the state for analyzing plan results.
 	StatePlanReview
+	// StateDashboard is the multi-panel lazy dashboard mode (terrax lazy).
+	StateDashboard
 )
 
 // ColumnType represents the type of column being focused.
@@ -70,6 +75,34 @@ type Model struct {
 	planReviewFocusedElement int // 0 = Master List, 1 = Detail View
 	planTargetStats          plan.StackStats
 	planDependencyStats      plan.StackStats
+
+	// Dashboard state (StateDashboard).
+	dashCtx           context.Context        // top-level context; used to create per-command contexts
+	dashFilterFn      FilterPathsFn          // injected from cmd layer; computes repoRoot + filterPaths
+	dashHistoryLogger executor.HistoryLogger // for writing execution history entries
+
+	dashTreeNodes    []DashTreeNode  // flattened visible tree; recomputed on expand/collapse
+	dashTreeExpanded map[string]bool // node.Path → expanded
+	dashTreeCursor   int             // index into dashTreeNodes
+
+	dashOutputLines  []string           // captured output lines (grows during streaming)
+	dashOutputOffset int                // scroll offset into dashOutputLines
+	dashAutoScroll   bool               // true while no manual scroll during execution
+	dashRunning      bool               // true while a command is executing
+	dashRunCmd       string             // command name being run, e.g. "plan"
+	dashStartTime    time.Time          // when current command started
+	dashScanner      *lineScanner       // active scanner; nil when not running
+	dashCancelCmd    context.CancelFunc // cancels the running command; nil when not running
+
+	dashActiveTab    int // 0=deps 1=lastrun 2=plandiff
+	dashBottomOffset int // scroll offset for bottom panel
+	dashLastRun      *history.ExecutionLogEntry
+	dashPlanReport   *plan.PlanReport // nil = no recent plan for selected stack
+
+	dashPaletteOpen   bool
+	dashPaletteCursor int
+
+	dashFocusedPanel int // 0=tree 1=output 2=bottom
 
 	// UI State
 	focusedColumn    int  // 0 = commands, 1+ = navigation columns
@@ -194,6 +227,44 @@ func NewPlanReviewModel(report *plan.PlanReport) Model {
 	}
 }
 
+// FilterPathsFn computes the repoRoot and filter paths for a given stack path.
+// Injected from the cmd layer to keep the TUI free of CLI dependencies.
+type FilterPathsFn func(ctx context.Context, stackPath string) (repoRoot string, filterPaths []string, err error)
+
+// NewDashboardModel creates a Model in StateDashboard mode.
+func NewDashboardModel(
+	root *stack.Node,
+	maxDepth int,
+	commands []string,
+	maxNavCols int,
+	ctx context.Context,
+	filterFn FilterPathsFn,
+	historyLogger executor.HistoryLogger,
+) Model {
+	nav := stack.NewNavigator(root, maxDepth)
+	navState := stack.NewNavigationState(maxDepth)
+	nav.PropagateSelection(navState)
+
+	m := Model{
+		state:                StateDashboard,
+		navigator:            nav,
+		navState:             navState,
+		commands:             commands,
+		maxNavigationColumns: maxNavCols,
+		ready:                false,
+
+		dashCtx:           ctx,
+		dashFilterFn:      filterFn,
+		dashHistoryLogger: historyLogger,
+		dashTreeExpanded:  make(map[string]bool),
+		dashTreeNodes:     nil, // populated on first WindowSizeMsg
+		dashFocusedPanel:  0,
+		dashActiveTab:     0,
+		dashAutoScroll:    true,
+	}
+	return m
+}
+
 // flattenTree converts the recursive tree into a linear list (DFS)
 func flattenTree(nodes []*plan.TreeNode) []*plan.TreeNode {
 	var items []*plan.TreeNode
@@ -220,6 +291,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleHistoryUpdate(msg)
 	case StatePlanReview:
 		return m.handlePlanReviewUpdate(msg)
+	case StateDashboard:
+		return m.handleDashboardUpdate(msg)
 	}
 	return m, nil
 }
@@ -233,6 +306,8 @@ func (m Model) View() string {
 		return m.renderHistoryView()
 	case StatePlanReview:
 		return m.renderPlanReviewView()
+	case StateDashboard:
+		return m.renderDashboardView()
 	}
 	return "Unknown state"
 }
