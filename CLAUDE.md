@@ -144,12 +144,7 @@ Filtered by project root detection via `root_config_file` (default: `root.hcl`).
 
 **Paths:** Always use `filepath.Join()`, never hardcoded `/` or `\`.
 
-**Windows path compatibility (MANDATORY):**
-- `filepath.Dir` and `filepath.Separator` produce backslashes on Windows. Any code that stores paths in maps/slices and then walks ancestors or computes prefixes must normalize with `filepath.ToSlash` — otherwise lookups fail when the stored key uses `/` but the computed key uses `\`.
-- `filepath.IsAbs` returns `false` on Windows for Unix-rooted paths like `/custom/plans` (no drive letter). Add `|| strings.HasPrefix(path, "/")` as a fallback when checking absolute paths from user config.
-- In CLI flag values passed to external tools (e.g. `--json-out-dir=`), always apply `filepath.ToSlash` to the final value so the flag uses forward slashes regardless of OS.
-- In tests that use `filepath.Join` to build expected path values, wrap with `filepath.ToSlash` so expectations match the normalized output.
-- In tests that call `os.Chdir` into a `t.TempDir()`: register `t.TempDir()` **before** `t.Cleanup(os.Chdir(originalWd))` so that LIFO cleanup order restores the cwd **before** Go removes the directory — on Windows a directory cannot be deleted while it is the current working directory.
+**Windows path compatibility (MANDATORY):** See [`docs/pitfalls/tooling/platform-paths.md`](docs/pitfalls/tooling/platform-paths.md) — particularly the "Advanced Windows Gotchas" section covering `filepath.Dir` map lookups, `filepath.IsAbs` limitations, external tool flag normalization, and `t.TempDir`/`os.Chdir` cleanup ordering.
 
 ## Testing
 
