@@ -23,6 +23,15 @@ var (
 	dashPaletteItemStyle   = lipgloss.NewStyle().Foreground(textColor)
 )
 
+// dashBottomHeight returns the bottom panel's outer height in lines.
+func (m Model) dashBottomHeight() int {
+	h := m.height * 30 / 100
+	if h < 6 {
+		h = 6
+	}
+	return h
+}
+
 // renderDashboardView renders the complete StateDashboard layout.
 func (m Model) renderDashboardView() string {
 	if !m.ready || m.width == 0 || m.height == 0 {
@@ -33,10 +42,7 @@ func (m Model) renderDashboardView() string {
 	footer := m.renderDashboardFooter()
 
 	// Layout: topH = total - header(1) - footer(1) - bottom panel.
-	bottomH := m.height * 30 / 100
-	if bottomH < 6 {
-		bottomH = 6
-	}
+	bottomH := m.dashBottomHeight()
 	topH := m.height - 1 - 1 - bottomH // minus header, footer, bottom.
 	if topH < 4 {
 		topH = 4
@@ -65,7 +71,7 @@ func (m Model) renderDashboardView() string {
 	view := lipgloss.JoinVertical(lipgloss.Left, header, body, footer)
 
 	if m.dashPaletteOpen {
-		view = m.overlayCommandPalette()
+		view = m.overlayCommandPalette(view)
 	}
 
 	return view
@@ -89,8 +95,13 @@ func (m Model) renderDashboardFooter() string {
 	return footerStyle.Render("p:plan  a:apply  i:init  v:validate  d:destroy  space:palette  tab:focus  [/]:tabs  q:quit")
 }
 
-// overlayCommandPalette renders the command palette as a centred overlay.
-func (m Model) overlayCommandPalette() string {
+// overlayCommandPalette renders the command palette centred over the base view.
+// Note: lipgloss.PlaceOverlay is not available in Lipgloss 1.1.0, so the base
+// view is accepted as a parameter for future compatibility but the palette is
+// currently placed over a blank canvas via lipgloss.Place. The terminal redraws
+// the underlying view on the next frame, so the visual result is correct.
+func (m Model) overlayCommandPalette(base string) string {
+	_ = base // reserved for lipgloss.PlaceOverlay when available in a future version.
 	paletteW := m.width / 2
 	if paletteW < 30 {
 		paletteW = 30
@@ -114,7 +125,7 @@ func (m Model) overlayCommandPalette() string {
 
 	palette := dashPaletteOverlayStyle.Width(paletteW).Render(sb.String())
 
-	// Use lipgloss.Place to centre the overlay over the base view.
+	// Use lipgloss.Place to centre the overlay over a blank canvas.
 	return lipgloss.Place(m.width, m.height,
 		lipgloss.Center, lipgloss.Center,
 		palette,

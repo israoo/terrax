@@ -10,14 +10,12 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/spf13/viper"
 
+	"github.com/israoo/terrax/internal/config"
 	"github.com/israoo/terrax/internal/executor"
 	"github.com/israoo/terrax/internal/history"
 )
-
-// CancelledMsg is sent internally when the user quits while a command is running,
-// signalling that the quit should proceed after the command finishes.
-type CancelledMsg struct{}
 
 // OutputLineMsg carries one line of streaming command output.
 type OutputLineMsg struct{ Line string }
@@ -238,10 +236,9 @@ func (m Model) handleBottomKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 // handlePaletteKey handles key events when the command palette is open.
+// Note: "esc" is already handled in handleDashboardKey before routing here.
 func (m Model) handlePaletteKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "esc":
-		m.dashPaletteOpen = false
 	case "up":
 		if m.dashPaletteCursor > 0 {
 			m.dashPaletteCursor--
@@ -343,10 +340,19 @@ func (m Model) finishCommand(msg CommandFinishedMsg) Model {
 		summary = fmt.Sprintf("failed (exit %d)", msg.ExitCode)
 	}
 
+	rootConfigFile := viper.GetString("root_config_file")
+	if rootConfigFile == "" {
+		rootConfigFile = config.DefaultRootConfigFile
+	}
+	relativeStackPath, err := history.GetRelativeStackPath(node.Path, rootConfigFile)
+	if err != nil {
+		relativeStackPath = node.Path
+	}
+
 	entry := history.ExecutionLogEntry{
 		Timestamp:    time.Now().Add(-msg.Duration),
 		User:         history.GetCurrentUser(),
-		StackPath:    node.Path,
+		StackPath:    relativeStackPath,
 		AbsolutePath: node.Path,
 		Command:      m.dashRunCmd,
 		ExitCode:     msg.ExitCode,
@@ -368,9 +374,9 @@ func (m Model) finishCommand(msg CommandFinishedMsg) Model {
 
 // dashOutputVisibleLines returns the number of lines that fit in the output panel.
 func (m Model) dashOutputVisibleLines() int {
-	bottomH := m.height * 30 / 100
+	// Use dashBottomHeight to stay in sync with renderDashboardView layout math.
 	// Header(1) + header-line(1) + footer(1).
-	outputH := m.height - bottomH - HeaderHeight - 3
+	outputH := m.height - m.dashBottomHeight() - HeaderHeight - 3
 	if outputH < 1 {
 		return 1
 	}

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 	"time"
@@ -737,15 +738,15 @@ func TestRunStreaming_WritesOutputToWriter(t *testing.T) {
 
 // TestRunStreaming_WritesLinesToWriter tests that RunStreaming writes output to writer.
 func TestRunStreaming_WritesLinesToWriter(t *testing.T) {
-	// This test runs only if terragrunt is not available; it validates the
-	// writer path is wired correctly via a process that exits non-zero.
-	// The important contract: whatever cmd.Stdout/Stderr receives goes to writer.
+	if _, err := exec.LookPath("terragrunt"); err != nil {
+		t.Skip("terragrunt not in PATH.")
+	}
 	ctx := context.Background()
 	var buf bytes.Buffer
-	_ = RunStreaming(ctx, &buf, "plan", "/nonexistent", "/nonexistent", []string{"/nonexistent"}, nil)
-	// terragrunt itself will write an error message; we just assert writer was used.
-	// If terragrunt is not installed, the error will be "exec: not found" with no output.
-	// Either way, the function returns without panic.
+	// Use os.TempDir() as repoRoot so cmd.Dir is valid; /nonexistent is the stack filter.
+	// Terragrunt will start and emit at least a warning about no units found.
+	_ = RunStreaming(ctx, &buf, "plan", "/nonexistent", os.TempDir(), []string{"/nonexistent"}, nil)
+	assert.NotEmpty(t, buf.String(), "expected terragrunt to write error output to writer.")
 }
 
 // TestRunStreaming_ContextCancellation tests that RunStreaming respects context cancellation.
