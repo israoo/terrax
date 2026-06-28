@@ -257,6 +257,41 @@ func TestReport_InvalidFormat(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestReport_Text_AllNoChanges_NoSeparator(t *testing.T) {
+	stack := StackResult{StackPath: "workloads/dev/noop", HasChanges: false}
+	var sb strings.Builder
+	err := Report(makeReport(stack), ReportOptions{Format: FormatText, Writer: &sb})
+	require.NoError(t, err)
+	plain := stripANSI(sb.String())
+	assert.Contains(t, plain, "No stacks with pending changes")
+	assert.NotContains(t, plain, "Summary:")
+}
+
+func TestReport_Markdown_BacktickInValue(t *testing.T) {
+	stack := StackResult{
+		StackPath:  "workloads/dev/test",
+		HasChanges: true,
+		Stats:      StackStats{Add: 1},
+		ResourceChanges: []ResourceChange{
+			{
+				Address:    "null_resource.test",
+				Type:       "null_resource",
+				Name:       "test",
+				ChangeType: ChangeTypeCreate,
+				After:      map[string]interface{}{"cmd": "echo `hello`"},
+			},
+		},
+	}
+	var sb strings.Builder
+	err := Report(makeReport(stack), ReportOptions{Format: FormatMarkdown, Writer: &sb})
+	require.NoError(t, err)
+	out := sb.String()
+	// Backtick must be escaped so the table cell is valid Markdown.
+	assert.Contains(t, out, "\\`hello\\`")
+	// The cell must not contain an unescaped backtick inside the value column.
+	assert.NotContains(t, out, "| `echo `hello`")
+}
+
 // stripANSI removes ANSI escape sequences for plain-text assertions.
 func stripANSI(s string) string {
 	var b strings.Builder

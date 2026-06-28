@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"strings"
 
 	"github.com/charmbracelet/lipgloss"
 )
@@ -189,6 +190,10 @@ func renderText(ew *errWriter, report *PlanReport, opts ReportOptions) {
 		renderStackText(ew, stack, sep)
 	}
 	ew.println()
+	if !printed {
+		ew.printf("%s\n", textDim.Render("No stacks with pending changes."))
+		return
+	}
 	ew.println(sep)
 	s := report.Summary
 	ew.printf("%s %d stacks · %d with changes · +%d ~%d -%d\n",
@@ -253,6 +258,11 @@ func renderAttrText(ew *errWriter, d attrDiff) {
 
 // ---- Markdown renderer ----
 
+// escapeMarkdownCode escapes backticks in a string for use inside a Markdown code span.
+func escapeMarkdownCode(s string) string {
+	return strings.ReplaceAll(s, "`", "\\`")
+}
+
 func renderMarkdown(ew *errWriter, report *PlanReport, opts ReportOptions) {
 	for _, stack := range report.Stacks {
 		if !opts.ShowAll && !stack.HasChanges {
@@ -302,8 +312,10 @@ func renderStackMarkdown(ew *errWriter, stack StackResult) {
 				after := d.after
 				if d.computed {
 					after = "*(computed)*"
+				} else {
+					after = escapeMarkdownCode(after)
 				}
-				ew.printf("| `%s` | `%s` | `%s` |\n", d.key, d.before, after)
+				ew.printf("| `%s` | `%s` | `%s` |\n", d.key, escapeMarkdownCode(d.before), after)
 			}
 		} else {
 			ew.println("\n| Attribute | Value |")
@@ -312,6 +324,8 @@ func renderStackMarkdown(ew *errWriter, stack StackResult) {
 				val := d.after
 				if d.computed {
 					val = "*(computed)*"
+				} else {
+					val = escapeMarkdownCode(val)
 				}
 				ew.printf("| `%s` | `%s` |\n", d.key, val)
 			}
