@@ -191,17 +191,17 @@ func recursiveDiff(before, after interface{}) ([]attrDiff, int) {
 		return nil, 0
 	}
 
-	// Case C1: both are maps.
+	// Case C1: at least one is a map; the other is a map or nil (pure add/delete of a block).
 	bMap, bIsMap := before.(map[string]interface{})
 	aMap, aIsMap := after.(map[string]interface{})
-	if bIsMap && aIsMap {
+	if (bIsMap || aIsMap) && (bIsMap || before == nil) && (aIsMap || after == nil) {
 		return diffMaps(bMap, aMap)
 	}
 
-	// Case C2: both are arrays.
+	// Case C2: at least one is an array; the other is an array or nil (pure add/delete of a block).
 	bArr, bIsArr := before.([]interface{})
 	aArr, aIsArr := after.([]interface{})
-	if bIsArr && aIsArr {
+	if (bIsArr || aIsArr) && (bIsArr || before == nil) && (aIsArr || after == nil) {
 		return diffArrays(bArr, aArr)
 	}
 
@@ -394,20 +394,21 @@ func renderAttrText(ew *errWriter, d attrDiff, depth int) {
 		return
 	}
 
-	// Leaf diff.
+	// Leaf diff — symbol prefix makes add/remove/change explicit at every nesting depth.
+	sym := attrSymbol(d)
 	if d.computed {
-		ew.printf("%s\n", textDim.Render(fmt.Sprintf("%s%-30s (computed)", indent, d.key)))
+		ew.printf("%s\n", textDim.Render(fmt.Sprintf("%s%s %-28s (computed)", indent, sym, d.key)))
 		return
 	}
 	if d.before == "" {
-		ew.printf("%s\n", textDim.Render(fmt.Sprintf("%s%-30s %s", indent, d.key, d.after)))
+		ew.printf("%s\n", textDim.Render(fmt.Sprintf("%s%s %-28s %s", indent, sym, d.key, d.after)))
 		return
 	}
 	if d.after == "" {
-		ew.printf("%s\n", textDim.Render(fmt.Sprintf("%s%-30s %s", indent, d.key, d.before)))
+		ew.printf("%s\n", textDim.Render(fmt.Sprintf("%s%s %-28s %s", indent, sym, d.key, d.before)))
 		return
 	}
-	ew.printf("%s\n", textDim.Render(fmt.Sprintf("%s%-30s %s → %s", indent, d.key, d.before, d.after)))
+	ew.printf("%s\n", textDim.Render(fmt.Sprintf("%s%s %-28s %s → %s", indent, sym, d.key, d.before, d.after)))
 }
 
 // ---- Markdown renderer. ----
