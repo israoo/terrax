@@ -115,6 +115,13 @@ func TestDashboard_CommandIgnoredWhileRunning(t *testing.T) {
 	assert.Nil(t, cmd, "no command should be dispatched")
 }
 
+func TestDashboard_RenderDoesNotPanic(t *testing.T) {
+	m := makeDashModel(t)
+	m.dashTreeNodes = flattenDashTree(m.navigator.GetRoot(), m.dashTreeExpanded)
+	result := m.renderDashboardView()
+	assert.NotEmpty(t, result)
+}
+
 func TestDashboard_QuitCancelsRunningCommand(t *testing.T) {
 	m := makeDashModel(t)
 	cancelled := false

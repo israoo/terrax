@@ -14,7 +14,7 @@ var (
 	dashBottomLineStyle  = lipgloss.NewStyle().Foreground(textColor)
 )
 
-// renderDashboardBottom renders the tabbed bottom panel. //nolint:unused
+// renderDashboardBottom renders the tabbed bottom panel.
 func (m Model) renderDashboardBottom(width, height int) string {
 	tabBar := m.renderBottomTabBar()
 	sep := strings.Repeat("─", width)

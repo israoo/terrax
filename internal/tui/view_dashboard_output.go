@@ -16,8 +16,6 @@ var (
 )
 
 // renderDashboardOutput renders the output panel (header + scrollable line buffer).
-//
-//nolint:unused
 func (m Model) renderDashboardOutput(width, height int) string {
 	header := m.dashOutputHeader()
 	var sb strings.Builder

@@ -50,17 +50,13 @@ func flattenDashTree(root *stack.Node, expanded map[string]bool) []DashTreeNode 
 }
 
 var (
-	//nolint:unused // Used by renderDashboardTree.
 	dashTreeCursorStyle = lipgloss.NewStyle().
 				Bold(true).
 				Foreground(accentColor)
-	//nolint:unused // Used by renderDashboardTree.
 	dashTreeDirStyle = lipgloss.NewStyle().
 				Foreground(secondaryColor)
-	//nolint:unused // Used by renderDashboardTree.
 	dashTreeStackStyle = lipgloss.NewStyle().
 				Foreground(textColor)
-	//nolint:unused // Used by renderDashboardTree.
 	dashTreeDimStyle = lipgloss.NewStyle().
 				Foreground(dimColor)
 )
@@ -68,8 +64,6 @@ var (
 // renderDashboardTree renders the indented tree panel content.
 // width is the inner content width (excluding borders/padding).
 // height is the maximum number of lines to render.
-//
-//nolint:unused // Called by Task 9 renderDashboardView.
 func (m Model) renderDashboardTree(width, height int) string {
 	if len(m.dashTreeNodes) == 0 {
 		return dashTreeDimStyle.Render("No stacks found.")
