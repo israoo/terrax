@@ -388,6 +388,131 @@ func TestAttrSymbol(t *testing.T) {
 	assert.Equal(t, "~", attrSymbol(attrDiff{children: []attrDiff{{key: "k"}}}))
 }
 
+func TestReport_Text_NestedArray(t *testing.T) {
+	stack := StackResult{
+		StackPath:  "workloads/dev/identity",
+		HasChanges: true,
+		Stats:      StackStats{Change: 1},
+		ResourceChanges: []ResourceChange{
+			{
+				Address:    `aws_identitystore_user.this["npb-hector"]`,
+				Type:       "aws_identitystore_user",
+				Name:       `this["npb-hector"]`,
+				ChangeType: ChangeTypeUpdate,
+				Before: map[string]interface{}{
+					"emails": []interface{}{
+						map[string]interface{}{"primary": false, "type": "", "value": "old@example.com"},
+					},
+				},
+				After: map[string]interface{}{
+					"emails": []interface{}{
+						map[string]interface{}{"primary": false, "type": "", "value": "new@example.com"},
+					},
+				},
+			},
+		},
+	}
+	var sb strings.Builder
+	err := Report(makeReport(stack), ReportOptions{Format: FormatText, Writer: &sb})
+	require.NoError(t, err)
+	plain := stripANSI(sb.String())
+	assert.Contains(t, plain, "emails")
+	assert.Contains(t, plain, "[0]")
+	assert.Contains(t, plain, "value")
+	assert.Contains(t, plain, "old@example.com")
+	assert.Contains(t, plain, "new@example.com")
+	assert.Contains(t, plain, "→")
+	assert.Contains(t, plain, "unchanged hidden")
+}
+
+func TestReport_Text_JSONString(t *testing.T) {
+	mustJSON := func(v interface{}) string { b, _ := json.Marshal(v); return string(b) }
+	stmt1 := map[string]interface{}{"Sid": "Keep", "Effect": "Allow", "Action": "s3:Get"}
+	stmt2 := map[string]interface{}{"Sid": "Remove", "Effect": "Allow", "Action": "lambda:Invoke"}
+	before := map[string]interface{}{"inline_policy": mustJSON(map[string]interface{}{"Statement": []interface{}{stmt1, stmt2}})}
+	after := map[string]interface{}{"inline_policy": mustJSON(map[string]interface{}{"Statement": []interface{}{stmt1}})}
+	stack := StackResult{
+		StackPath:  "workloads/dev/sso",
+		HasChanges: true,
+		Stats:      StackStats{Change: 1},
+		ResourceChanges: []ResourceChange{
+			{Address: "res.r", Type: "r", Name: "r", ChangeType: ChangeTypeUpdate,
+				Before: before, After: after},
+		},
+	}
+	var sb strings.Builder
+	err := Report(makeReport(stack), ReportOptions{Format: FormatText, Writer: &sb})
+	require.NoError(t, err)
+	plain := stripANSI(sb.String())
+	assert.Contains(t, plain, "inline_policy")
+	assert.Contains(t, plain, "Statement")
+	// The removed statement's Sid should appear.
+	assert.Contains(t, plain, "Remove")
+}
+
+func TestReport_Markdown_NestedArray(t *testing.T) {
+	stack := StackResult{
+		StackPath:  "workloads/dev/identity",
+		HasChanges: true,
+		Stats:      StackStats{Change: 1},
+		ResourceChanges: []ResourceChange{
+			{
+				Address:    `aws_identitystore_user.this["npb-hector"]`,
+				Type:       "aws_identitystore_user",
+				Name:       `this["npb-hector"]`,
+				ChangeType: ChangeTypeUpdate,
+				Before: map[string]interface{}{
+					"emails": []interface{}{
+						map[string]interface{}{"primary": false, "type": "", "value": "old@example.com"},
+					},
+				},
+				After: map[string]interface{}{
+					"emails": []interface{}{
+						map[string]interface{}{"primary": false, "type": "", "value": "new@example.com"},
+					},
+				},
+			},
+		},
+	}
+	var sb strings.Builder
+	err := Report(makeReport(stack), ReportOptions{Format: FormatMarkdown, Writer: &sb})
+	require.NoError(t, err)
+	out := sb.String()
+	assert.Contains(t, out, "emails")
+	assert.Contains(t, out, "[0]")
+	assert.Contains(t, out, "value")
+	assert.Contains(t, out, "old@example.com")
+	assert.Contains(t, out, "new@example.com")
+	assert.Contains(t, out, "unchanged hidden")
+	// Must NOT be a flat table row with the full JSON blob.
+	assert.NotContains(t, out, `"primary":false`)
+}
+
+func TestReport_Markdown_FlatDiff_StillUsesTable(t *testing.T) {
+	// When all diffs are leaves (no nested), keep the table format.
+	stack := StackResult{
+		StackPath:  "workloads/dev/dns",
+		HasChanges: true,
+		Stats:      StackStats{Change: 1},
+		ResourceChanges: []ResourceChange{
+			{
+				Address: "aws_route53_record.val", Type: "r", Name: "r",
+				ChangeType: ChangeTypeUpdate,
+				Before:     map[string]interface{}{"name": "old.example.com"},
+				After:      map[string]interface{}{"name": "new.example.com"},
+			},
+		},
+	}
+	var sb strings.Builder
+	err := Report(makeReport(stack), ReportOptions{Format: FormatMarkdown, Writer: &sb})
+	require.NoError(t, err)
+	out := sb.String()
+	// Table format preserved.
+	assert.Contains(t, out, "| Attribute |")
+	assert.Contains(t, out, "old.example.com")
+	assert.Contains(t, out, "new.example.com")
+}
+
 // findChild returns the first attrDiff with the given key, or nil.
 func findChild(diffs []attrDiff, key string) *attrDiff {
 	for i := range diffs {

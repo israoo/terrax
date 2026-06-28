@@ -368,33 +368,98 @@ func renderStackText(ew *errWriter, stack StackResult, sep string) {
 
 		diffs := diffAttributes(rc.Before, rc.After, rc.Unknown)
 		for _, d := range diffs {
-			renderAttrText(ew, d)
+			renderAttrText(ew, d, 0)
 		}
 		ew.println()
 	}
 }
 
-func renderAttrText(ew *errWriter, d attrDiff) {
+// renderAttrText renders one attrDiff at the given nesting depth.
+// depth 0 = direct child of a resource (base indent = 6 spaces).
+func renderAttrText(ew *errWriter, d attrDiff, depth int) {
+	indent := strings.Repeat("  ", depth) + "      " // 6 spaces base + 2 per depth.
+
+	if len(d.children) > 0 {
+		sym := attrSymbol(d)
+		ew.printf("%s\n", textDim.Render(fmt.Sprintf("%s%s %s", indent, sym, d.key)))
+		for _, child := range d.children {
+			renderAttrText(ew, child, depth+1)
+		}
+		if d.unchangedCnt > 0 {
+			ew.printf("%s\n", textDim.Render(fmt.Sprintf("%s  # (%d unchanged hidden)", indent, d.unchangedCnt)))
+		}
+		return
+	}
+
+	// Leaf diff.
 	if d.computed {
-		ew.printf("%s\n", textDim.Render(fmt.Sprintf("      %-30s (computed)", d.key)))
+		ew.printf("%s\n", textDim.Render(fmt.Sprintf("%s%-30s (computed)", indent, d.key)))
 		return
 	}
 	if d.before == "" {
-		ew.printf("%s\n", textDim.Render(fmt.Sprintf("      %-30s %s", d.key, d.after)))
+		ew.printf("%s\n", textDim.Render(fmt.Sprintf("%s%-30s %s", indent, d.key, d.after)))
 		return
 	}
 	if d.after == "" {
-		ew.printf("%s\n", textDim.Render(fmt.Sprintf("      %-30s %s", d.key, d.before)))
+		ew.printf("%s\n", textDim.Render(fmt.Sprintf("%s%-30s %s", indent, d.key, d.before)))
 		return
 	}
-	ew.printf("%s\n", textDim.Render(fmt.Sprintf("      %-30s %s → %s", d.key, d.before, d.after)))
+	ew.printf("%s\n", textDim.Render(fmt.Sprintf("%s%-30s %s → %s", indent, d.key, d.before, d.after)))
 }
 
 // ---- Markdown renderer ----
 
+// hasNestedDiff reports whether any diff in the slice has children.
+func hasNestedDiff(diffs []attrDiff) bool {
+	for _, d := range diffs {
+		if len(d.children) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
 // escapeMarkdownCode escapes backticks in a string for use inside a Markdown code span.
 func escapeMarkdownCode(s string) string {
 	return strings.ReplaceAll(s, "`", "\\`")
+}
+
+// renderAttrMarkdown renders one attrDiff as a Markdown bullet at the given depth.
+// depth 0 = no extra indent; each depth adds 2 spaces.
+func renderAttrMarkdown(ew *errWriter, d attrDiff, depth int) {
+	indent := strings.Repeat("  ", depth)
+	sym := attrSymbol(d)
+
+	if len(d.children) > 0 {
+		ew.printf("%s- `%s` **%s**\n", indent, sym, escapeMarkdownCode(d.key))
+		if d.unchangedCnt > 0 {
+			ew.printf("%s  - *(%d unchanged hidden)*\n", indent, d.unchangedCnt)
+		}
+		for _, child := range d.children {
+			renderAttrMarkdown(ew, child, depth+1)
+		}
+		return
+	}
+
+	// Leaf diff.
+	if d.computed {
+		ew.printf("%s- `%s` **%s**: *(computed)*\n", indent, sym, escapeMarkdownCode(d.key))
+		return
+	}
+	if d.before == "" {
+		ew.printf("%s- `%s` **%s**: `%s`\n", indent, sym, escapeMarkdownCode(d.key), escapeMarkdownCode(d.after))
+		return
+	}
+	if d.after == "" {
+		ew.printf("%s- `%s` **%s**: `%s`\n", indent, sym, escapeMarkdownCode(d.key), escapeMarkdownCode(d.before))
+		return
+	}
+	ew.printf("%s- `%s` **%s**: `%s` → `%s`\n",
+		indent, sym,
+		escapeMarkdownCode(d.key),
+		escapeMarkdownCode(d.before),
+		escapeMarkdownCode(d.after),
+	)
 }
 
 func renderMarkdown(ew *errWriter, report *PlanReport, opts ReportOptions) {
@@ -430,38 +495,45 @@ func renderStackMarkdown(ew *errWriter, stack StackResult) {
 			continue
 		}
 
-		// Determine whether we need a Before column.
-		hasBeforeCol := false
-		for _, d := range diffs {
-			if d.before != "" {
-				hasBeforeCol = true
-				break
-			}
-		}
-
-		if hasBeforeCol {
-			ew.println("\n| Attribute | Before | After |")
-			ew.println("|-----------|--------|-------|")
+		if hasNestedDiff(diffs) {
+			// Bullet-list format for nested diffs.
+			ew.println()
 			for _, d := range diffs {
-				after := d.after
-				if d.computed {
-					after = "*(computed)*"
-				} else {
-					after = escapeMarkdownCode(after)
-				}
-				ew.printf("| `%s` | `%s` | `%s` |\n", d.key, escapeMarkdownCode(d.before), after)
+				renderAttrMarkdown(ew, d, 0)
 			}
 		} else {
-			ew.println("\n| Attribute | Value |")
-			ew.println("|-----------|-------|")
+			// Table format for flat diffs (backward-compatible).
+			hasBeforeCol := false
 			for _, d := range diffs {
-				val := d.after
-				if d.computed {
-					val = "*(computed)*"
-				} else {
-					val = escapeMarkdownCode(val)
+				if d.before != "" {
+					hasBeforeCol = true
+					break
 				}
-				ew.printf("| `%s` | `%s` |\n", d.key, val)
+			}
+			if hasBeforeCol {
+				ew.println("\n| Attribute | Before | After |")
+				ew.println("|-----------|--------|-------|")
+				for _, d := range diffs {
+					after := d.after
+					if d.computed {
+						after = "*(computed)*"
+					} else {
+						after = escapeMarkdownCode(after)
+					}
+					ew.printf("| `%s` | `%s` | `%s` |\n", d.key, escapeMarkdownCode(d.before), after)
+				}
+			} else {
+				ew.println("\n| Attribute | Value |")
+				ew.println("|-----------|-------|")
+				for _, d := range diffs {
+					val := d.after
+					if d.computed {
+						val = "*(computed)*"
+					} else {
+						val = escapeMarkdownCode(val)
+					}
+					ew.printf("| `%s` | `%s` |\n", d.key, val)
+				}
 			}
 		}
 	}
