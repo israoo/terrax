@@ -60,7 +60,7 @@ export class HistoryTreeProvider implements vscode.TreeDataProvider<HistoryEntry
 
     const result = spawnSync(
       binaryPath,
-      ['history', '--dir', this.workspaceRoot],
+      ['history', '--json', '--dir', this.workspaceRoot],
       { timeout: 10000, encoding: 'utf-8' },
     );
 

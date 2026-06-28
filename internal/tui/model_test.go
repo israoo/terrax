@@ -435,3 +435,150 @@ func TestModel_IsConfirmed(t *testing.T) {
 		})
 	}
 }
+
+func TestModel_GetSelectedStackPaths_Empty(t *testing.T) {
+	root := &stack.Node{
+		Name:     "root",
+		Path:     "/repo",
+		Children: []*stack.Node{{Name: "env", Path: "/repo/env"}},
+	}
+	m := NewModel(root, 1, []string{"plan"}, 3)
+	paths := m.GetSelectedStackPaths()
+	assert.Empty(t, paths)
+}
+
+func TestModel_GetSelectedStackPaths_ReturnsMarked(t *testing.T) {
+	root := &stack.Node{
+		Name:     "root",
+		Path:     "/repo",
+		Children: []*stack.Node{{Name: "env", Path: "/repo/env"}},
+	}
+	m := NewModel(root, 1, []string{"plan"}, 3)
+	m.selectedPaths = map[string]bool{
+		"/repo/env": true,
+		"/repo/app": true,
+	}
+	paths := m.GetSelectedStackPaths()
+	assert.Len(t, paths, 2)
+	assert.Contains(t, paths, "/repo/env")
+	assert.Contains(t, paths, "/repo/app")
+}
+
+func TestModel_HasSelectedPaths(t *testing.T) {
+	root := &stack.Node{Name: "root", Path: "/repo"}
+	m := NewModel(root, 1, []string{"plan"}, 3)
+	assert.False(t, m.HasSelectedPaths())
+
+	m.selectedPaths["/repo/env"] = true
+	assert.True(t, m.HasSelectedPaths())
+}
+
+func TestModel_ToggleSelectedPath_AddsAndRemoves(t *testing.T) {
+	root := &stack.Node{Name: "root", Path: "/repo"}
+	m := NewModel(root, 1, []string{"plan"}, 3)
+
+	m.toggleSelectedPath("/repo/env")
+	assert.True(t, m.selectedPaths["/repo/env"])
+
+	m.toggleSelectedPath("/repo/env")
+	assert.False(t, m.selectedPaths["/repo/env"])
+}
+
+func TestModel_ToggleSelectedPath_NoopWhenAncestorMarked(t *testing.T) {
+	root := &stack.Node{Name: "root", Path: "/repo"}
+	m := NewModel(root, 1, []string{"plan"}, 3)
+
+	m.selectedPaths["/repo/env"] = true
+	m.toggleSelectedPath("/repo/env/dev") // ancestor "/repo/env" is marked
+	assert.False(t, m.selectedPaths["/repo/env/dev"], "descendant should not be added when ancestor is marked")
+	assert.True(t, m.selectedPaths["/repo/env"], "ancestor mark must stay")
+}
+
+func TestModel_ToggleSelectedPath_ExcludesChildFromDirectParent(t *testing.T) {
+	root := &stack.Node{
+		Name: "root",
+		Path: "/repo",
+		Children: []*stack.Node{
+			{
+				Name: "env",
+				Path: "/repo/env",
+				Children: []*stack.Node{
+					{Name: "dev", Path: "/repo/env/dev", IsStack: true},
+					{Name: "prod", Path: "/repo/env/prod", IsStack: true},
+					{Name: "staging", Path: "/repo/env/staging", IsStack: true},
+				},
+			},
+		},
+	}
+	m := NewModel(root, 2, []string{"plan"}, 3)
+	m.width = 120
+	m.height = 30
+	m.columnWidth = 25
+	m.ready = true
+
+	m.selectedPaths["/repo/env"] = true
+	m.toggleSelectedPath("/repo/env/dev")
+
+	assert.False(t, m.selectedPaths["/repo/env"], "parent must be unmarked")
+	assert.False(t, m.selectedPaths["/repo/env/dev"], "pressed child must not be marked")
+	assert.True(t, m.selectedPaths["/repo/env/prod"], "sibling prod must be marked")
+	assert.True(t, m.selectedPaths["/repo/env/staging"], "sibling staging must be marked")
+	assert.Len(t, m.selectedPaths, 2, "only two siblings remain")
+}
+
+func TestModel_ToggleSelectedPath_ExcludesDeepChildFromAncestor(t *testing.T) {
+	root := &stack.Node{
+		Name: "root",
+		Path: "/repo",
+		Children: []*stack.Node{
+			{
+				Name: "env",
+				Path: "/repo/env",
+				Children: []*stack.Node{
+					{Name: "dev", Path: "/repo/env/dev", IsStack: true},
+					{Name: "prod", Path: "/repo/env/prod", IsStack: true},
+				},
+			},
+			{Name: "app", Path: "/repo/app", IsStack: true},
+		},
+	}
+	m := NewModel(root, 2, []string{"plan"}, 3)
+	m.width = 120
+	m.height = 30
+	m.columnWidth = 25
+	m.ready = true
+
+	m.selectedPaths["/repo"] = true
+	m.toggleSelectedPath("/repo/env/dev")
+
+	assert.False(t, m.selectedPaths["/repo"], "root must be unmarked")
+	assert.False(t, m.selectedPaths["/repo/env/dev"], "pressed child must not be marked")
+	assert.False(t, m.selectedPaths["/repo/env"], "intermediate node must not be marked")
+	assert.True(t, m.selectedPaths["/repo/app"], "sibling app must be marked")
+	assert.True(t, m.selectedPaths["/repo/env/prod"], "sibling prod must be marked")
+	assert.Len(t, m.selectedPaths, 2, "app and prod remain")
+}
+
+func TestModel_ToggleSelectedPath_ParentRemovesChildren(t *testing.T) {
+	root := &stack.Node{Name: "root", Path: "/repo"}
+	m := NewModel(root, 1, []string{"plan"}, 3)
+
+	m.selectedPaths["/repo/env/dev"] = true
+	m.selectedPaths["/repo/env/prod"] = true
+
+	m.toggleSelectedPath("/repo/env") // marking parent should remove children
+	assert.True(t, m.selectedPaths["/repo/env"], "parent must be marked")
+	assert.False(t, m.selectedPaths["/repo/env/dev"], "child dev must be removed")
+	assert.False(t, m.selectedPaths["/repo/env/prod"], "child prod must be removed")
+	assert.Len(t, m.selectedPaths, 1, "only parent remains")
+}
+
+func TestModel_ClearSelectedPaths(t *testing.T) {
+	root := &stack.Node{Name: "root", Path: "/repo"}
+	m := NewModel(root, 1, []string{"plan"}, 3)
+	m.selectedPaths["/repo/env"] = true
+	m.selectedPaths["/repo/app"] = true
+
+	m.clearSelectedPaths()
+	assert.Empty(t, m.selectedPaths)
+}

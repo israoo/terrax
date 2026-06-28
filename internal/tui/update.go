@@ -148,14 +148,21 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	// Normal navigation mode (always available)
-	// Normal navigation mode (always available)
+	// Normal navigation mode (always available).
 	switch msg.Type {
 	case tea.KeyCtrlC, tea.KeyEsc:
+		if msg.Type == tea.KeyEsc && m.HasSelectedPaths() {
+			m.clearSelectedPaths()
+			return m, nil
+		}
 		return m, tea.Quit
 
 	case tea.KeyRunes:
 		if msg.String() == KeyQ {
+			if m.HasSelectedPaths() {
+				m.clearSelectedPaths()
+				return m, nil
+			}
 			return m, tea.Quit
 		}
 		if msg.String() == KeySlash {
@@ -178,6 +185,8 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyEnter:
 		return m.handleEnterKey()
+	case tea.KeySpace:
+		return m.handleSpaceKey(), nil
 	case tea.KeyUp:
 		return m.handleVerticalMove(true), nil
 	case tea.KeyDown:
@@ -761,4 +770,23 @@ func (m *Model) moveNavigationSelectionPage(isUp bool) {
 		pageIndex := targetIdx / maxVisibleItems
 		m.scrollOffsets[columnID] = pageIndex * maxVisibleItems
 	}
+}
+
+// handleSpaceKey marks or unmarks the item under the cursor.
+// No-op when the commands column is focused.
+func (m Model) handleSpaceKey() Model {
+	if m.isCommandsColumnFocused() {
+		return m
+	}
+	depth := m.getNavigationDepth()
+	if depth < 0 || depth >= len(m.navState.SelectedIndices) {
+		return m
+	}
+	index := m.navState.SelectedIndices[depth]
+	path := m.navigator.GetPathAtDepthAndIndex(m.navState, depth, index)
+	if path == "" {
+		return m
+	}
+	m.toggleSelectedPath(path)
+	return m
 }

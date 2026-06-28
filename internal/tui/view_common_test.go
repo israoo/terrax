@@ -326,6 +326,30 @@ func TestRenderer_RenderFooter(t *testing.T) {
 	assert.Contains(t, footer, HelpText)
 }
 
+// TestRenderer_RenderFooter_WithMarks tests footer rendering when stacks are marked.
+func TestRenderer_RenderFooter_WithMarks(t *testing.T) {
+	root := &stack.Node{
+		Name:     "root",
+		Path:     "/repo",
+		Children: []*stack.Node{{Name: "env", Path: "/repo/env"}},
+	}
+	m := NewModel(root, 1, []string{"plan"}, 3)
+	m.width = 120
+	m.height = 30
+	m.columnWidth = 25
+	m.ready = true
+	m.selectedPaths["/repo/env"] = true
+	m.selectedPaths["/repo/app"] = true
+
+	layout := NewLayoutCalculator(m.width, m.height, m.columnWidth)
+	r := NewRenderer(m, layout)
+
+	footer := r.renderFooter()
+	assert.Contains(t, footer, "2", "footer should show mark count")
+	assert.Contains(t, footer, "esc", "footer should mention esc to clear")
+	assert.NotContains(t, footer, HelpText, "footer should not show default help text when marks are active")
+}
+
 // TestRenderer_RenderArrowIndicator tests arrow indicator rendering.
 func TestRenderer_RenderArrowIndicator(t *testing.T) {
 	tests := []struct {

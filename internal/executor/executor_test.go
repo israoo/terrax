@@ -569,7 +569,7 @@ func TestBuildTerragruntArgs_TerraformFlags(t *testing.T) {
 
 // TestBuildFilterArgs_PlanOutputFlags tests --json-out-dir injection for review and summary modes.
 func TestBuildFilterArgs_PlanOutputFlags(t *testing.T) {
-	absJSONOutDir := filepath.Join("/repo", config.DefaultJSONOutDir)
+	absJSONOutDir := filepath.ToSlash(filepath.Join("/repo", config.DefaultJSONOutDir))
 	jsonFlag := fmt.Sprintf("--json-out-dir=%s", absJSONOutDir)
 
 	tests := []struct {
@@ -605,6 +605,44 @@ func TestBuildFilterArgs_PlanOutputFlags(t *testing.T) {
 			assert.Equal(t, tt.wantJSONOutDir, found, "Arguments should match expected output.")
 		})
 	}
+
+	t.Run("custom plan.json_out_dir is used", func(t *testing.T) {
+		resetViper()
+		viper.Set("log_format", "pretty")
+		viper.Set("plan.review_enabled", true)
+		viper.Set("plan.json_out_dir", "/custom/plans")
+
+		args := buildFilterArgs("/repo", "plan", []string{"/path/to/stack"})
+
+		want := "--json-out-dir=/custom/plans"
+		found := false
+		for _, a := range args {
+			if a == want {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "expected --json-out-dir=/custom/plans in args, got: %v", args)
+	})
+
+	t.Run("relative plan.json_out_dir is joined with repoRoot", func(t *testing.T) {
+		resetViper()
+		viper.Set("log_format", "pretty")
+		viper.Set("plan.review_enabled", true)
+		viper.Set("plan.json_out_dir", "custom/plans")
+
+		args := buildFilterArgs("/repo", "plan", []string{"/path/to/stack"})
+
+		want := "--json-out-dir=/repo/custom/plans"
+		found := false
+		for _, a := range args {
+			if a == want {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "expected --json-out-dir=/repo/custom/plans in args, got: %v", args)
+	})
 }
 
 // TestBuildTerragruntArgs_PlanSummaryEnabled tests plan.summary_enabled via buildTerragruntArgs.
@@ -621,7 +659,7 @@ func TestBuildTerragruntArgs_PlanSummaryEnabled(t *testing.T) {
 			stackPath:      "/path/to/stack",
 			command:        "plan",
 			summaryEnabled: true,
-			expected:       []string{"run", "--filter", "/path/to/stack", "--log-format", "pretty", "--json-out-dir=" + filepath.Join("/repo", ".terrax", "plans"), "--", "plan"},
+			expected:       []string{"run", "--filter", "/path/to/stack", "--log-format", "pretty", "--json-out-dir=" + filepath.ToSlash(filepath.Join("/repo", ".terrax", "plans")), "--", "plan"},
 		},
 		{
 			name:           "summary disabled produces no --json-out-dir",

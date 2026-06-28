@@ -153,8 +153,19 @@ func buildFilterArgs(repoRoot, command string, filterPaths []string) []string {
 	// Inject --json-out-dir when summary or review mode is active.
 	// Both modes read the JSON plan files — review for the TUI, summary for terminal output.
 	if command == "plan" && (viper.GetBool("plan.summary_enabled") || viper.GetBool("plan.review_enabled")) {
-		absJSONOutDir := filepath.Join(repoRoot, config.DefaultJSONOutDir)
-		args = append(args, fmt.Sprintf("--json-out-dir=%s", absJSONOutDir))
+		jsonOutDir := viper.GetString("plan.json_out_dir")
+		if jsonOutDir == "" {
+			jsonOutDir = config.DefaultJSONOutDir
+		}
+		var absJSONOutDir string
+		// filepath.IsAbs treats Unix-rooted paths (e.g. "/custom/plans") as non-absolute on
+		// Windows. Check for a leading slash explicitly to handle cross-platform configs.
+		if filepath.IsAbs(jsonOutDir) || strings.HasPrefix(jsonOutDir, "/") {
+			absJSONOutDir = jsonOutDir
+		} else {
+			absJSONOutDir = filepath.Join(repoRoot, jsonOutDir)
+		}
+		args = append(args, fmt.Sprintf("--json-out-dir=%s", filepath.ToSlash(absJSONOutDir)))
 	}
 
 	args = append(args, "--", command)

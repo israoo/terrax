@@ -7,6 +7,8 @@
 package tui
 
 import (
+	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -89,6 +91,9 @@ type Model struct {
 
 	// State flags
 	ready bool
+
+	// Multi-stack selection
+	selectedPaths map[string]bool // absolute paths of explicitly marked nodes
 }
 
 // NewModel creates a new TUI model instance.
@@ -116,6 +121,7 @@ func NewModel(stackRoot *stack.Node, maxDepth int, commands []string, maxNavigat
 		historyCursor:        0,
 		selectedHistoryEntry: nil,
 		reExecuteFromHistory: false,
+		selectedPaths:        make(map[string]bool),
 	}
 
 	navigator.PropagateSelection(navState)
@@ -132,6 +138,7 @@ func NewHistoryModel(historyEntries []history.ExecutionLogEntry) Model {
 		ready:                false,
 		selectedHistoryEntry: nil,
 		reExecuteFromHistory: false,
+		selectedPaths:        make(map[string]bool),
 	}
 	return m
 }
@@ -183,6 +190,7 @@ func NewPlanReviewModel(report *plan.PlanReport) Model {
 		planTargetStats:          targetStats,
 		planDependencyStats:      dependencyStats,
 		ready:                    false,
+		selectedPaths:            make(map[string]bool),
 	}
 }
 
@@ -498,4 +506,118 @@ func (m Model) ShouldReExecuteFromHistory() bool {
 // Returns nil if no entry was selected.
 func (m Model) GetSelectedHistoryEntry() *history.ExecutionLogEntry {
 	return m.selectedHistoryEntry
+}
+
+// GetSelectedStackPaths returns all explicitly marked paths as a sorted slice.
+// Returns nil when no paths are marked.
+func (m Model) GetSelectedStackPaths() []string {
+	if len(m.selectedPaths) == 0 {
+		return nil
+	}
+	paths := make([]string, 0, len(m.selectedPaths))
+	for p := range m.selectedPaths {
+		paths = append(paths, p)
+	}
+	sort.Strings(paths)
+	return paths
+}
+
+// HasSelectedPaths returns true when at least one path is marked.
+func (m Model) HasSelectedPaths() bool {
+	return len(m.selectedPaths) > 0
+}
+
+// toggleSelectedPath adds path to selectedPaths if absent, removes it if present.
+// When adding a path, existing descendant marks are removed — the parent covers them.
+// When pressing Space on a child whose ancestor is marked, the ancestor is removed and
+// all sibling branches are marked, leaving only the pressed child unmarked.
+// Paths are normalized to forward slashes for cross-platform consistency.
+func (m *Model) toggleSelectedPath(path string) {
+	path = filepath.ToSlash(path)
+	if path == "" {
+		return
+	}
+	if hasMarkedAncestor(path, m.selectedPaths) {
+		m.excludeChildFromAncestorMark(path)
+		return
+	}
+	if m.selectedPaths[path] {
+		delete(m.selectedPaths, path)
+	} else {
+		removeDescendants(path, m.selectedPaths)
+		m.selectedPaths[path] = true
+	}
+}
+
+// excludeChildFromAncestorMark removes the closest marked ancestor and expands it to
+// all sibling branches, leaving childPath itself unmarked.
+// childPath must already be forward-slash normalized.
+func (m *Model) excludeChildFromAncestorMark(childPath string) {
+	ancestorPath := findClosestMarkedAncestor(childPath, m.selectedPaths)
+	if ancestorPath == "" {
+		return
+	}
+	ancestorNode := m.navigator.FindNodeByPath(ancestorPath)
+	if ancestorNode == nil {
+		return
+	}
+	delete(m.selectedPaths, ancestorPath)
+	expandSiblingsExcluding(ancestorNode, childPath, m.selectedPaths)
+}
+
+// expandSiblingsExcluding walks from node toward childPath, adding all sibling branches
+// that are NOT on the path to childPath. childPath itself is never added.
+// All path comparisons use forward slashes for cross-platform consistency.
+func expandSiblingsExcluding(node *stack.Node, childPath string, selectedPaths map[string]bool) {
+	for _, child := range node.Children {
+		childN := filepath.ToSlash(child.Path)
+		if childN == childPath {
+			// Exact target — skip, but keep iterating over remaining siblings.
+			continue
+		}
+		if strings.HasPrefix(childPath, childN+"/") {
+			// On the path toward childPath — recurse without marking this intermediate node.
+			expandSiblingsExcluding(child, childPath, selectedPaths)
+		} else {
+			// Sibling branch — mark it (normalized).
+			selectedPaths[childN] = true
+		}
+	}
+}
+
+// removeDescendants deletes all entries in selectedPaths that are descendants of path.
+// Uses forward slashes for cross-platform consistency.
+func removeDescendants(path string, selectedPaths map[string]bool) {
+	prefix := filepath.ToSlash(path) + "/"
+	for p := range selectedPaths {
+		if strings.HasPrefix(p, prefix) {
+			delete(selectedPaths, p)
+		}
+	}
+}
+
+// clearSelectedPaths removes all marks.
+func (m *Model) clearSelectedPaths() {
+	m.selectedPaths = make(map[string]bool)
+}
+
+// hasMarkedAncestor returns true if any strict ancestor directory of path
+// is present in selectedPaths.
+func hasMarkedAncestor(path string, selectedPaths map[string]bool) bool {
+	return findClosestMarkedAncestor(path, selectedPaths) != ""
+}
+
+// findClosestMarkedAncestor returns the nearest ancestor path present in selectedPaths,
+// or empty string if none. Normalizes to forward slashes for cross-platform consistency.
+func findClosestMarkedAncestor(path string, selectedPaths map[string]bool) string {
+	prev := path
+	cur := filepath.ToSlash(filepath.Dir(path))
+	for cur != prev {
+		if selectedPaths[cur] {
+			return cur
+		}
+		prev = cur
+		cur = filepath.ToSlash(filepath.Dir(cur))
+	}
+	return ""
 }

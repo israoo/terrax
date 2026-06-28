@@ -61,11 +61,11 @@ Complete audit trail of all command executions with persistent history. View, se
 
 ### ✔︎ Quick command re-execution
 
-Re-run the last executed command instantly with `--last` flag, browse full history interactively with `--history`, or reopen the plan review TUI without re-running with `--review`.
+Re-run the last executed command instantly with `terrax last`, browse full history interactively with `terrax history`, reopen the plan review TUI without re-running with `terrax review`, or print a terminal summary of pending changes with `terrax summary`.
 
 ### ✔︎ Plan summary and interactive review
 
-After running `plan`, TerraX can show a grouped terminal summary (no-changes vs pending-changes) and/or launch an interactive review TUI with resource-level diffs. Enable via `plan.summary_enabled` and `plan.review_enabled` in `.terrax.yaml`.
+After running `plan`, TerraX can show a grouped terminal summary (no-changes vs pending-changes) and/or launch an interactive review TUI with resource-level diffs. Enable automatic summary via `plan.summary_enabled` in `.terrax.yaml`, or invoke it on demand with `terrax summary`. Enable the review TUI via `plan.review_enabled`, or reopen it anytime with `terrax review`.
 
 ### ✔︎ Smart dependency resolution
 
@@ -220,8 +220,9 @@ history:
 
 # Plan analysis (requires plan in commands list)
 plan:
-  review_enabled: true    # Launch interactive plan review TUI after plan
-  summary_enabled: false  # Print grouped terminal summary after plan
+  review_enabled: true        # Launch interactive plan review TUI after plan
+  summary_enabled: false      # Print grouped terminal summary after plan
+  json_out_dir: ".terrax/plans"  # Output directory for Terragrunt --json-out-dir (relative to repo root or absolute)
 
 # Feature shortcuts — map to Terragrunt flags
 features:
@@ -248,6 +249,7 @@ features:
 | `history.max_entries` | integer | `500` | Maximum number of history entries to keep |
 | `plan.review_enabled` | bool | `true` | Launch plan review TUI after running plan |
 | `plan.summary_enabled` | bool | `false` | Print terminal summary after running plan |
+| `plan.json_out_dir` | string | `.terrax/plans` | Directory for Terragrunt JSON plan output (relative to repo root or absolute) |
 | `state.bucket` | string | — | S3 bucket for Terraform state (force-unlock) |
 | `state.project` | string | — | S3 key prefix for Terraform state (force-unlock) |
 
@@ -272,11 +274,17 @@ features:
 # Interactive mode: Navigate and select stacks/commands
 terrax
 
-# View execution history for current project
-terrax --history
+# View execution history interactively
+terrax history
 
 # Re-execute the last command from history
-terrax --last       # or -l
+terrax last
+
+# Open plan review TUI without re-running
+terrax review
+
+# Print terminal summary of pending plan changes
+terrax summary
 
 # Execute a command directly without opening the TUI
 terrax run plan --dir ./path/to/stack
@@ -285,7 +293,7 @@ terrax run plan --dir ./path/to/stack
 terrax tree --json --dir .
 
 # Output execution history as JSON (used by VS Code extension)
-terrax history --dir .
+terrax history --json --dir .
 
 # Display version information
 terrax --version
@@ -356,7 +364,7 @@ terrax
 View and manage your execution history:
 
 ```bash
-terrax --history
+terrax history
 ```
 
 **History table view:**
@@ -392,10 +400,21 @@ Showing 1-3 of 12 entries | Use ↑/↓ to navigate | Press Enter to re-execute 
 Re-run the most recent command instantly:
 
 ```bash
-terrax --last  # or -l
+terrax last
 ```
 
 This executes the last command from your project's history without opening the TUI.
+
+### Plan summary on demand
+
+Print a terminal summary of pending vs. no-change stacks from existing plan files:
+
+```bash
+terrax summary
+terrax summary --dir ./path/to/project
+```
+
+Reads from the configured plans directory (default `.terrax/plans/`) — run `plan` first, or enable `plan.summary_enabled: true` for automatic output after each plan run. Use `--plans-dir` to point at a custom directory.
 
 ---
 
@@ -652,7 +671,7 @@ After you confirm your selection (pressing Enter), TerraX:
    ═══════════════════════════════════════
      ✅ Selection confirmed
    ═══════════════════════════════════════
-   Command:    plan
+   Command: plan
    Stack Path: /infrastructure/vpc
    ═══════════════════════════════════════
    ```

@@ -24,6 +24,7 @@ const (
 	ColumnStylePadding  = 6  // Column padding (unfocused: 2,3 = 6 total)
 	EllipsisWidth       = 3  // Width of truncation ellipsis "..."
 	MinItemTextWidth    = 10 // Minimum width for item text
+	MarkerWidth         = 4  // Width of selection marker prefix "● " rendered by Lipgloss
 	BreadcrumbLineCount = 1  // Number of lines for breadcrumb bar
 
 	// Plan Review Layout
@@ -55,12 +56,13 @@ const (
 
 // UI Text
 const (
-	AppTitle       = "TerraX - Terragrunt eXecutor"
-	CommandsTitle  = "Commands"
-	StacksTitle    = "Stacks"
-	HelpText       = "↑↓: navigate | ←→: change column | enter: select/confirm | q/esc: quit"
-	PlanHelpText   = "↑↓: navigate | ←→: change column | PgUp/PgDn: scroll | q/esc: quit"
-	NoItemSelected = "None"
-	Initializing   = "Initializing..."
-	ScanningStacks = "Scanning stacks..."
+	AppTitle          = "TerraX - Terragrunt eXecutor"
+	CommandsTitle     = "Commands"
+	StacksTitle       = "Stacks"
+	HelpText          = "↑↓: navigate | ←→: change column | enter: select/confirm | q/esc: quit"
+	HelpTextWithMarks = "space: mark/unmark | ↑↓: navigate | enter: run on marked (%d) | esc: clear all | q: quit"
+	PlanHelpText      = "↑↓: navigate | ←→: change column | PgUp/PgDn: scroll | q/esc: quit"
+	NoItemSelected    = "None"
+	Initializing      = "Initializing..."
+	ScanningStacks    = "Scanning stacks..."
 )

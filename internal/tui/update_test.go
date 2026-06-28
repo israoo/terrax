@@ -1723,3 +1723,109 @@ func TestModel_GetFilteredNavigationItems(t *testing.T) {
 		})
 	}
 }
+
+func TestModel_SpaceKey_MarksCurrentItem(t *testing.T) {
+	root := &stack.Node{
+		Name: "root",
+		Path: "/repo",
+		Children: []*stack.Node{
+			{Name: "env", Path: "/repo/env", IsStack: true},
+		},
+	}
+	m := NewModel(root, 1, []string{"plan"}, 3)
+	m.width = 120
+	m.height = 30
+	m.columnWidth = 25
+	m.ready = true
+	m.focusedColumn = 1 // First nav column (depth 0)
+
+	msg := tea.KeyMsg{Type: tea.KeySpace}
+	updated, _ := m.handleKeyPress(msg)
+	finalModel := updated.(Model)
+
+	assert.True(t, finalModel.HasSelectedPaths(), "space should mark the current item")
+	assert.Contains(t, finalModel.selectedPaths, "/repo/env")
+}
+
+func TestModel_SpaceKey_UnmarksAlreadyMarked(t *testing.T) {
+	root := &stack.Node{
+		Name: "root",
+		Path: "/repo",
+		Children: []*stack.Node{
+			{Name: "env", Path: "/repo/env", IsStack: true},
+		},
+	}
+	m := NewModel(root, 1, []string{"plan"}, 3)
+	m.width = 120
+	m.height = 30
+	m.columnWidth = 25
+	m.ready = true
+	m.focusedColumn = 1
+	m.selectedPaths["/repo/env"] = true
+
+	msg := tea.KeyMsg{Type: tea.KeySpace}
+	updated, _ := m.handleKeyPress(msg)
+	finalModel := updated.(Model)
+
+	assert.False(t, finalModel.HasSelectedPaths(), "second space should unmark the item")
+}
+
+func TestModel_SpaceKey_CommandsColumn_Noop(t *testing.T) {
+	root := &stack.Node{
+		Name: "root",
+		Path: "/repo",
+		Children: []*stack.Node{
+			{Name: "env", Path: "/repo/env", IsStack: true},
+		},
+	}
+	m := NewModel(root, 1, []string{"plan"}, 3)
+	m.width = 120
+	m.height = 30
+	m.columnWidth = 25
+	m.ready = true
+	m.focusedColumn = 0 // Commands column
+
+	msg := tea.KeyMsg{Type: tea.KeySpace}
+	updated, _ := m.handleKeyPress(msg)
+	finalModel := updated.(Model)
+
+	assert.False(t, finalModel.HasSelectedPaths(), "space on commands column should be a no-op")
+}
+
+func TestModel_EscKey_ClearsMarksBeforeQuit(t *testing.T) {
+	root := &stack.Node{Name: "root", Path: "/repo"}
+	m := NewModel(root, 1, []string{"plan"}, 3)
+	m.ready = true
+	m.selectedPaths["/repo/env"] = true
+
+	msg := tea.KeyMsg{Type: tea.KeyEsc}
+	updated, cmd := m.handleKeyPress(msg)
+	finalModel := updated.(Model)
+
+	assert.Nil(t, cmd, "first esc with marks should clear, not quit")
+	assert.False(t, finalModel.HasSelectedPaths(), "marks should be cleared")
+}
+
+func TestModel_EnterKey_WithMarks_UsesMarkedPaths(t *testing.T) {
+	root := &stack.Node{
+		Name: "root",
+		Path: "/repo",
+		Children: []*stack.Node{
+			{Name: "env", Path: "/repo/env", IsStack: true},
+		},
+	}
+	m := NewModel(root, 1, []string{"plan"}, 3)
+	m.width = 120
+	m.height = 30
+	m.columnWidth = 25
+	m.ready = true
+	m.focusedColumn = 1
+	m.selectedPaths["/repo/env"] = true
+
+	updated, cmd := m.handleEnterKey()
+	finalModel := updated.(Model)
+
+	assert.NotNil(t, cmd, "enter with marks should return quit")
+	assert.True(t, finalModel.confirmed)
+	assert.True(t, finalModel.HasSelectedPaths(), "marks remain after confirmation")
+}

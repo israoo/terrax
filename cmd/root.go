@@ -58,10 +58,8 @@ func init() {
 	rootCmd.SilenceUsage = true
 	rootCmd.SilenceErrors = true // main.go handles error printing to avoid duplicates.
 
-	rootCmd.Flags().BoolP("last", "l", false, "Execute the last command from history")
-	rootCmd.Flags().Bool("history", false, "View execution history interactively")
-	rootCmd.Flags().BoolP("review", "r", false, "Open the plan review TUI from the last plan execution without re-running")
 	rootCmd.Flags().String("dir", "", "Working directory (overrides current directory)")
+	rootCmd.Flags().String("plans-dir", "", "Directory for JSON plan output files (overrides plan.json_out_dir in config)")
 }
 
 // Execute runs the root command.
@@ -99,6 +97,7 @@ func initConfig() {
 	viper.SetDefault("terragrunt.no_color", config.DefaultNoColor)
 	viper.SetDefault("plan.review_enabled", config.DefaultPlanReviewEnabled)
 	viper.SetDefault("plan.summary_enabled", config.DefaultPlanSummaryEnabled)
+	viper.SetDefault("plan.json_out_dir", config.DefaultJSONOutDir)
 	viper.SetDefault("include_dependencies", config.DefaultIncludeDependencies)
 
 	viper.SetConfigName(".terrax")
@@ -162,7 +161,7 @@ func getHistoryService() (*history.Service, error) {
 	return history.NewService(repo, rootConfigFile), nil
 }
 
-// runTUI starts the TUI application or executes the last command if --last flag is set.
+// runTUI starts the TUI application.
 func runTUI(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 
@@ -170,18 +169,6 @@ func runTUI(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-
-	lastFlag, _ := cmd.Flags().GetBool("last")
-	if lastFlag {
-		return executeLastCommand(ctx, historyService)
-	}
-
-	historyFlag, _ := cmd.Flags().GetBool("history")
-	if historyFlag {
-		return runHistoryViewer(ctx, historyService)
-	}
-
-	reviewFlag, _ := cmd.Flags().GetBool("review")
 
 	dirFlag, _ := cmd.Flags().GetString("dir")
 	workDir, err := getWorkingDirectory(dirFlag)
@@ -191,8 +178,8 @@ func runTUI(cmd *cobra.Command, args []string) error {
 	workDir = resolveWorkDir(workDir)
 	ensureConfigFromWorkDir(workDir)
 
-	if reviewFlag {
-		return runPlanReview(ctx, workDir)
+	if plansDir, _ := cmd.Flags().GetString("plans-dir"); plansDir != "" {
+		viper.Set("plan.json_out_dir", plansDir)
 	}
 
 	stackRoot, maxDepth, err := buildStackTree(workDir)
@@ -222,14 +209,37 @@ func runTUI(cmd *cobra.Command, args []string) error {
 		command := model.GetSelectedCommand()
 		stackPath := model.GetSelectedStackPath()
 
+		var execPaths []string
+		if model.HasSelectedPaths() {
+			execPaths = model.GetSelectedStackPaths()
+		} else {
+			execPaths = []string{stackPath}
+		}
+		primaryPath := execPaths[0]
+
 		if command == "force-unlock" {
-			return runForceUnlock(ctx, historyService, stackPath)
+			for _, p := range execPaths {
+				if err := runForceUnlock(ctx, historyService, p); err != nil {
+					return err
+				}
+			}
+			return nil
 		}
 
-		repoRoot, filterPaths := collectTransitiveDeps(stackPath)
+		repoRoot, filterPaths := collectTransitiveDeps(execPaths)
 
 		if command == "plan" && (viper.GetBool("plan.summary_enabled") || viper.GetBool("plan.review_enabled")) {
-			_ = os.RemoveAll(filepath.Join(repoRoot, config.DefaultOutputDir))
+			jsonOutDir := viper.GetString("plan.json_out_dir")
+			if jsonOutDir == "" {
+				jsonOutDir = config.DefaultJSONOutDir
+			}
+			var absPlansDir string
+			if filepath.IsAbs(jsonOutDir) {
+				absPlansDir = jsonOutDir
+			} else {
+				absPlansDir = filepath.Join(repoRoot, jsonOutDir)
+			}
+			_ = os.RemoveAll(absPlansDir)
 		}
 
 		groups, err := buildGroupedExecution(filterPaths, repoRoot)
@@ -240,17 +250,17 @@ func runTUI(cmd *cobra.Command, args []string) error {
 			if group.Skip {
 				continue
 			}
-			if err := executor.Run(ctx, historyService, command, stackPath, repoRoot, group.Paths, group.EnvVars); err != nil {
+			if err := executor.Run(ctx, historyService, command, primaryPath, repoRoot, group.Paths, group.EnvVars); err != nil {
 				return err
 			}
 		}
 		if command == "plan" && viper.GetBool("plan.summary_enabled") {
-			if err := runPlanSummary(ctx, stackPath, repoRoot); err != nil {
+			if err := runPlanSummary(ctx, primaryPath, repoRoot); err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: plan summary failed: %v\n", err)
 			}
 		}
 		if command == "plan" && viper.GetBool("plan.review_enabled") {
-			return runPlanReview(ctx, stackPath)
+			return runPlanReview(ctx, primaryPath)
 		}
 
 		return nil
@@ -340,160 +350,28 @@ func displayResults(model tui.Model) {
 	fmt.Println("═══════════════════════════════════════")
 	fmt.Println("  ✅ Selection confirmed")
 	fmt.Println("═══════════════════════════════════════")
-	fmt.Printf("Command:    %s\n", model.GetSelectedCommand())
-	fmt.Printf("Stack Path: %s\n", model.GetSelectedStackPath())
-	fmt.Println("═══════════════════════════════════════")
-	fmt.Println()
-}
+	fmt.Printf("Command: %s\n", model.GetSelectedCommand())
 
-// executeLastCommand retrieves and executes the most recent command from history for the current project.
-func executeLastCommand(ctx context.Context, historyService *history.Service) error {
-	lastEntry, err := historyService.GetLastExecutionForProject(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get last execution: %w", err)
-	}
-
-	if lastEntry == nil {
-		fmt.Println("⚠️  No execution history found for this project")
-		fmt.Println("Run terrax interactively first to build history")
-		return nil
-	}
-
-	fmt.Println("═══════════════════════════════════════")
-	fmt.Println("  🔄 Re-executing last command")
-	fmt.Println("═══════════════════════════════════════")
-	fmt.Printf("Command:    %s\n", lastEntry.Command)
-	fmt.Printf("Stack Path: %s\n", lastEntry.StackPath)
-	fmt.Printf("Previous:   %s (exit code: %d)\n", lastEntry.Timestamp.Format("2006-01-02 15:04:05"), lastEntry.ExitCode)
-	fmt.Println("═══════════════════════════════════════")
-	fmt.Println()
-
-	// (StackPath is relative for display, AbsolutePath is for execution)
-	absolutePath := lastEntry.AbsolutePath
-	if absolutePath == "" {
-		// Backward compatibility: old entries only have StackPath (which was absolute)
-		absolutePath = lastEntry.StackPath
-	}
-
-	if lastEntry.Command == "force-unlock" {
-		return runForceUnlock(ctx, historyService, absolutePath)
-	}
-
-	repoRoot, filterPaths := collectTransitiveDeps(absolutePath)
-
-	if lastEntry.Command == "plan" && (viper.GetBool("plan.summary_enabled") || viper.GetBool("plan.review_enabled")) {
-		_ = os.RemoveAll(filepath.Join(repoRoot, config.DefaultOutputDir))
-	}
-
-	groups, err := buildGroupedExecution(filterPaths, repoRoot)
-	if err != nil {
-		return fmt.Errorf("failed to build group execution plan: %w", err)
-	}
-	for _, group := range groups {
-		if group.Skip {
-			continue
+	if model.HasSelectedPaths() {
+		paths := model.GetSelectedStackPaths()
+		rootConfigFile := viper.GetString("root_config_file")
+		if rootConfigFile == "" {
+			rootConfigFile = config.DefaultRootConfigFile
 		}
-		if err := executor.Run(ctx, historyService, lastEntry.Command, absolutePath, repoRoot, group.Paths, group.EnvVars); err != nil {
-			return err
-		}
-	}
-	if lastEntry.Command == "plan" && viper.GetBool("plan.summary_enabled") {
-		if err := runPlanSummary(ctx, absolutePath, repoRoot); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: plan summary failed: %v\n", err)
-		}
-	}
-	if lastEntry.Command == "plan" && viper.GetBool("plan.review_enabled") {
-		return runPlanReview(ctx, absolutePath)
-	}
-
-	return nil
-}
-
-// runHistoryViewer loads and displays the execution history in an interactive TUI.
-// It filters the history to show only entries from the current project.
-// If the user selects an entry and presses Enter, it re-executes that command.
-func runHistoryViewer(ctx context.Context, historyService *history.Service) error {
-	entries, err := historyService.LoadAll(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to load history: %w", err)
-	}
-
-	filteredEntries, err := historyService.FilterByCurrentProject(entries)
-	if err != nil {
-		// Log warning but continue with unfiltered entries
-		fmt.Fprintf(os.Stderr, "Warning: Failed to filter history: %v\n", err)
-		filteredEntries = entries
-	}
-
-	initialModel := tui.NewHistoryModel(filteredEntries)
-
-	// Note: History viewer uses Stderr specifically, so we don't use the shared runBubbleTeaProgram helper here
-	// unless we update it to support custom output.
-	p := tea.NewProgram(
-		initialModel,
-		tea.WithAltScreen(),
-		tea.WithOutput(os.Stderr),
-	)
-
-	finalModel, err := p.Run()
-	if err != nil {
-		return fmt.Errorf("history viewer error: %w", err)
-	}
-
-	model, ok := finalModel.(tui.Model)
-	if !ok {
-		return fmt.Errorf("unexpected model type")
-	}
-
-	if model.ShouldReExecuteFromHistory() {
-		entry := model.GetSelectedHistoryEntry()
-		if entry != nil {
-			fmt.Fprintf(os.Stderr, "\n🔄 Re-executing command from history...\n")
-			fmt.Fprintf(os.Stderr, "Command: %s\n", entry.Command)
-			fmt.Fprintf(os.Stderr, "Path: %s\n\n", entry.StackPath)
-
-			absolutePath := entry.AbsolutePath
-			if absolutePath == "" {
-				// Backward compatibility: old entries only have StackPath (which was absolute)
-				absolutePath = entry.StackPath
-			}
-
-			if entry.Command == "force-unlock" {
-				return runForceUnlock(ctx, historyService, absolutePath)
-			}
-
-			repoRoot, filterPaths := collectTransitiveDeps(absolutePath)
-
-			if entry.Command == "plan" && (viper.GetBool("plan.summary_enabled") || viper.GetBool("plan.review_enabled")) {
-				_ = os.RemoveAll(filepath.Join(repoRoot, config.DefaultOutputDir))
-			}
-
-			groups, err := buildGroupedExecution(filterPaths, repoRoot)
+		repoRoot := deps.FindRepoRoot(paths[0], rootConfigFile)
+		fmt.Printf("Stacks (%d):\n", len(paths))
+		for _, p := range paths {
+			rel, err := filepath.Rel(repoRoot, p)
 			if err != nil {
-				return fmt.Errorf("failed to build group execution plan: %w", err)
+				rel = p
 			}
-			for _, group := range groups {
-				if group.Skip {
-					continue
-				}
-				if err := executor.Run(ctx, historyService, entry.Command, absolutePath, repoRoot, group.Paths, group.EnvVars); err != nil {
-					return err
-				}
-			}
-			if entry.Command == "plan" && viper.GetBool("plan.summary_enabled") {
-				if err := runPlanSummary(ctx, absolutePath, repoRoot); err != nil {
-					fmt.Fprintf(os.Stderr, "Warning: plan summary failed: %v\n", err)
-				}
-			}
-			if entry.Command == "plan" && viper.GetBool("plan.review_enabled") {
-				return runPlanReview(ctx, absolutePath)
-			}
-
-			return nil
+			fmt.Printf("  • %s\n", rel)
 		}
+	} else {
+		fmt.Printf("Stack Path: %s\n", model.GetSelectedStackPath())
 	}
-
-	return nil
+	fmt.Println("═══════════════════════════════════════")
+	fmt.Println()
 }
 
 // runForceUnlock discovers the state lock ID from S3 and executes force-unlock.
@@ -564,31 +442,37 @@ func runForceUnlock(ctx context.Context, historyService *history.Service, absolu
 	return nil
 }
 
-// collectTransitiveDeps computes the filter list for summary mode.
+// collectTransitiveDeps computes the filter list for one or more stack paths.
 // When include_dependencies is true, transitive dependencies are resolved
 // via static HCL parsing and included in the filter list.
 // When false, only the selected stack(s) are included — no dependency traversal.
 // Non-leaf directories are expanded to all leaf stacks they contain via CollectStackPaths.
-func collectTransitiveDeps(stackPath string) (repoRoot string, filterPaths []string) {
+// All paths must reside under the same repository root; repoRoot is derived from stackPaths[0].
+func collectTransitiveDeps(stackPaths []string) (repoRoot string, filterPaths []string) {
+	if len(stackPaths) == 0 {
+		return "", nil
+	}
+
 	rootConfigFile := viper.GetString("root_config_file")
 	if rootConfigFile == "" {
 		rootConfigFile = config.DefaultRootConfigFile
 	}
-	repoRoot = deps.FindRepoRoot(stackPath, rootConfigFile)
+	repoRoot = deps.FindRepoRoot(stackPaths[0], rootConfigFile)
 	includeExternal := viper.GetBool("include_dependencies")
 
-	// Seed the queue: if the path is a leaf stack, start with it alone.
-	// If it is a directory containing multiple stacks, seed with all of them.
+	// Seed the BFS queue from all input paths, expanding non-leaf directories.
 	var seeds []string
-	hclFile := filepath.Join(stackPath, "terragrunt.hcl")
-	if _, err := os.Stat(hclFile); err == nil {
-		seeds = []string{stackPath}
-	} else {
-		leafPaths, err := stack.CollectStackPaths(stackPath)
-		if err != nil || len(leafPaths) == 0 {
-			seeds = []string{stackPath} // fallback
+	for _, stackPath := range stackPaths {
+		hclFile := filepath.Join(stackPath, "terragrunt.hcl")
+		if _, err := os.Stat(hclFile); err == nil {
+			seeds = append(seeds, stackPath)
 		} else {
-			seeds = leafPaths
+			leafPaths, err := stack.CollectStackPaths(stackPath)
+			if err != nil || len(leafPaths) == 0 {
+				seeds = append(seeds, stackPath) // fallback.
+			} else {
+				seeds = append(seeds, leafPaths...)
+			}
 		}
 	}
 
@@ -623,9 +507,18 @@ func collectTransitiveDeps(stackPath string) (repoRoot string, filterPaths []str
 	return repoRoot, filterPaths
 }
 
-// runPlanSummary reads JSON plan files from repoRoot/.terrax/plans and prints a terminal count summary.
+// runPlanSummary reads JSON plan files from the configured plans directory and prints a terminal count summary.
 func runPlanSummary(ctx context.Context, stackPath, repoRoot string) error {
-	dir := filepath.Join(repoRoot, config.DefaultJSONOutDir)
+	jsonOutDir := viper.GetString("plan.json_out_dir")
+	if jsonOutDir == "" {
+		jsonOutDir = config.DefaultJSONOutDir
+	}
+	var dir string
+	if filepath.IsAbs(jsonOutDir) {
+		dir = jsonOutDir
+	} else {
+		dir = filepath.Join(repoRoot, jsonOutDir)
+	}
 	_, err := plan.Summarize(ctx, dir, repoRoot)
 	return err
 }
@@ -646,7 +539,16 @@ func runPlanReview(ctx context.Context, stackPath string) error {
 	if repoRoot == "" {
 		repoRoot = stackPath
 	}
-	jsonDir := filepath.Join(repoRoot, config.DefaultJSONOutDir)
+	jsonOutDir := viper.GetString("plan.json_out_dir")
+	if jsonOutDir == "" {
+		jsonOutDir = config.DefaultJSONOutDir
+	}
+	var jsonDir string
+	if filepath.IsAbs(jsonOutDir) {
+		jsonDir = jsonOutDir
+	} else {
+		jsonDir = filepath.Join(repoRoot, jsonOutDir)
+	}
 
 	if _, err := os.Stat(jsonDir); os.IsNotExist(err) {
 		return fmt.Errorf("no plan results found — run a plan first (terrax with plan.review_enabled: true)")

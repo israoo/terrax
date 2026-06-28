@@ -43,7 +43,7 @@ func runGroupsCmd(cmd *cobra.Command, args []string) error {
 	}
 	ensureConfigFromWorkDir(workDir)
 
-	repoRoot, filterPaths := collectTransitiveDeps(workDir)
+	repoRoot, filterPaths := collectTransitiveDeps([]string{workDir})
 
 	groups, err := buildGroupedExecution(filterPaths, repoRoot)
 	if err != nil {

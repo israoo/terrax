@@ -149,6 +149,13 @@ plan:
   # Default: false
   # summary_enabled: true
 
+  # Directory where Terragrunt writes --json-out-dir plan output files.
+  # Used by terrax plan (generator), terrax review, and terrax summary (readers).
+  # Can be overridden per-invocation with the --plans-dir flag.
+  # Relative paths are resolved from the repository root; absolute paths are used as-is.
+  # Default: ".terrax/plans"
+  json_out_dir: ".terrax/plans"
+
 # Stack group classification
 # Stacks matching a group's detect string in their stack.hcl are assigned to that group.
 # Each group runs as a separate terragrunt run, in depends_on order.
