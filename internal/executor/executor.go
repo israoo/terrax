@@ -8,6 +8,7 @@ package executor
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -85,6 +86,36 @@ func Run(ctx context.Context, historyLogger HistoryLogger, command, absoluteStac
 	logExecutionToHistory(ctx, historyLogger, nextID, startTime, command, absoluteStackPath, exitCode, duration, summary)
 
 	return execErr
+}
+
+// RunStreaming executes a Terragrunt command and writes all stdout/stderr to writer.
+// Unlike Run, it does not log to history — callers are responsible for logging
+// after receiving the exit code. Cancelling ctx terminates the subprocess.
+func RunStreaming(ctx context.Context, writer io.Writer, command, absoluteStackPath, repoRoot string, filterPaths []string, envVars map[string]string) error {
+	args := buildFilterArgs(repoRoot, command, filterPaths)
+
+	cmd := exec.CommandContext(ctx, "terragrunt", args...)
+	cmd.Dir = repoRoot
+
+	if len(envVars) > 0 {
+		existing := os.Environ()
+		merged := make([]string, 0, len(existing)+len(envVars))
+		for _, entry := range existing {
+			key := entry[:strings.IndexByte(entry, '=')]
+			if _, overridden := envVars[key]; !overridden {
+				merged = append(merged, entry)
+			}
+		}
+		for k, v := range envVars {
+			merged = append(merged, fmt.Sprintf("%s=%s", k, v))
+		}
+		cmd.Env = merged
+	}
+
+	cmd.Stdout = writer
+	cmd.Stderr = writer
+
+	return cmd.Run()
 }
 
 // RunForceUnlock executes a Terraform force-unlock for a specific stack.
