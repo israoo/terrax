@@ -53,13 +53,26 @@ func (r *Renderer) renderHeader() string {
 }
 
 // renderBreadcrumbBar renders the navigation context bar below the header.
+// When the path is too long it truncates from the left, keeping the deepest
+// (most relevant) portion visible and prepending "...".
 func (r *Renderer) renderBreadcrumbBar() string {
 	navPath := r.model.getCurrentNavigationPath()
 
-	// Format breadcrumb - always show the full path
-	content := fmt.Sprintf("📁 %s", navPath)
+	// breadcrumbBarStyle has Padding(0, 2) → 4 chars consumed by padding.
+	// "📁 " prefix: emoji = 2 terminal columns, space = 1 → 3 chars.
+	const iconWidth = 3
+	const styleHPadding = 4
+	maxPathWidth := r.model.width - styleHPadding - iconWidth
+	if maxPathWidth < 1 {
+		maxPathWidth = 1
+	}
 
-	return breadcrumbBarStyle.Width(r.model.width).Render(content)
+	if len(navPath) > maxPathWidth {
+		// Keep the tail; prepend ellipsis so the deepest path segment is always visible.
+		navPath = "..." + navPath[len(navPath)-(maxPathWidth-EllipsisWidth):]
+	}
+
+	return breadcrumbBarStyle.Width(r.model.width).Render("📁 " + navPath)
 }
 
 // renderFooter renders the footer with help text or marks help text when selections are active.
