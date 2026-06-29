@@ -31,3 +31,11 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
+
+      - name: Trigger terrax-action integration tests
+        run: |
+          gh api repos/israoo/terrax-action/dispatches \
+            -f event_type=terrax-released \
+            -f 'client_payload[version]=${{ github.ref_name }}'
+        env:
+          GH_TOKEN: ${{ secrets.TERRAX_ACTION_DISPATCH_TOKEN }}
